@@ -86,10 +86,10 @@ describe('argv 切分（官方钩子的 spawn 形状）', () => {
   });
 
   it('支持带空格的值（日志目录是 Windows 路径）', () => {
-    const result = parseTapArgv(['--log-dir', 'C:/Users/datoo/.zcode/v2/dev/stdio-traffic', '--', 'node']);
+    const result = parseTapArgv(['--log-dir', 'C:/Users/someone/.zcode/v2/dev/stdio-traffic', '--', 'node']);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.parsed.logDir).toBe('C:/Users/datoo/.zcode/v2/dev/stdio-traffic');
+    expect(result.parsed.logDir).toBe('C:/Users/someone/.zcode/v2/dev/stdio-traffic');
   });
 });
 
