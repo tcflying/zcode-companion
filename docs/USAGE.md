@@ -68,7 +68,31 @@ host-child.mjs（隔离层）
 | npm | **>= 11.16.0** | `package.json` 的 `engines.npm` |
 | ZCode 已登录 | 本机凭据仓 `~/.zcode/v2/credentials.json` 里**要有对应套餐的条目**。没有登录 → 启动不报错，但第一次请求会 `CREDENTIAL_ENTRY_MISSING` | `packages/official-host/src/credentials.ts` |
 | 官方安装 | `C:/ZCode/resources/glm/zcode.cjs` 存在。路径可用 `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` 间接定位 | `host-driver.ts` |
-| 依赖 | 在工程根执行一次 `npm install` | — |
+| 依赖 | 工程根 `npm install` **+** `apps/ui` 内再执行一次 `npm install`，两步都要做（见下） | 根 `package.json` **没有 `workspaces` 字段**，`apps/ui` 不在根安装覆盖范围内 |
+
+### 2.1 安装依赖（两步，缺一不可）
+
+```bash
+# Git Bash
+# 1) 工程根
+npm install
+# 2) 再进 apps/ui
+cd apps/ui
+npm install
+cd ../..
+```
+
+```powershell
+# PowerShell
+# 1) 工程根
+npm install
+# 2) 再进 apps/ui
+Push-Location apps/ui
+npm install
+Pop-Location
+```
+
+**为什么必须分两步：** `apps/ui` 有自己的 `package.json`（含 `@types/react` / `@types/react-dom`），而根 `package.json` 未声明 `workspaces`，所以根 `npm install` 不会替它装依赖。漏掉第二步时，`npm run ci` 的 `typecheck:apps`（`tsc --noEmit -p apps/ui/tsconfig.json`）会因为找不到 react 类型直接变红。
 
 检查 ZCode 凭据是否就位（**只读**，不打印任何值）：
 
