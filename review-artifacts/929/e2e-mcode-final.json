@@ -1,0 +1,10 @@
+{
+  "when": "2026-10-02T04:16:48",
+  "client": "MiniMax Code (mcode exec, real client)",
+  "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash (个人订阅)",
+  "effort": "low (mcode --effort low -> reasoning_effort -> thoughtLevel)",
+  "prompt": "只回答四个字：端到端成功。不要使用任何工具。",
+  "answer": "端到端成功，主上。",
+  "chain": "mcode -> custom_provider:zcc-companion -> 127.0.0.1:8790/v1 -> official-host driver -> host-child -> official app-server(隔离) -> 凭据自答(subscription api-key) -> GLM-5.3-Flash -> SSE -> mcode",
+  "status": "PASS"
+}

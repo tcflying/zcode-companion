@@ -1,0 +1,24 @@
+# Dependencies (package-lock.json is NOT ignored - it is the version lock)
+node_modules/
+
+# Build outputs
+dist/
+out/
+release/
+coverage/
+
+# Logs and temp
+*.log
+npm-debug.log*
+tmp/
+.cache/
+# Throwaway probe files written by tests (never a source of record)
+*.tmp.ts
+*.tmp.mjs
+*.tmp.json
+
+# Local secrets - must never be present in this provider-free repo
+.env
+.env.*
+*.pem
+*.key

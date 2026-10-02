@@ -1,0 +1,14 @@
+{
+  "base": "http://127.0.0.1:4320",
+  "chrome": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  "results": [
+    {
+      "id": "28-models-local-api-refresh-failed-keeps-list-full-1280",
+      "file": "C:\\Users\\datoo\\AppData\\Local\\Temp\\ui04-shots\\28-models-local-api-refresh-failed-keeps-list-full-1280.png",
+      "ok": true,
+      "note": "UI04 联调失败态：第一次刷新成功、第二次失败（api_not_running / connection_failed 面板）+ 刷新前读到的旧列表原样保留。**前置：用 `node apps/ui/tools/fixture-catalog-api.mjs --die-after 1` 启动，否则两次刷新都会成功。**",
+      "size": "1280x3422",
+      "bytes": 443394
+    }
+  ]
+}

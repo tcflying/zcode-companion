@@ -1,0 +1,23 @@
+npm warn Unknown user config "electron_mirror". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+> zcode-companion@0.1.0 api:start
+> node packages/api/bin/start-api.mjs --driver official-host
+
+zcc-api official-host reasoning=low (闭集 low|high|max；不猜) host_debug=0 permission_mode=yolo tool_policy=allow — 官方 bundle 由子宿主 **spawn 成独立 app-server 进程**（node <bundle> app-server --stdio --surface desktop），崩溃只毁那次请求；凭据明文不出子进程；paid channel allowlist=account:
+zcc-api event=listening address=127.0.0.1 port=8790 driver=official-host status=ready
+zcc-api listening address=http://127.0.0.1:8790 host=127.0.0.1 port=8790
+zcc-api driver=official-host status=ready fixture=false model_is_real=true
+zcc-api catalog revision=local-official:builtin:9e3c2fb1c8713400 models=18 (GET /v1/zcc/catalog)
+zcc-api models (GET /v1/models) 与 chat (POST /v1/chat/completions) 已挂载；无驱动器时 chat 返回 503 upstream_unavailable
+zcc-api cors=disabled allowed_origins=0（带 Origin 的请求一律拒绝；本轮不开 CORS）
+zcc-api auth=bearer required_key_fingerprint=zcc-fp:a814504c4c9d（key 值永不打印）
+zcc-api shutdown: 向本进程发送 SIGINT 或 SIGTERM 优雅关闭（在途请求有界收束 ≤ 5000ms，超时如实报 timedOut 并强拆 socket；不使用 process.exit 掩盖）
+zcc-api event=request path=/v1/zcc/catalog method=GET status=200 ms=4 in_flight=1
+zcc-api event=rejected path=/v1/responses/input_tokens code=not_found status=404
+zcc-api event=request path=/v1/responses/input_tokens method=POST status=404 ms=2 in_flight=1
+zcc-api event=rejected path=/v1/responses/input_tokens code=not_found status=404
+zcc-api event=request path=/v1/responses/input_tokens method=POST status=404 ms=1 in_flight=1
+zcc-api official-host official-host entitled account:bigmodel-individual-coding-plan entitled=true reason=cache-available cache_status=available observed_at=1789189306134
+zcc-api event=sse operation=chatcmpl-14ae5d8a-01a0-4bfb-bf28-9bef5e70b1e9 frames=6 fixture=false
+zcc-api event=operation key=zcc-fp:a814504c4c9d operation=chatcmpl-14ae5d8a-01a0-4bfb-bf28-9bef5e70b1e9 status=200 stream=true fixture=false idempotency=none
+zcc-api event=request path=/v1/chat/completions method=POST status=200 ms=11601 in_flight=1

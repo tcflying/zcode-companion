@@ -1,0 +1,206 @@
+{
+  "base": "http://127.0.0.1:4320",
+  "chrome": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  "results": [
+    {
+      "id": "01-overview-light-1280x800",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\01-overview-light-1280x800.png",
+      "ok": true,
+      "note": "总览页 light 主题，1280×800 视口",
+      "size": "1280x800",
+      "bytes": 95839
+    },
+    {
+      "id": "02-chat-light-1280x900",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\02-chat-light-1280x900.png",
+      "ok": true,
+      "note": "会话页两轮占位气泡 + 输入区（视口首屏）",
+      "size": "1280x900",
+      "bytes": 103698
+    },
+    {
+      "id": "02b-chat-light-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\02b-chat-light-full-1280.png",
+      "ok": true,
+      "note": "会话页整页：E0 发送门告示条 + 禁用的「不可发送（E0）」控件 + 解锁条件说明（U-C1 修复后证据）",
+      "size": "1280x1064",
+      "bytes": 121207
+    },
+    {
+      "id": "03-models-light-1280x800",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\03-models-light-1280x800.png",
+      "ok": true,
+      "note": "模型与套餐页首屏 1280×800（动态刷新模式）",
+      "size": "1280x800",
+      "bytes": 116217
+    },
+    {
+      "id": "16-models-dynamic-mode-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\16-models-dynamic-mode-full-1280.png",
+      "ok": true,
+      "note": "UI02 动态刷新模式整页：模式单选（本机 API 通道）+ 刷新来源按钮 + 最近刷新/成功时间/结果/revision/列表变化 + 契约假设 + 额度无可用 + 发送门 E0 关闭",
+      "size": "1280x2866",
+      "bytes": 360921
+    },
+    {
+      "id": "17-models-refresh-failed-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\17-models-refresh-failed-full-1280.png",
+      "ok": true,
+      "note": "UI02 刷新失败态整页（空目录 + transport_not_wired）：红色提示条 + 错误面板（失败原因码/已登记标记/人读标题/发生时间/人读说明/处理建议/本次技术说明/当前列表保留），未回退到空列表或假数据。**注意本次刷新的前一次也是 0 条，非空保留场景见 23。**",
+      "size": "1280x3111",
+      "bytes": 399432
+    },
+    {
+      "id": "18-models-manual-mode-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\18-models-manual-mode-full-1280.png",
+      "ok": true,
+      "note": "UI02 写死固定模式整页：切换到 manual 后的录入表单与未录入空态（无任何真实条目）",
+      "size": "1280x3012",
+      "bytes": 362006
+    },
+    {
+      "id": "19-models-manual-entry-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\19-models-manual-entry-full-1280.png",
+      "ok": true,
+      "note": "UI02 写死固定模式（含手工录入条目）：条目标记「手工录入 · 未由官方验证」+ 可用性「未验证」+ 操作列禁用的「不可发送（E0）」",
+      "size": "1280x3033",
+      "bytes": 357179
+    },
+    {
+      "id": "20-models-manual-dark-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\20-models-manual-dark-full-1280.png",
+      "ok": true,
+      "note": "UI02 写死固定模式 dark 主题整页（含手工录入条目）",
+      "size": "1280x3033",
+      "bytes": 359425
+    },
+    {
+      "id": "21-models-manual-1920-full",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\21-models-manual-1920-full.png",
+      "ok": true,
+      "note": "UI02 写死固定模式 1920 宽响应式整页（含手工录入条目）",
+      "size": "1920x2715",
+      "bytes": 366235
+    },
+    {
+      "id": "22-models-mode-switch-preserved-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\22-models-mode-switch-preserved-full-1280.png",
+      "ok": true,
+      "note": "UI02 模式切换保留已输入内容：录入 1 条后切到动态模式，提示条明确说明\"已保留：已手工录入的 1 个条目……未清空任何内容\"",
+      "size": "1280x2931",
+      "bytes": 371899
+    },
+    {
+      "id": "23-models-refresh-failed-keeps-nonempty-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\23-models-refresh-failed-keeps-nonempty-full-1280.png",
+      "ok": true,
+      "note": "UI02-F1 项1（REV3-UI02-I1 缺口）：**非空**旧列表保留。测试态 fixture（?sourceFixture=catalog2_then_conn_fail，零网络、不读真实目录）：第 1 次刷新读回 2 条 fixture 条目，第 2 次刷新失败（connection_failed），表格仍是那 2 条（fixture-model-a / fixture-model-b），错误面板叠加显示原因码 + 人读说明 + 处理建议 + \"保留刷新前读到的 2 条\"。条目的「不可发送（E0）」按钮仍全部 disabled。",
+      "size": "1280x3398",
+      "bytes": 441121
+    },
+    {
+      "id": "24-models-refresh-failed-malformed-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\24-models-refresh-failed-malformed-full-1280.png",
+      "ok": true,
+      "note": "UI02-F1 项2 的非 transport 失败态：测试态 fixture 第 2 次刷新返回违反 /v1/zcc/catalog 契约的响应（billingClass=freemium 非法 + 缺 capabilities），解析层**整体拒绝**（malformed_payload），错误面板逐条列出契约缺陷（enum_invalid @ $.models[0].billingClass / field_missing @ $.models[0].capabilities），旧列表 2 条仍保留，没有部分采纳非法条目。",
+      "size": "1280x3600",
+      "bytes": 476785
+    },
+    {
+      "id": "25-models-manual-mode-teststate-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\25-models-manual-mode-teststate-full-1280.png",
+      "ok": true,
+      "note": "UI02-F3 M2（REV5-UI02-M2）：**写死固定模式也渲染同一条黄色「测试态」横条**，措辞准确区分两种模式。测试态 fixture（?sourceFixture=catalog2_then_conn_fail，零网络、不读真实目录）：先在动态模式刷新读回 2 条 fixture 条目，再切到写死固定模式并手工录入 1 条。横条明写当前表格里是**手工录入条目、不是 fixture 数据**，动态模式读到的 fixture 条目仍保留在内存里；表格上方小字同步改为写死模式口径（不再误标「测试态 fixture 数据」）。两条测试态措辞里都不再出现字面量 ** 记号（M1）。",
+      "size": "1280x3160",
+      "bytes": 389793
+    },
+    {
+      "id": "04-models-light-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\04-models-light-full-1280.png",
+      "ok": true,
+      "note": "模型与套餐页整页（额度三源 / 目录 / 列结构 / 发送准入）",
+      "size": "1280x2866",
+      "bytes": 360921
+    },
+    {
+      "id": "05-settings-light-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\05-settings-light-full-1280.png",
+      "ok": true,
+      "note": "设置页整页（本机 API / 单实例 / 窗口模式 / 外观 / 脱敏 / 数据目录 / 自检）",
+      "size": "1280x1781",
+      "bytes": 187377
+    },
+    {
+      "id": "06-logs-light-1280x800",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\06-logs-light-1280x800.png",
+      "ok": true,
+      "note": "日志页启动条目（全部已脱敏写入口）",
+      "size": "1280x800",
+      "bytes": 114349
+    },
+    {
+      "id": "07-models-dark-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\07-models-dark-full-1280.png",
+      "ok": true,
+      "note": "模型与套餐页 dark 主题整页",
+      "size": "1280x2866",
+      "bytes": 363195
+    },
+    {
+      "id": "08-overview-dark-1280x800",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\08-overview-dark-1280x800.png",
+      "ok": true,
+      "note": "dark 主题 1280×800",
+      "size": "1280x800",
+      "bytes": 97488
+    },
+    {
+      "id": "09-settings-dark-full-1920",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\09-settings-dark-full-1920.png",
+      "ok": true,
+      "note": "dark 主题 1920 宽响应式整页",
+      "size": "1920x1740",
+      "bytes": 200257
+    },
+    {
+      "id": "10-overview-light-full-1920",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\10-overview-light-full-1920.png",
+      "ok": true,
+      "note": "light 主题 1920 宽响应式整页",
+      "size": "1920x1638",
+      "bytes": 187290
+    },
+    {
+      "id": "11-models-manual-filter-no-match",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\11-models-manual-filter-no-match.png",
+      "ok": true,
+      "note": "模型页空态（筛选无匹配）：写死模式下 1 条录入条目被搜索词过滤为 0 条，占位行与空态面板仍不承载任何真实套餐",
+      "size": "1280x900",
+      "bytes": 105059
+    },
+    {
+      "id": "12-models-filter-metered-api",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\12-models-filter-metered-api.png",
+      "ok": true,
+      "note": "模型页计费类别筛选 = metered_api：0 条目，metered_api 不渲染为可点击发送",
+      "size": "1280x900",
+      "bytes": 104869
+    },
+    {
+      "id": "13-logs-redaction-selfcheck",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\13-logs-redaction-selfcheck.png",
+      "ok": true,
+      "note": "日志页脱敏自检：注入后凭据样式串已写前替换为 [REDACTED]，并含 ERROR 态样式",
+      "size": "1280x900",
+      "bytes": 149974
+    },
+    {
+      "id": "14-settings-error-state-full-1280",
+      "file": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ui01\\14-settings-error-state-full-1280.png",
+      "ok": true,
+      "note": "设置页错误态整页：打开\"时钟异常自检\"后窗口判定 fail-closed（Invalid Date）",
+      "size": "1280x1781",
+      "bytes": 190225
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "zcode-companion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone ZCode Companion skeleton (I01). Provider-free test isolation only; no chat/model integration is implemented at this stage.",
+  "engines": {
+    "node": ">=24.18.0",
+    "npm": ">=11.16.0"
+  },
+  "scripts": {
+    "ci": "npm run typecheck && npm run typecheck:checkjs && npm run typecheck:apps && npm run test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:checkjs": "tsc --noEmit -p tsconfig.json --checkJs true",
+    "typecheck:apps": "node scripts/stage-gate.mjs typecheck:apps",
+    "api:start": "node packages/api/bin/start-api.mjs",
+    "lint": "node scripts/stage-gate.mjs lint",
+    "test": "node scripts/stage-gate.mjs test",
+    "test:unit": "node scripts/stage-gate.mjs test:unit",
+    "test:contract": "node scripts/stage-gate.mjs test:contract",
+    "test:integration": "node scripts/stage-gate.mjs test:integration",
+    "test:mutations": "node scripts/stage-gate.mjs test:mutations",
+    "test:e2e": "node scripts/stage-gate.mjs test:e2e",
+    "build": "node scripts/stage-gate.mjs build",
+    "pack:win": "node scripts/stage-gate.mjs pack:win",
+    "verify:package": "node scripts/stage-gate.mjs verify:package"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.0",
+    "electron": "44.4.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.1",
+    "vitest": "5.0.2"
+  }
+}

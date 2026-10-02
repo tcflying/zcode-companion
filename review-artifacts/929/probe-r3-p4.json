@@ -1,0 +1,337 @@
+{
+  "observation": {
+    "kind": "ok",
+    "frameShape": {
+      "topLevelKeys": [
+        "method",
+        "params"
+      ],
+      "methodName": "startup/storageState",
+      "jsonrpc": null,
+      "idType": "undefined",
+      "idStringLength": null,
+      "hasParams": true,
+      "hasResult": false,
+      "hasError": false,
+      "paramsShape": [
+        {
+          "name": "schemaVersion",
+          "type": "number",
+          "matchesOfficialLiteral": true
+        },
+        {
+          "name": "attemptId",
+          "type": "string",
+          "stringLength": 36,
+          "byteLength": 36
+        },
+        {
+          "name": "sequence",
+          "type": "number"
+        },
+        {
+          "name": "databaseId",
+          "type": "string",
+          "stringLength": 64,
+          "byteLength": 64
+        },
+        {
+          "name": "databaseKind",
+          "type": "string",
+          "stringLength": 7,
+          "byteLength": 7,
+          "officialEnum": "databaseKind",
+          "isOfficialEnumMember": true
+        },
+        {
+          "name": "phase",
+          "type": "string",
+          "stringLength": 8,
+          "byteLength": 8,
+          "officialEnum": "phase",
+          "isOfficialEnumMember": true
+        },
+        {
+          "name": "elapsedMs",
+          "type": "number"
+        }
+      ],
+      "resultShape": null,
+      "errorShape": null,
+      "errorValues": null,
+      "valuesIncluded": "none — field names, types, lengths and enum membership only"
+    },
+    "startupSequence": [
+      {
+        "index": 1,
+        "methodName": "startup/storageState",
+        "sequence": 1,
+        "phase": "checking",
+        "phaseIsOfficialEnumMember": true
+      },
+      {
+        "index": 2,
+        "methodName": "startup/storageState",
+        "sequence": 2,
+        "phase": "checking",
+        "phaseIsOfficialEnumMember": true
+      },
+      {
+        "index": 3,
+        "methodName": "startup/storageState",
+        "sequence": 3,
+        "phase": "checking",
+        "phaseIsOfficialEnumMember": true
+      },
+      {
+        "index": 4,
+        "methodName": "startup/storageState",
+        "sequence": 4,
+        "phase": "committing",
+        "phaseIsOfficialEnumMember": true
+      },
+      {
+        "index": 5,
+        "methodName": "startup/storageState",
+        "sequence": 5,
+        "phase": "ready",
+        "phaseIsOfficialEnumMember": true
+      }
+    ],
+    "startupReply": {
+      "armed": true,
+      "sent": true,
+      "line": "{\"method\":\"startup/storagePathReady\"}\n",
+      "triggerFrameIndex": 5,
+      "triggerSequence": 5,
+      "triggerPhase": "ready",
+      "triggerBasis": {
+        "method": "startup/storageState",
+        "phase": "ready",
+        "wireShape": "{\"method\":\"startup/storagePathReady\"}",
+        "basis": "derived from the observed phase sequence + E-BUNDLE-014/015/016; NOT observed to be correct, and its motivating premise was falsified by EXP-LIFETIME",
+        "certainty": "observed-inert-on-the-probed-surface-e-bundle-023-and-026",
+        "supersededBy": "STARTUP_REPLY_SURFACE_FINDING (E-BUNDLE-023/025/026)"
+      }
+    },
+    "startupReplySurfaceFinding": {
+      "surfaceUnderTest": "zcode app-server (no --prepare-storage)",
+      "handshakeBelongsTo": "zcode app-server --prepare-storage (prepareStorageOnly), a storage-preparation-only mode",
+      "officialSequenceThere": [
+        "server -> client: {\"method\":\"startup/storagePath\",\"params\":{\"path\":<dbPath>}}",
+        "client -> server: one line, {\"method\":\"startup/storagePathReady\"} or {\"method\":\"startup/storagePathReady\",\"reuse\":<bool>} (E-BUNDLE-015; omitted reuse === false), within 30 000 ms",
+        "if reuse !== true: server opens storage and streams {\"method\":\"startup/storageState\",\"params\":{…}} frames",
+        "server -> client: {\"method\":\"startup/storagePrepared\",\"params\":{}}"
+      ],
+      "officialServerBehaviourForANotification": "ignored by design — E-BUNDLE-023 logs \"ZCode Protocol notification ignored\"",
+      "observedOnTheSurfaceUnderTest": "five startup/storageState frames, no startup/storagePath, no startup/storagePrepared, no storagePathReady round trip",
+      "conclusion": "inert-on-this-surface; neither cause nor cure of the R2 failure",
+      "actionTaken": "kept implemented, doubly acknowledged, counted in controlFrames, timing reclassified from derived-not-observed to observed-inert"
+    },
+    "frameLog": [
+      {
+        "index": 1,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 2,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 3,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 4,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 5,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 6,
+        "kind": "response",
+        "methodName": null,
+        "hasId": true,
+        "idType": "string",
+        "idStringLength": 2,
+        "correlatedToRequest": true,
+        "evaluatedAgainstMethod": "runtime/capabilities"
+      }
+    ],
+    "childStderr": {
+      "text": "",
+      "bytes": 0,
+      "truncated": false,
+      "capBytes": 65536,
+      "empty": true
+    },
+    "childReclaim": {
+      "stage": "stdin-eof",
+      "pendingWaiters": 0
+    }
+  },
+  "ledger": {
+    "modelDispatch": 0,
+    "modelDispatchAttempts": 0,
+    "controlFrames": 2,
+    "refusalFrames": 0,
+    "refusedPotentiallyDispatching": 0,
+    "refusedReverse": 0,
+    "servedReverse": 0
+  },
+  "fatal": null,
+  "p4": {
+    "method": "runtime/capabilities",
+    "params": {},
+    "expectedId": "c6",
+    "result": {
+      "independentPlanState": true
+    },
+    "responseIdMatchedRequest": true,
+    "outcome": "ok",
+    "outcomeDetail": null,
+    "resultShape": {
+      "topLevelKeys": [
+        "id",
+        "result"
+      ],
+      "methodName": null,
+      "jsonrpc": null,
+      "idType": "string",
+      "idStringLength": 2,
+      "hasParams": false,
+      "hasResult": true,
+      "hasError": false,
+      "paramsShape": null,
+      "resultShape": [
+        {
+          "name": "independentPlanState",
+          "type": "boolean"
+        }
+      ],
+      "errorShape": null,
+      "errorValues": {
+        "idValue": "c6",
+        "idType": "string",
+        "code": null,
+        "message": null,
+        "issues": [],
+        "nestedBranchIssuesFound": 0,
+        "nestedBranchIssuesPublished": 0,
+        "dataHadOtherMembers": false,
+        "redactionApplied": "module-redact()+cli-redact()"
+      },
+      "valuesIncluded": "protocol diagnostics only — error code/message, zod issue path/code/message, and the frame id; no params or result value (P4 path, coordinator ruling F3-1)"
+    },
+    "diagnostics": {
+      "idValue": "c6",
+      "idType": "string",
+      "code": null,
+      "message": null,
+      "issues": [],
+      "nestedBranchIssuesFound": 0,
+      "nestedBranchIssuesPublished": 0,
+      "dataHadOtherMembers": false,
+      "redactionApplied": "module-redact()+cli-redact()"
+    },
+    "frameLog": [
+      {
+        "index": 1,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 2,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 3,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 4,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 5,
+        "kind": "notification",
+        "methodName": "startup/storageState",
+        "hasId": false,
+        "idType": "undefined",
+        "idStringLength": null,
+        "correlatedToRequest": false,
+        "evaluatedAgainstMethod": null
+      },
+      {
+        "index": 6,
+        "kind": "response",
+        "methodName": null,
+        "hasId": true,
+        "idType": "string",
+        "idStringLength": 2,
+        "correlatedToRequest": true,
+        "evaluatedAgainstMethod": "runtime/capabilities"
+      }
+    ],
+    "controlFrames": 2,
+    "handshakeReplyFrames": 1,
+    "modelDispatch": 0,
+    "modelDispatchAttempts": 0,
+    "refusalFrames": 0
+  }
+}

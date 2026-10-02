@@ -1,0 +1,409 @@
+/* 页面专属样式：指标卡、额度三源卡、对话线程、输入区。 */
+
+/* ---------- 总览：指标卡 ---------- */
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  min-width: 0;
+}
+
+.metric__label {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.metric__value {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.metric__value--sm {
+  font-family: var(--font-sans);
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
+.metric__value--in-window {
+  color: var(--ok);
+}
+
+.metric__value--out-window {
+  color: var(--warn);
+}
+
+.metric__value--invalid {
+  color: var(--danger);
+}
+
+.metric__unit {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 模型页：额度三源 ---------- */
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-3);
+}
+
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  min-width: 0;
+}
+
+.usage-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.usage-card__title {
+  font-size: var(--fs-md);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.usage-card__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.usage-card__key {
+  flex: 0 0 48px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.usage-card__val {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.usage-card__val--pending {
+  color: var(--pending);
+  font-weight: 700;
+}
+
+.usage-card__note {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 模型页：写死录入表单 ---------- */
+
+.manual-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  min-width: 0;
+}
+
+.manual-form__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.manual-form__title {
+  font-size: var(--fs-md);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.manual-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.manual-grid__cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.manual-grid__cell--wide {
+  grid-column: 1 / -1;
+}
+
+.manual-grid__cell .input {
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.manual-form__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.manual-form__count {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 模型页：动态来源读取区 ---------- */
+
+.source-refresh {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  min-width: 0;
+}
+
+.source-refresh__desc {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.source-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-3) var(--sp-5);
+  margin: 0;
+}
+
+.source-facts > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+  flex-wrap: wrap;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px dashed var(--border);
+}
+
+.source-facts dt {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.source-facts dd {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 模型页：刷新失败明细 ---------- */
+
+.fail-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.fail-detail__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.fail-detail__key {
+  flex: 0 0 76px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.fail-detail__val {
+  flex: 1 1 280px;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.row-note {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.panel-p {
+  margin: 0 0 var(--sp-2);
+}
+
+.panel-p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---------- 会话：线程与气泡 ---------- */
+
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.turn {
+  display: flex;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.turn--user {
+  flex-direction: row-reverse;
+}
+
+.turn__role {
+  flex: 0 0 auto;
+  width: 48px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  text-align: center;
+  padding-top: var(--sp-2);
+}
+
+.bubble {
+  max-width: min(620px, 78%);
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--bubble-ai);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.turn--user .bubble {
+  background: var(--bubble-user);
+  border-color: var(--bubble-user);
+  color: var(--bubble-user-text);
+}
+
+.bubble--muted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--bg-elev);
+  border-style: dashed;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 860px) {
+  .bubble {
+    max-width: 100%;
+  }
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elev);
+  min-width: 0;
+}
+
+.composer__label {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.composer__input {
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  line-height: 1.7;
+  resize: vertical;
+  min-width: 0;
+}
+
+.composer__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.composer__hint {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.composer__gate {
+  margin: 0;
+  padding-top: var(--sp-2);
+  border-top: 1px dashed var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}

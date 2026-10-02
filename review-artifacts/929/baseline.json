@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "task": "I00 - input freeze and source audit for ZCode Companion",
+  "observedAtUtc": "2026-09-29T06:24:35Z",
+  "scope": "Read-only fingerprints, versions, exit codes and license checks. No product code, no dependency install, no git init, no old-repo writes.",
+  "plan": {
+    "path": "G:/zcode-project/zcode-dev/929.md",
+    "sha256": "13b3e59d3f43054c757db13b95174c75ae8e135200dee3be600664b656d1af5f",
+    "hashVerified": true,
+    "hashCommand": "sha256sum G:/zcode-project/zcode-dev/929.md",
+    "hashExitCode": 0
+  },
+  "sourceManifest": {
+    "path": "G:/zcode-project/zcode-dev/dsh-zcode-appserver/review-artifacts/w10-repair-20260929/source-after.json",
+    "sha256": "643c779e8a2cb455eb37c368d47b37fd6905aa15b5a46122c712ad75ca4b33f0",
+    "frozenEntryCount": 94,
+    "note": "W10 frozen 94-file source manifest; hashes below are this task's fresh read-only recomputation, not an inherited claim."
+  },
+  "currentFingerprintCheck": {
+    "observedAtUtc": "2026-09-29T06:21:00Z",
+    "method": "node crypto sha256 over current working-tree bytes vs source-after.json entries",
+    "checked": 94,
+    "matched": 89,
+    "drift": [
+      "lib/operations.js",
+      "package.json",
+      "test-offpeak-index-recovery.mjs",
+      "test-operation-disposition.mjs",
+      "test-task-index-recovery.mjs"
+    ],
+    "missing": [],
+    "currentSha256OfDriftedFiles": {
+      "lib/operations.js": "daf5477af7402926623983f56dd86293afcb1fa59abe112eea8e7d5fa8dce30e",
+      "package.json": "36975b6a889d5327ce48d6d0a1ebd866d699f8540b08919f89526a16ea879f48",
+      "test-offpeak-index-recovery.mjs": "ae74220ae7c370b36ad3868538d861d2020a41fe44e95ee8e0c2010ba17749ca",
+      "test-operation-disposition.mjs": "1e848824ab01c7f8499c6b3c127a6c755aab55c4699ca747732e1d1267936c2a",
+      "test-task-index-recovery.mjs": "582fa73045e639e8592da67797c44ce20de6f05246d636cb39c754c36f1ccb3f"
+    },
+    "driftInterpretation": "Drifted set matches the fixed collaboration session (sess_8d48083f..., seq about 2100) re-anchoring 3.14.4 tests. Marked as current drift only; this task changed no old-repo code and makes no quality judgment on the drift.",
+    "reranDshTestChain": false
+  },
+  "w10FrozenAcceptanceVerification": {
+    "dir": "G:/zcode-project/zcode-dev/dsh-zcode-appserver/review-artifacts/w10-repair-20260929",
+    "acceptanceMdSha256": "8741f164d1d3ab216c52fcb718367d20a9f4bb7810f5be81c4a4082e94d84a90",
+    "finalSummarySha256": "1ad0e9ce6354c7231c88da5186659d4e438efc6b0e5ab0c4718bbb532c705750",
+    "sourceAfterSha256": "643c779e8a2cb455eb37c368d47b37fd6905aa15b5a46122c712ad75ca4b33f0",
+    "matchesCoordinatorBaselineObservation": true,
+    "segments": 39,
+    "passLines": 47,
+    "chainExit": 0,
+    "t1ToT4Whereabouts": "Tree-side repair passed per acceptance.md (not a full-project zero-defect claim, not a deployment sign-off). Deployment remains gated and was NOT performed."
+  },
+  "runtimeObservation": {
+    "cliPath": "C:/ZCode/resources/glm/zcode.cjs",
+    "cliCommand": "node C:/ZCode/resources/glm/zcode.cjs --version",
+    "cliVersion": "0.16.9",
+    "cliExitCode": 0,
+    "cliSha256": "fad4c35c4c36ec210d8a06d3fa0e77de23c8545e2eb6ff90aea1eb38d1e6275f",
+    "asarPath": "C:/ZCode/resources/app.asar",
+    "asarSha256": "172d6f333e61642ce3882250949fafe8180f75b5b8e5552244ca2c59ca05d14e",
+    "asarPackageExtracted": {
+      "name": "@zcode/desktop",
+      "version": "3.14.4",
+      "method": "read-only ASAR header + package.json byte extraction, file opened with read handles only"
+    },
+    "runningHostVersion": "NOT_VERIFIED",
+    "appServerParityOfCliHelp": "NOT_VERIFIED",
+    "installationModified": false
+  },
+  "referenceSources": {
+    "dshProject": {
+      "path": "G:/zcode-project/zcode-dev/dsh-zcode-appserver",
+      "packageVersion": "0.6.3",
+      "libAppserverJsSha256": "772d19b2079eb8076562dd5ea5b06f73d2230497aa97eca136b15f843af8482d",
+      "libDesktopBridgeJsSha256": "cd18360567e2d8e62afa7632f940ac19f1ab886876c123e1961fa467bc16892d",
+      "license": "local private project, no LICENSE file (user-owned); experience-only reuse",
+      "tag": "reference-experience"
+    },
+    "zcodeFlashSnapshot": {
+      "path": "G:/codex-project/zcode-flash",
+      "rootPackage": {
+        "name": "@zcode/desktop",
+        "sha256": "e8c283a704f82975301fcd6c3c6ae0255593133d08b600bb6952206610704b3e",
+        "ruling": "official distribution metadata; FORBIDDEN as scaffolding for the new product"
+      },
+      "webMonitor": {
+        "packageVersion": "zcode-flash-monitor 0.1.0",
+        "webPackageJsonSha256": "47fb07d1114011493567512a4f817b5ae51ef6e7216f1d08ef5333d1f4864abf",
+        "monitorContractMdSha256": "ff1c8a6b22be146c71b999dc2328be9dcdb7757893c918a74d66883e022bfa7d"
+      },
+      "readmePresent": false,
+      "agentsPresent": false,
+      "licensePresent": false,
+      "licenseRuling": "UNKNOWN; treat official portions as proprietary, no copying",
+      "tag": "reference-experience"
+    },
+    "lingmaProxy": {
+      "path": "G:/qoder-intl-project/lingma-proxy",
+      "agentsMdRead": true,
+      "licenseRead": true,
+      "licenseRuling": "MIT limited to this repo's Original Contributions (Tiancheng Lu and contributors); file explicitly states upstream coolxll/lingma-ipc-proxy has no clear license and third-party material is not relicensed",
+      "reuseRuling": "product pages / routes / test experience only; zero code copy",
+      "tag": "reference-experience"
+    }
+  },
+  "newProduct": {
+    "proposedPath": "G:/zcode-project/zcode-companion",
+    "existedBeforeThisTask": false,
+    "recheckedImmediatelyBeforeCreation": true,
+    "filesCreatedByThisTask": [
+      "G:/zcode-project/zcode-companion/docs/decisions/929-inputs.md",
+      "G:/zcode-project/zcode-companion/review-artifacts/929/baseline.json"
+    ],
+    "productCodeWritten": false,
+    "dependenciesInstalled": false,
+    "gitInitialized": false,
+    "implemented": false,
+    "packaged": false,
+    "deployed": false,
+    "realProductAcceptance": "NOT_RUN"
+  },
+  "flags": {
+    "accountHandshake": false,
+    "realModelCalls": false,
+    "deployed": false,
+    "productionDatabaseWrites": false,
+    "officialInstallationModified": false,
+    "credentialsReadOrDecrypted": false,
+    "providerSwitched": false,
+    "commitsOrPushes": false,
+    "subagentsDispatched": false,
+    "oldRepoFilesWritten": false
+  },
+  "restrictionsObserved": [
+    "No DSH or other old-repo source changes",
+    "No C:/ZCode modifications; no service start/stop (3188/Servy/ZCode untouched)",
+    "No production SQLite writes",
+    "No account, credential, or provider configuration changes",
+    "No real model requests; no provider switch",
+    "No commits or pushes; no git init in the new directory",
+    "No subagents; single-session execution"
+  ]
+}

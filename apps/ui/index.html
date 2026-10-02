@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-theme-pref="system">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <!--
+      UI04 CSP：网络边界从 UI01 的"零网络"收紧为"仅回环自连"。
+      - default-src 'none'：默认什么都不许加载。
+      - connect-src 'self' http://127.0.0.1:8790：**只允许同源**（UI 自己的 dev/preview
+        服务器反代到回环 API）与**裁定过的本机回环 origin**。任何其他来源（外网、局域网、
+        CDN、遥测）在浏览器层就被拒，不需要代码层配合。
+      - 界面不加载任何远程资源，因此没有 img/font/frame 放行面。
+      注意：base 仍是 './'，但本 meta CSP 要求页面经 http(s) 加载（file:// / 自定义协议下
+      'self' 语义不成立），联调请用 `vite preview`（http://127.0.0.1:4319）。
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' http://127.0.0.1:8790"
+    />
+    <title>ZCode Companion（独立软件 · 非 ZCode 官方）</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

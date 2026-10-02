@@ -1,0 +1,1096 @@
+/**
+ * API01 本机 OpenAI 兼容 API 的路由与生命周期。
+ *
+ * 八条硬事实：
+ *  1. **默认关闭、只绑回环。** `enabled` 缺省为 `false`，`start()` 不监听任何端口。
+ *     绑定地址在**构造期**就只接受 `127.0.0.1`；`0.0.0.0` / `::` / 任何主机名
+ *     抛 `LOOPBACK_ONLY`，不是启动后才失败。
+ *  2. **CORS 永不开启。** 任何路径都不输出 `access-control-*` 头，`OPTIONS` 一律
+ *     405。浏览器发起的跨源请求因此读不到任何响应；不带 `Origin` 的非浏览器客户端
+ *     （IDE 扩展、curl）不受影响。
+ *  3. **流水线顺序即风险顺序**：Host → Origin → 路由/方法 → 声明体大小 → 认证 →
+ *     限流 → 读体 → JSON → schema → 幂等 → 驱动器。声明体大小排在认证之前是
+ *     有意的：不缓冲超限请求体正是这条检查存在的理由。
+ *  4. **幂等只登记 2xx，且必须显式 opt-in（COMPAT1/C1）。** 失败与结果未知**不写入**
+ *     幂等表，也**不自动重发**：无额度不是一次"已完成的操作"，登记下来会把临时状态
+ *     固化成永久重放。已登记的 2xx 可原样重放；超预算或失败的登记返回
+ *     `idempotency_replay_unavailable`。
+ *     **一个幂等头都没发的请求 = 不进幂等表**：不重放、不比对 bodyHash、不 409，
+ *     响应头 `x-zcc-idempotency: none`。这条取代了旧实现"缺头回落
+ *     `default-client`/`default-session`"——那让所有标准 OpenAI 兼容客户端落进同一
+ *     作用域，首个成功请求后全线 409（协调者实弹 0.003 s 复现，是本 API 唯一的
+ *     CRITICAL 硬阻断）。
+ *  5. **优雅关闭不用 `process.exit`。** `stop()` 先停止接受新连接，再等在途请求
+ *     **有界**收束（超时报 `timedOut`，如实上报而不是掩盖），最后销毁剩余 socket、
+ *     清理定时器与信号监听器。本文件里没有任何 `process.exit`。
+ *  6. **key 不进日志。** 日志只出现 `zcc-fp:*` 指纹、路径、状态、耗时、operationId。
+ *     本包不 spawn 任何子进程，因此不存在"按端口/进程名回收"的问题。
+ *  7. **配置是闭集的，fixture 只能由测试显式打开。** 未登记的配置键构造期即拒；
+ *     挂 fixture 驱动器必须同时持有一个只有 import 才拿得到的 symbol 令牌
+ *     （`FIXTURE_TEST_TOKEN`），生产配置在结构上开不了假模型。
+ *  8. **三条路径分工明确。** `/v1/models` 是给外部 IDE 的纯 OpenAI 形状；
+ *     `/v1/zcc/catalog` 是给本产品界面的目录（`{revision, models[]}`，协调者裁定）；
+ *     `/v1/chat/completions` 是产出。任何一条都不混用另外两条的字段。
+ */
+import http from 'node:http';
+import { randomUUID } from 'node:crypto';
+import type { AddressInfo, Socket } from 'node:net';
+import { ApiError, toApiError } from './errors.js';
+import {
+  DEFAULT_RATE_LIMIT,
+  HOST_LOOPBACK,
+  IDEMPOTENCY_KEY_HEADER,
+  REQUEST_BODY_MAX_BYTES,
+  RateLimiter,
+  isAllowedHost,
+  isAllowedOrigin,
+  resolveIdempotencyOptIn,
+  verifyApiKey,
+  type IdempotencyOptIn
+} from './auth.js';
+import {
+  SseBudget,
+  STREAM_BUFFER_MAX_BYTES,
+  catalogContractDefects,
+  createUnavailableDriver,
+  deriveModelIsReal,
+  emitChunk,
+  maxTokensNotForwarded,
+  normalizedRequestHash,
+  parseChatRequest,
+  sseDone,
+  TOOLS_FORWARDED_NONE,
+  type CatalogModel,
+  type CatalogPayload,
+  type ChatDriver,
+  type DriverCatalog,
+  type DriverEvent,
+  type ParsedChatRequest
+} from './chat.js';
+
+/**
+ * IDE 要填的固定端口。改这里要同步改报告里的照抄配置。
+ *
+ * **2026-09-29 换过**：旧默认 8765 在本机被一个无关 python 进程（PID 33940）常驻占用
+ * （`netstat -ano` + `tasklist` 实测，本包按安全边界没有动它）。实测候选端口后取
+ * 8790：`net.createServer().listen(8790,'127.0.0.1')` 成功、`8765` 返回 `EADDRINUSE`。
+ * 端口保持可配置（`ApiServerConfig.port`），换默认不影响任何调用方。
+ */
+export const DEFAULT_API_PORT = 8790;
+
+/** 唯一允许的绑定地址。从这里再导出一次，让调用方只需要 import 一个模块。 */
+export { HOST_LOOPBACK } from './auth.js';
+
+/**
+ * 仅测试可用的显式令牌（`unique symbol`）。
+ *
+ * fixture 驱动器是**假模型产出**，生产路径绝不能被打开。做法是让"启用它"必须持有一个
+ * 只有代码 import 才拿得到的 symbol：设置页 / 配置文件**无法表达 symbol**，所以用户
+ * 配置在结构上开不了它；能在生产代码里打开它的，只有特意 import 这个 token 的人。
+ * 配合 {@link API_SERVER_CONFIG_KEYS} 的闭集校验（任何未登记的配置键直接抛错），
+ * "加个 `fixture: true` 就能开"这类后门字段在构造期就进不来。
+ */
+export const FIXTURE_TEST_TOKEN: unique symbol = Symbol('zcc.fixture.test-token');
+
+/** 扩展目录端点。协调者裁定的形状，UI02 客户端已按此实现。 */
+export const CATALOG_PATH = '/v1/zcc/catalog';
+
+export interface ApiLogger {
+  info(line: string): void;
+  warn(line: string): void;
+  error(line: string): void;
+}
+
+const NOOP_LOGGER: ApiLogger = { info: () => undefined, warn: () => undefined, error: () => undefined };
+
+/**
+ * `ApiServerConfig` 的**闭集键表**。构造期逐键校验：不在表里的键一律抛
+ * `UNKNOWN_API_CONFIG_KEY`，不静默忽略。
+ *
+ * 为什么要闭集：多认一个键就等于多一条"配置能改变行为"的边。`fixture` 这类后门字段
+ * 的危害正是它平时看着无害（默认 false），某天有人把默认值改了或把它接上了某个读取
+ * 路径。闭集让"新增配置项"变成一次**必须同时改这张表并让测试变红**的显式动作。
+ * 契约测试把本表钉死（`API_SERVER_CONFIG_KEYS` 精确相等断言）。
+ */
+export const API_SERVER_CONFIG_KEYS = [
+  'enabled',
+  'host',
+  'port',
+  'apiKeys',
+  'allowedOrigins',
+  'rateLimit',
+  'shutdownGraceMs',
+  'driver',
+  'testOnlyFixtureToken',
+  'logger',
+  'now'
+] as const;
+
+export interface ApiServerConfig {
+  /** 缺省关闭。必须显式 `enabled: true` 才会监听。 */
+  readonly enabled?: boolean;
+  /** 只接受 `127.0.0.1`。其他值在构造期抛错。 */
+  readonly host?: typeof HOST_LOOPBACK;
+  /** 缺省 8790；测试用 0 取临时端口。 */
+  readonly port?: number;
+  readonly apiKeys: readonly string[];
+  /** 缺省空数组 = 带 Origin 头的请求全拒。 */
+  readonly allowedOrigins?: readonly string[];
+  readonly rateLimit?: { readonly maxConcurrent: number; readonly requests: number; readonly windowMs: number };
+  /** 在途请求的收束上限；超时如实报 `timedOut`，不使用 `process.exit`。 */
+  readonly shutdownGraceMs?: number;
+  readonly driver?: ChatDriver;
+  /**
+   * **仅测试**。挂 fixture 驱动器时必须显式传 {@link FIXTURE_TEST_TOKEN}，否则构造期
+   * 抛 `FIXTURE_DRIVER_TEST_ONLY`。生产配置不可能持有这个 symbol，因此结构上开不了假模型。
+   */
+  readonly testOnlyFixtureToken?: typeof FIXTURE_TEST_TOKEN;
+  readonly logger?: ApiLogger;
+  readonly now?: () => number;
+}
+
+export interface ApiStartResult {
+  readonly started: boolean;
+  readonly reason?: 'disabled_by_default';
+  readonly port?: number;
+  readonly address?: string;
+}
+
+export interface ApiDiagnostics {
+  readonly inFlight: number;
+  readonly trackedSockets: number;
+  readonly activeTimers: number;
+  readonly signalListeners: number;
+  readonly idempotencyEntries: number;
+  readonly driverCalls: number;
+  readonly status: string;
+  readonly replayBytes: number;
+}
+
+export interface ApiServer {
+  start(): Promise<ApiStartResult>;
+  /** 有界收束的优雅关闭。可重复调用。 */
+  stop(): Promise<{ closed: boolean; timedOut: boolean }>;
+  address(): { readonly address: string; readonly port: number } | null;
+  /** 实时诊断快照。关闭测试直接断言它归零。 */
+  readonly diagnostics: ApiDiagnostics;
+  readonly requestListener: http.RequestListener;
+}
+
+interface RequestIdentity {
+  readonly keyFingerprint: string;
+  /**
+   * 幂等 opt-in 判定（工单 COMPAT1/C1）。**没有**默认值：缺头 = `kind:'none'`
+   * = 每次都是新 operation。旧的 `clientId`/`sessionId` 缺省回落字段已整条删除。
+   */
+  readonly idempotency: IdempotencyOptIn;
+}
+
+interface RateLimitVerdict {
+  readonly ok: boolean;
+  readonly reason: 'concurrency' | 'rate' | null;
+  readonly retryAfterMs: number;
+  readonly remaining: number;
+  readonly limit: number;
+}
+
+interface StoredOperation {
+  readonly operationId: string;
+  readonly bodyHash: string;
+  /** `done` 才允许重放；`in_flight` / `failed` 都不重放。 */
+  state: 'in_flight' | 'done' | 'failed';
+  replay: string | null;
+  contentType: string;
+  bytes: number;
+}
+
+/** 可重放响应的总字节与条目预算，超出即逐出最旧条目，避免内存无界增长。 */
+const REPLAY_STORE_MAX_BYTES = 32 * 1024 * 1024;
+const MAX_IDEMPOTENCY_ENTRIES = 512;
+const OPERATION_ID_PREFIX = 'chatcmpl-';
+
+export function createApiServer(config: ApiServerConfig): ApiServer {
+  // 闭集校验放在最前面：先拒绝"我们不认识的配置"，再谈别的。
+  for (const key of Object.keys(config)) {
+    if (!(API_SERVER_CONFIG_KEYS as readonly string[]).includes(key)) {
+      throw new Error(`UNKNOWN_API_CONFIG_KEY: 本机 API 不接受配置项 ${key}（不静默忽略未知配置）`);
+    }
+  }
+  const host = config.host ?? HOST_LOOPBACK;
+  if (host !== HOST_LOOPBACK) {
+    // 构造期 fail-closed：非回环绑定直接拒绝，不给"先起来再说"的机会。
+    throw new Error(`LOOPBACK_ONLY: 本机 API 只允许绑定 ${HOST_LOOPBACK}，收到 ${String(host)}`);
+  }
+  const enabled = config.enabled === true;
+  const requestedPort = config.port ?? DEFAULT_API_PORT;
+  const apiKeys = [...(config.apiKeys ?? [])];
+  const allowedOrigins = [...(config.allowedOrigins ?? [])];
+  const logger = config.logger ?? NOOP_LOGGER;
+  const now = config.now ?? Date.now;
+  const shutdownGraceMs = config.shutdownGraceMs ?? 5_000;
+  const driver: ChatDriver = config.driver ?? createUnavailableDriver({ status: 'not_attached' });
+  if (driver.fixture === true && config.testOnlyFixtureToken !== FIXTURE_TEST_TOKEN) {
+    // fixture = 假模型产出。生产配置拿不到 FIXTURE_TEST_TOKEN（symbol 无法被配置表达），
+    // 所以这条路对生产是关闭的；测试必须显式声明"我知道我在造假"。
+    throw new Error(
+      'FIXTURE_DRIVER_TEST_ONLY: fixture 驱动器只允许测试使用。生产配置无法启用它——需要显式传入 FIXTURE_TEST_TOKEN。'
+    );
+  }
+  const rateLimiter = new RateLimiter({ ...DEFAULT_RATE_LIMIT, ...(config.rateLimit ?? {}) });
+
+  const operations = new Map<string, StoredOperation>();
+  const sockets = new Set<Socket>();
+  let replayBytes = 0;
+  let inFlight = 0;
+  let driverCalls = 0;
+  let signalListeners = 0;
+  let boundPort = requestedPort;
+  let server: http.Server | null = null;
+  /** @type {(() => void) | null} */
+  let removeSignalHandlers: null | (() => void) = null;
+
+  /* ------------------------------------------------------------------ */
+  /* 响应头与响应体                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * `x-zcc-fixture` **只在真的是 fixture 时出现**：缺席即"不是 fixture"，
+   * 不会让客户端误以为背后有真实模型。
+   */
+  const stateHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'x-zcc-status': driver.status,
+      'x-zcc-driver': driver.name,
+      'x-zcc-detail': encodeURIComponent(driver.statusDetail)
+    };
+    if (driver.fixture) headers['x-zcc-fixture'] = 'true';
+    return headers;
+  };
+
+  const send = (
+    res: http.ServerResponse,
+    status: number,
+    contentType: string,
+    body: string,
+    headers: Record<string, string> = {}
+  ): void => {
+    const buf = Buffer.from(body, 'utf8');
+    res.writeHead(status, {
+      'content-type': contentType,
+      'content-length': String(buf.length),
+      'cache-control': 'no-store',
+      // 幂等不是上游 exactly-once：重放的是 Companion 侧 operation，不代表上游只执行一次。
+      'x-zcc-idempotency-scope': 'companion-operation-replay-not-upstream-exactly-once',
+      ...stateHeaders(),
+      ...headers
+    });
+    res.end(buf);
+  };
+
+  const sendError = (res: http.ServerResponse, err: ApiError): void => {
+    send(res, err.status, 'application/json; charset=utf-8', JSON.stringify(err.toBody(new Date(now()).toISOString())), err.headers());
+  };
+
+  const rateLimitHeaders = (verdict: RateLimitVerdict): Record<string, string> => ({
+    'x-zcc-ratelimit-limit': String(verdict.limit),
+    'x-zcc-ratelimit-remaining': String(verdict.remaining)
+  });
+
+  const rateLimitError = (verdict: RateLimitVerdict): ApiError =>
+    new ApiError(
+      'rate_limited',
+      verdict.reason === 'concurrency' ? '并发请求数超过上限，已直接拒绝（不排队）' : '速率超过上限，已直接拒绝（不排队）',
+      { reason: verdict.reason ?? '', limit: verdict.limit }
+    ).withHeaders({
+      'retry-after': String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))),
+      ...rateLimitHeaders(verdict)
+    });
+
+  const zccBlock = (usageMethod: string, parsed: ParsedChatRequest): Record<string, unknown> => ({
+    fixture: driver.fixture,
+    driver: driver.name,
+    // 从驱动器能力推导，不硬编码（见 chat.ts 的 deriveModelIsReal）：
+    // fixture → false；无驱动器 → false；真实驱动器（ready + 非 fixture + 有模型）→ true。
+    model_is_real: deriveModelIsReal(driver),
+    status: driver.status,
+    usage_method: usageMethod,
+    // **COMPAT2**：这条**不再**等于"客户端发了上限"，而是**驱动器能不能真的强制执行**。
+    // 旧实现报 `parsed.maxTokens !== null`，而 official-host 那时会把上限塞进官方
+    // `session/create` 的 params —— 那份 schema 逐字是 `.strict()` 且**没有**这个键，
+    // 于是每个带上限的请求都被官方拒掉，而这里仍然报 `true`：一条**假披露**。
+    // 现在口径由 `ChatDriver.enforcesMaxTokens` 决定（见 chat.ts 的逐字出处注释）。
+    max_tokens_enforced: driver.enforcesMaxTokens && parsed.maxTokens !== null,
+    idempotency: 'companion-operation-replay-not-upstream-exactly-once',
+    auto_resend_allowed: false,
+    // **COMPAT1/C2**：实际采用的推理档位（`null` = 用驱动器缺省）。
+    reasoning_effort_applied: parsed.reasoning,
+    // **COMPAT1/C3 + COMPAT2**：本次请求里"我们校验通过、但没有转发"的参数名。
+    // 恒在场（可能是 `[]`），所以"客户端查了就知道"不需要先读文档。
+    // 这是"接受但明示未生效"与"静默丢弃"的分界线。
+    // 上限那一条**按驱动器能力**追加，并**逐字用客户端发来的键名**（`max_completion_tokens`
+    // 就报 `max_completion_tokens`）——报成别的名字等于告诉客户端一件与它无关的事。
+    parameters_not_forwarded: [...parsed.parametersNotForwarded, ...maxTokensNotForwarded(parsed, driver.enforcesMaxTokens)],
+    // **COMPAT3**：本次请求里被**折叠**进 prompt 上下文的指令 role（`system` /
+    // `developer`）。恒在场（无折叠时是 `[]`），口径与 `parameters_not_forwarded` 一致：
+    // 客户端要知道"你的系统提示词被并进了 prompt 上下文"，而不是靠猜产出里那个
+    // `developer:` 行标签是谁写的。按首次出现序、去重。
+    // 披露**只**到"折叠了哪些 role"为止：不宣称折叠后的内容与官方 agent 自己的系统提示
+    // 同优先级（那条优先级由官方决定，见 chat.ts 的 `FOLDED_PROMPT_ROLES` 注释）。
+    roles_folded: [...parsed.rolesFolded],
+    // **COMPAT4**：工具**声明**被接受（逐项浅校验）但**一条也不转发**。三个键**恒在场**，
+    // 合起来把"本端点是纯对话形态"变成可机读事实，而不是一句文档说明：
+    //  - `tools_received`：客户端这次声明了几条（缺席 / `[]` / `null` 都是 0）；
+    //  - `tools_forwarded`：**恒为 0**。这是结构事实（`DriverRequest` 上没有工具
+    //    槽位，官方 `session/send` 只收一条 `content` 文本），不是可调策略；
+    //  - `tool_choice_received`：客户端实际发的那个值（`null` = 没发）——披露"发了什么"，
+    //    不是"我们采用了什么"（这里永远没有"采用"这个动作发生）。
+    // 仍然拒的只有"要求必须调工具"那一类（`required` / 具名指定），它们会让客户端
+    // 等一个永远不会来的 `tool_calls`。流式与非流式**共用这一个块**，两条路径同形。
+    tools_received: parsed.toolsReceived,
+    tools_forwarded: TOOLS_FORWARDED_NONE,
+    tool_choice_received: parsed.toolChoiceReceived,
+    // **COMPAT1/C4**：驱动器自报的实现事实（宿主权限档位 / 工具策略等）。
+    // 缺省缺席 = 驱动器没有可披露的实现事实（fixture / 无驱动器）。
+    ...(driver.host === undefined ? {} : { host: { ...driver.host } })
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* 网络门：Host / Origin                                                */
+  /* ------------------------------------------------------------------ */
+
+  const passNetworkGates = (req: http.IncomingMessage, res: http.ServerResponse): boolean => {
+    if (!isAllowedHost(req.headers.host, boundPort)) {
+      sendError(
+        res,
+        new ApiError('host_not_allowed', 'Host 头不是本机 API 的监听地址，拒绝（防 DNS rebinding）', {
+          host_present: req.headers.host !== undefined
+        })
+      );
+      return false;
+    }
+    if (!isAllowedOrigin(req.headers.origin, allowedOrigins)) {
+      sendError(
+        res,
+        new ApiError('origin_not_allowed', 'Origin 不在白名单内，拒绝（默认白名单为空）', {
+          origin_present: true,
+          allowed_count: allowedOrigins.length
+        })
+      );
+      return false;
+    }
+    return true;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* 认证                                                                */
+  /* ------------------------------------------------------------------ */
+
+  const authenticate = (req: http.IncomingMessage, res: http.ServerResponse): RequestIdentity | null => {
+    const verdict = verifyApiKey(req.headers.authorization, apiKeys);
+    if (!verdict.ok || verdict.fingerprint === null) {
+      // 只说"需要 key"，绝不说"你给的 key 不对"、更不回显任何 key 片段。
+      sendError(
+        res,
+        new ApiError('unauthorized', '需要有效的本机 API key：请求头 Authorization 使用 Bearer 方案', {}).withHeaders({
+          'www-authenticate': 'Bearer'
+        })
+      );
+      return null;
+    }
+    return {
+      keyFingerprint: verdict.fingerprint,
+      // **COMPAT1/C1**：作用域只在客户端**显式** opt-in 时才存在。一个幂等头都没发
+      // 的请求（标准 OpenAI 兼容客户端的常态）拿到 `kind:'none'`，`runChat` 整条
+      // 幂等路径被跳过——不再落进共享的 `default-client/default-session` 作用域。
+      idempotency: resolveIdempotencyOptIn(req.headers, verdict.fingerprint)
+    };
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* GET /v1/models                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * 无上游时返回 **200 + 空列表**（而不是 503）：OpenAI 兼容客户端普遍把
+   * `/v1/models` 当作连通性探测，503 会让整个配置被判成"服务不可用"，把真实原因
+   * 盖住。空列表是**诚实**的——确实没有可服务的模型；`x-zcc-status` 头如实说明状态。
+   * 绝不返回占位假模型。
+   */
+  const handleModels = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+    if (req.method !== 'GET') {
+      throw new ApiError('method_not_allowed', '/v1/models 只接受 GET', { method: req.method ?? '' }, 'method');
+    }
+    const identity = authenticate(req, res);
+    if (identity === null) return;
+    const verdict = rateLimiter.tryAcquire(identity.keyFingerprint);
+    if (!verdict.ok) throw rateLimitError(verdict);
+    try {
+      send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ object: 'list', data: driver.models }), {
+        'x-zcc-model-count': String(driver.models.length),
+        ...rateLimitHeaders(verdict)
+      });
+    } finally {
+      rateLimiter.release();
+    }
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* GET /v1/zcc/catalog                                                 */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * 扩展目录端点。与标准 `/v1/models` **分工**：后者是给外部 IDE 用的纯 OpenAI 形状
+   * （id/object/created/owned_by），本端点是给本产品界面用的目录（协调者裁定，UI02
+   * 已按此形状实现解析层，勿改）。
+   *
+   * 三条硬规则：
+   *  1. **无驱动器也返回 200**：`{revision:'none', models:[]}` + `x-zcc-status` 如实标注。
+   *     目录"是空的"是事实，不是故障；503 会让界面把"没接上游"误读成"服务坏了"。
+   *  2. **绝不列占位条目。** 模型只能来自驱动器的 `catalog`，生产侧不合成、不猜测。
+   *  3. **产出侧自检。** 驱动器给出的目录若违反已公布契约（缺字段 / 类型错 / 非法枚举 /
+   *     重复 modelId），整份响应被拒并如实报错，**不部分采纳**——部分采纳等于把一个
+   *     会被严格客户端整体拒绝的响应发出去。
+   */
+  const handleCatalog = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+    if (req.method !== 'GET') {
+      throw new ApiError('method_not_allowed', `${CATALOG_PATH} 只接受 GET`, { method: req.method ?? '' }, 'method');
+    }
+    const identity = authenticate(req, res);
+    if (identity === null) return;
+    const verdict = rateLimiter.tryAcquire(identity.keyFingerprint);
+    if (!verdict.ok) throw rateLimitError(verdict);
+    try {
+      const payload = buildCatalogPayload(driver.catalog);
+      send(res, 200, 'application/json; charset=utf-8', JSON.stringify(payload), {
+        'x-zcc-catalog-count': String(payload.models.length),
+        ...rateLimitHeaders(verdict)
+      });
+    } finally {
+      rateLimiter.release();
+    }
+  };
+
+  /**
+   * 目录产出侧自检 + 投影。任何一条缺陷 → 整份拒绝（抛错），返回的 payload 一定满足
+   * 契约的每一个字段与取值，客户端不需要做容错。
+   */
+  const buildCatalogPayload = (catalog: DriverCatalog): CatalogPayload => {
+    const defects = catalogContractDefects(catalog);
+    if (defects.length > 0) {
+      logger.warn(`event=catalog_contract_violation defects=${defects.slice(0, 8).join(',')} driver=${driver.name}`);
+      throw new ApiError(
+        'upstream_unavailable',
+        `驱动器提供的模型目录不满足已公布契约，已整体拒绝（不做部分采纳）：${defects.slice(0, 3).join('、')}`,
+        { catalog_contract_violation: true, defect_count: defects.length, first_defect: defects[0] ?? '' }
+      );
+    }
+    const models: CatalogModel[] = (catalog.models as readonly CatalogModel[]).map((m) => ({
+      modelId: m.modelId,
+      displayName: m.displayName,
+      provider: m.provider,
+      billingClass: m.billingClass,
+      contextLength: m.contextLength,
+      reasoning: [...m.reasoning],
+      capabilities: [...m.capabilities]
+    }));
+    return { revision: catalog.revision, models };
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* POST /v1/chat/completions                                           */
+  /* ------------------------------------------------------------------ */
+
+  const handleChat = async (req: http.IncomingMessage, res: http.ServerResponse): Promise<void> => {
+    if (req.method !== 'POST') {
+      throw new ApiError('method_not_allowed', '/v1/chat/completions 只接受 POST', { method: req.method ?? '' }, 'method');
+    }
+    const identity = authenticate(req, res);
+    if (identity === null) return;
+    const verdict = rateLimiter.tryAcquire(identity.keyFingerprint);
+    if (!verdict.ok) {
+      logger.warn(
+        `event=rate_limited key=${identity.keyFingerprint} reason=${verdict.reason ?? ''} limit=${verdict.limit}`
+      );
+      throw rateLimitError(verdict);
+    }
+    // 并发槽持有到响应真正结束（流式则持有到流写完），所以 release 必须在 await 之后。
+    try {
+      const raw = await readBody(req, res);
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(raw);
+      } catch (e) {
+        throw new ApiError('invalid_json', `请求体不是合法 JSON：${e instanceof Error ? e.message : 'parse failed'}`, {
+          bytes: Buffer.byteLength(raw, 'utf8')
+        });
+      }
+      await runChat(req, res, parseChatRequest(parsedJson), identity);
+    } finally {
+      rateLimiter.release();
+    }
+  };
+
+  const runChat = async (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    parsed: ParsedChatRequest,
+    identity: RequestIdentity
+  ): Promise<void> => {
+    const operationId = `${OPERATION_ID_PREFIX}${randomUUID()}`;
+    const bodyHash = normalizedRequestHash(parsed);
+    // **COMPAT1/C1：作用域存在与否由显式 opt-in 决定。**
+    // `scope === null` 时：既不查表、也不登记、不比对 bodyHash、更不会 409——
+    // 每次都是一次全新的 operation。这条路径**没有**任何共享状态，所以
+    // N 个并发无头请求互不影响（协调者实弹的 6 路并发正是这种形态）。
+    const scope = identity.idempotency.kind === 'none' ? null : identity.idempotency.scope;
+    const existing = scope === null ? undefined : operations.get(scope);
+
+    if (existing !== undefined) {
+      if (existing.bodyHash !== bodyHash) {
+        throw new ApiError(
+          'idempotency_conflict',
+          '同一 幂等键/客户端身份+会话 已用不同请求体提交过；不会静默改写，请换会话或修正请求体',
+          { body_hash_conflicts: true, idempotency_kind: identity.idempotency.kind }
+        );
+      }
+      if (existing.state === 'in_flight') {
+        throw new ApiError('idempotency_in_progress', '同一幂等作用域的请求正在处理中；不会并发执行第二次', {
+          in_flight: true
+        }).withHeaders({ 'retry-after': '1', 'x-zcc-operation-id': existing.operationId });
+      }
+      if (existing.replay === null) {
+        throw new ApiError('idempotency_replay_unavailable', '原操作没有可重放的 2xx 响应；请开启新会话', {
+          replayable: false
+        }).withHeaders({ 'x-zcc-operation-id': existing.operationId });
+      }
+      logger.info(
+        `event=idempotent_replay key=${identity.keyFingerprint} operation=${existing.operationId} status=200 kind=${identity.idempotency.kind}`
+      );
+      send(res, 200, existing.contentType, existing.replay, {
+        'x-zcc-operation-id': existing.operationId,
+        'x-zcc-idempotency': 'replayed'
+      });
+      return;
+    }
+
+    // 无上游：fail-closed。不返回任何模型内容，也不登记幂等表——无额度不是一次
+    // "已完成的操作"，登记下来会把临时状态固化成永久重放。
+    if (driver.status !== 'ready') {
+      throw new ApiError('upstream_unavailable', driver.statusDetail, {
+        driver: driver.name,
+        status: driver.status,
+        idempotency_registered: false,
+        auto_resend_allowed: false
+      }).withHeaders({ 'x-zcc-operation-id': operationId, 'x-zcc-idempotency': idempotencyLabel(scope) });
+    }
+
+    const stored: StoredOperation | null =
+      scope === null
+        ? null
+        : { operationId, bodyHash, state: 'in_flight', replay: null, contentType: 'application/json; charset=utf-8', bytes: 0 };
+    if (scope !== null && stored !== null) operations.set(scope, stored);
+
+    const controller = new AbortController();
+    const onGone = (): void => controller.abort();
+    req.on('aborted', onGone);
+    res.on('close', onGone);
+    driverCalls += 1;
+    const events = driver.stream({
+      operationId,
+      model: parsed.model,
+      messages: parsed.messages,
+      maxTokens: parsed.maxTokens,
+      // **COMPAT1/C2**：请求级档位**优先**于驱动器缺省。`undefined` = 客户端没发，
+      // 驱动器用自己的 `CreateOfficialHostDriverOptions.reasoning`。
+      ...(parsed.reasoning === null ? {} : { reasoning: parsed.reasoning }),
+      signal: controller.signal
+    });
+    try {
+      if (parsed.stream) {
+        await writeSseStream(res, events, parsed, operationId, scope, stored);
+      } else {
+        await writeJsonCompletion(res, events, parsed, operationId, scope, stored);
+      }
+      if (stored !== null) stored.state = 'done';
+      // 每个 operation 恰好一条带指纹的日志：key 只以 zcc-fp:* 形式出现。
+      logger.info(
+        `event=operation key=${identity.keyFingerprint} operation=${operationId} status=200 stream=${String(parsed.stream)} fixture=${String(driver.fixture)} idempotency=${idempotencyLabel(scope)}`
+      );
+    } catch (e) {
+      const err = toApiError(e);
+      // 结果不可知或失败：不登记幂等，也**不自动重发**。
+      if (stored !== null) {
+        stored.state = 'failed';
+        stored.replay = null;
+      }
+      if (scope !== null) releaseOperation(scope);
+      if (res.headersSent) {
+        // 流已开始，改不了状态码：如实销毁连接，不静默截断成"看起来成功"。
+        res.destroy();
+        logger.warn(`event=stream_failed key=${identity.keyFingerprint} operation=${operationId} code=${err.code}`);
+      } else {
+        sendError(res, err);
+        logger.warn(`event=rejected key=${identity.keyFingerprint} code=${err.code} status=${err.status}`);
+      }
+    } finally {
+      req.off('aborted', onGone);
+      res.off('close', onGone);
+    }
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* 产出：非流式与流式                                                 */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * 非流式：把驱动器产出流收集成标准 `chat.completion`。
+   * usage 数字**完全来自驱动器**；驱动器没报就报 `null`，绝不自己编一个。
+   */
+  const writeJsonCompletion = async (
+    res: http.ServerResponse,
+    events: AsyncGenerator<DriverEvent>,
+    parsed: ParsedChatRequest,
+    operationId: string,
+    scope: string | null,
+    stored: StoredOperation | null
+  ): Promise<void> => {
+    let content = '';
+    let usage: Extract<DriverEvent, { type: 'usage' }> | null = null;
+    let finishReason = 'stop';
+    let outBytes = 0;
+    for await (const event of events) {
+      if (event.type === 'delta') {
+        content += event.text;
+        outBytes += Buffer.byteLength(event.text, 'utf8');
+        if (outBytes > STREAM_BUFFER_MAX_BYTES) {
+          throw new ApiError('payload_too_large', `响应产出超过 ${STREAM_BUFFER_MAX_BYTES} 字节上限`, {
+            limit_bytes: STREAM_BUFFER_MAX_BYTES
+          });
+        }
+      } else if (event.type === 'usage') {
+        usage = event;
+      } else {
+        finishReason = event.reason;
+      }
+    }
+    const payload = {
+      id: operationId,
+      object: 'chat.completion',
+      created: Math.floor(now() / 1000),
+      model: parsed.model,
+      choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: finishReason }],
+      usage:
+        usage === null
+          ? null
+          : {
+              prompt_tokens: usage.promptTokens,
+              completion_tokens: usage.completionTokens,
+              total_tokens: usage.promptTokens + usage.completionTokens
+            },
+      zcc: zccBlock(usage?.usageMethod ?? 'unavailable', parsed)
+    };
+    const body = JSON.stringify(payload);
+    if (scope !== null && stored !== null) commitReplay(scope, stored, 'application/json; charset=utf-8', body);
+    send(res, 200, 'application/json; charset=utf-8', body, {
+      'x-zcc-operation-id': operationId,
+      'x-zcc-idempotency': idempotencyLabel(scope)
+    });
+    logger.info(
+      `event=completion operation=${operationId} status=200 fixture=${String(driver.fixture)} bytes=${String(body.length)}`
+    );
+  };
+
+  /**
+   * 流式：逐 delta 转发成 SSE。**首帧在驱动器产出结束前就写出去**——这是真流，
+   * 不是把一段完整结果切片假装流式。
+   */
+  const writeSseStream = async (
+    res: http.ServerResponse,
+    events: AsyncGenerator<DriverEvent>,
+    parsed: ParsedChatRequest,
+    operationId: string,
+    scope: string | null,
+    stored: StoredOperation | null
+  ): Promise<void> => {
+    const created = Math.floor(now() / 1000);
+    const ctx = {
+      id: operationId,
+      object: 'chat.completion.chunk' as const,
+      created,
+      model: parsed.model,
+      zcc: zccBlock('not_reported', parsed)
+    };
+    const budget = new SseBudget();
+    const frames: string[] = [];
+    res.writeHead(200, {
+      'content-type': 'text/event-stream; charset=utf-8',
+      'cache-control': 'no-store',
+      connection: 'close',
+      'x-zcc-operation-id': operationId,
+      'x-zcc-idempotency': idempotencyLabel(scope),
+      'x-zcc-idempotency-scope': 'companion-operation-replay-not-upstream-exactly-once',
+      ...stateHeaders()
+    });
+    const push = (frame: string): void => {
+      budget.write(frame);
+      frames.push(frame);
+      if (!res.destroyed) res.write(frame);
+    };
+    push(emitChunk(ctx, [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }]));
+
+    let usage: Extract<DriverEvent, { type: 'usage' }> | null = null;
+    let finishReason = 'stop';
+    let clientGone = false;
+    try {
+      for await (const event of events) {
+        if (res.destroyed) {
+          clientGone = true;
+          break;
+        }
+        if (event.type === 'delta') {
+          push(emitChunk(ctx, [{ index: 0, delta: { content: event.text }, finish_reason: null }]));
+        } else if (event.type === 'usage') {
+          usage = event;
+        } else {
+          finishReason = event.reason;
+        }
+      }
+    } finally {
+      // 客户端断开时立刻收掉产出，不让它继续空转。
+      if (clientGone || res.destroyed) await events.return(undefined);
+    }
+    if (clientGone) {
+      logger.info(`event=sse_aborted operation=${operationId} frames=${frames.length}`);
+      return;
+    }
+    push(emitChunk(ctx, [{ index: 0, delta: {}, finish_reason: finishReason }]));
+    if (parsed.includeUsage) {
+      push(
+        emitChunk(ctx, [], {
+          usage:
+            usage === null
+              ? null
+              : {
+                  prompt_tokens: usage.promptTokens,
+                  completion_tokens: usage.completionTokens,
+                  total_tokens: usage.promptTokens + usage.completionTokens,
+                  zcc_usage_method: usage.usageMethod
+                }
+        })
+      );
+    }
+    push(sseDone());
+    const body = frames.join('');
+    if (scope !== null && stored !== null && Buffer.byteLength(body, 'utf8') <= STREAM_BUFFER_MAX_BYTES) {
+      commitReplay(scope, stored, 'text/event-stream; charset=utf-8', body);
+    }
+    // 超出重放预算：登记保持存在但 replay 为 null，重复请求会拿到
+    // idempotency_replay_unavailable，而不是假装能原样重放。
+    if (!res.destroyed) res.end();
+    logger.info(`event=sse operation=${operationId} frames=${frames.length} fixture=${String(driver.fixture)}`);
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* 幂等表                                                              */
+  /* ------------------------------------------------------------------ */
+
+  const commitReplay = (scope: string, entry: StoredOperation, contentType: string, body: string): void => {
+    const current = operations.get(scope);
+    if (current === undefined) return;
+    // COMPAT1/C1：写进**调用方自己持有**的那一条，而不是"表里此刻恰好挂着的那一条"。
+    // 旧签名只按 scope 查表，一旦作用域语义改成"无头=不入表"，`undefined` 分支就会
+    // 静默吞掉重放登记——而那条丢失只有下一次重放时才看得见。
+    if (current !== entry) return;
+    entry.replay = body;
+    entry.contentType = contentType;
+    entry.bytes = Buffer.byteLength(body, 'utf8');
+    replayBytes += entry.bytes;
+    while (replayBytes > REPLAY_STORE_MAX_BYTES || operations.size > MAX_IDEMPOTENCY_ENTRIES) {
+      const oldest = operations.keys().next();
+      if (oldest.done === true) break;
+      const victim = operations.get(oldest.value);
+      if (victim === undefined) break;
+      replayBytes -= victim.bytes;
+      operations.delete(oldest.value);
+    }
+  };
+
+  const releaseOperation = (scope: string): void => {
+    const entry = operations.get(scope);
+    if (entry === undefined) return;
+    replayBytes -= entry.bytes;
+    operations.delete(scope);
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* 请求入口与生命周期                                                  */
+  /* ------------------------------------------------------------------ */
+
+  const requestListener: http.RequestListener = (req, res) => {
+    inFlight += 1;
+    const startedAt = now();
+    let settled = false;
+    const settle = (): void => {
+      if (settled) return;
+      settled = true;
+      inFlight -= 1;
+    };
+    res.on('finish', settle);
+    res.on('close', settle);
+
+    const urlPath = decodeURIComponent((req.url ?? '/').split('?')[0] ?? '/');
+    void (async () => {
+      try {
+        if (req.method === 'OPTIONS') {
+          // CORS 关闭：预检一律 405，且不写任何 access-control-* 头。
+          throw new ApiError('method_not_allowed', '本机 API 不开启 CORS，不处理预检请求', { cors: 'disabled' }, 'method');
+        }
+        if (!passNetworkGates(req, res)) return;
+        if (urlPath === '/v1/models') {
+          handleModels(req, res);
+          return;
+        }
+        if (urlPath === CATALOG_PATH) {
+          handleCatalog(req, res);
+          return;
+        }
+        if (urlPath === '/v1/chat/completions') {
+          await handleChat(req, res);
+          return;
+        }
+        throw new ApiError(
+          'not_found',
+          `未知路径 ${urlPath}：本机 API 只提供 /v1/models、${CATALOG_PATH} 与 /v1/chat/completions`,
+          { path: urlPath }
+        );
+      } catch (e) {
+        const err = toApiError(e);
+        if (res.headersSent || res.writableEnded) {
+          res.destroy();
+        } else {
+          sendError(res, err);
+          logger.warn(`event=rejected path=${urlPath} code=${err.code} status=${err.status}`);
+        }
+      } finally {
+        logger.info(
+          `event=request path=${urlPath} method=${req.method ?? ''} status=${res.statusCode} ms=${now() - startedAt} in_flight=${inFlight}`
+        );
+      }
+    })();
+  };
+
+  const destroySockets = (): void => {
+    for (const socket of sockets) socket.destroy();
+    sockets.clear();
+  };
+
+  const start = async (): Promise<ApiStartResult> => {
+    if (!enabled) {
+      logger.info('event=not_started reason=disabled_by_default');
+      return { started: false, reason: 'disabled_by_default' };
+    }
+    if (apiKeys.length === 0) {
+      // 没有 key 的本机 API 等于无认证的模型入口：宁可不启动。
+      throw new Error('NO_API_KEY: 本机 API 必须在配置了至少一个 API key 的前提下才能开启');
+    }
+    const created = http.createServer(requestListener);
+    created.on('connection', (socket) => {
+      sockets.add(socket);
+      socket.on('close', () => sockets.delete(socket));
+    });
+    created.on('clientError', (_err, socket) => {
+      // 畸形 HTTP 直接断开，不产生业务响应，也不把 socket 留在池里。
+      socket.destroy();
+    });
+    await new Promise<void>((resolve, reject) => {
+      const onError = (e: Error): void => reject(e);
+      created.once('error', onError);
+      created.listen(requestedPort, HOST_LOOPBACK, () => {
+        created.off('error', onError);
+        resolve();
+      });
+    });
+    server = created;
+    boundPort = (created.address() as AddressInfo).port;
+
+    const onSignal = (): void => {
+      void stop();
+    };
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
+    removeSignalHandlers = () => {
+      process.off('SIGINT', onSignal);
+      process.off('SIGTERM', onSignal);
+      signalListeners = 0;
+    };
+    signalListeners = 2;
+
+    logger.info(`event=listening address=${HOST_LOOPBACK} port=${boundPort} driver=${driver.name} status=${driver.status}`);
+    return { started: true, port: boundPort, address: HOST_LOOPBACK };
+  };
+
+  const stop = async (): Promise<{ closed: boolean; timedOut: boolean }> => {
+    // 3a) 回收定时器与信号监听器（无论是否监听过，都幂等）。
+    rateLimiter.close();
+    if (removeSignalHandlers !== null) {
+      removeSignalHandlers();
+      removeSignalHandlers = null;
+    }
+    const target = server;
+    server = null;
+    if (target === null) {
+      destroySockets();
+      operations.clear();
+      replayBytes = 0;
+      return { closed: true, timedOut: false };
+    }
+    // 1) 停止接受新连接。
+    const closedPromise = new Promise<void>((resolve) => {
+      target.close(() => resolve());
+    });
+    target.closeIdleConnections();
+    // 2) 在途请求有界收束。超时如实报 timedOut 并强拆，绝不用 process.exit 掩盖。
+    const timedOut = !(await waitFor(() => inFlight === 0, shutdownGraceMs));
+    // 3) 收束后**再收一次**空闲长连接：在途请求刚结束的那一刻连接才转入空闲，
+    //    只在第 1 步收一次会让 close() 一直等到客户端的 keepAliveTimeout（实测 ~4s）。
+    target.closeIdleConnections();
+    if (timedOut) {
+      logger.warn(`event=shutdown_timed_out grace_ms=${shutdownGraceMs} in_flight=${inFlight}`);
+      target.closeAllConnections();
+      destroySockets();
+    }
+    await closedPromise;
+    destroySockets();
+    operations.clear();
+    replayBytes = 0;
+    logger.info(`event=stopped timed_out=${String(timedOut)}`);
+    return { closed: true, timedOut };
+  };
+
+  return {
+    start,
+    stop,
+    address: () => {
+      const addr = server?.address();
+      if (addr === null || addr === undefined || typeof addr === 'string') return null;
+      return { address: addr.address, port: addr.port };
+    },
+    requestListener,
+    get diagnostics(): ApiDiagnostics {
+      return {
+        inFlight,
+        trackedSockets: sockets.size,
+        activeTimers: rateLimiter.activeTimers,
+        signalListeners,
+        idempotencyEntries: operations.size,
+        driverCalls,
+        status: driver.status,
+        replayBytes
+      };
+    }
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* 辅助                                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 有界等待条件成立。`false` = 超时。**定时器在所有路径都被清掉**，
+ * 不留悬挂句柄，也不靠 `process.exit` 收尾。
+ * @param {() => boolean} predicate
+ * @param {number} timeoutMs
+ * @returns {Promise<boolean>}
+ */
+async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+  for (;;) {
+    if (predicate()) return true;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return predicate();
+    const step = Math.min(20, remaining);
+    const timer = setTimeout(() => undefined, step);
+    timer.unref();
+    try {
+      await new Promise<void>((resolve) => {
+        const inner = setTimeout(resolve, step);
+        inner.unref();
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+/**
+ * 有界读体。`content-length` 预检在认证之前；这里兜住 chunked 的情况。
+ *
+ * 两条超限路径的收尾方式不同，都是为了不留悬挂读流：
+ *  - **声明超限**：响应里带 `connection: close`，并在响应 flush 之后 `req.destroy()`。
+ *    不这么做的话，服务端不再读、客户端还在写 1MiB+，TCP 缓冲写满后客户端会一直
+ *    阻塞到服务端关闭（实测 4s 才拿到响应）。
+ *  - **chunked 超限**：继续把流排空（丢弃而不缓冲），让连接保持可回收。
+ *
+ * @param {http.IncomingMessage} req
+ * @param {http.ServerResponse} res
+ * @returns {Promise<string>}
+ */
+async function readBody(req: http.IncomingMessage, res: http.ServerResponse): Promise<string> {
+  const declared = req.headers['content-length'];
+  if (declared !== undefined && Number(declared) > REQUEST_BODY_MAX_BYTES) {
+    res.setHeader('connection', 'close');
+    // 排空（丢弃而不缓冲），**不是** destroy：destroy 会让客户端在读到 413 之前
+    // 先收到 RST，响应体就丢了。排空让客户端把 1MiB+ 写完、正常读到响应。
+    // 排空量有上限，超过就强拆：拒绝一个超限请求不等于替它读完任意大的流。
+    const drainCap = REQUEST_BODY_MAX_BYTES * 8;
+    let drained = 0;
+    const onDrain = (chunk: Buffer): void => {
+      drained += chunk.length;
+      if (drained > drainCap) req.destroy();
+    };
+    req.on('data', onDrain);
+    req.once('end', () => req.off('data', onDrain));
+    req.resume();
+    throw new ApiError('payload_too_large', `请求体超过 ${REQUEST_BODY_MAX_BYTES} 字节上限`, {
+      limit_bytes: REQUEST_BODY_MAX_BYTES
+    });
+  }
+  const chunks: Buffer[] = [];
+  let size = 0;
+  let exceeded = false;
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8');
+    size += buf.length;
+    if (size > REQUEST_BODY_MAX_BYTES) {
+      exceeded = true;
+      chunks.length = 0;
+      continue; // 排空丢弃，绝不缓冲超限内容
+    }
+    if (!exceeded) chunks.push(buf);
+  }
+  if (exceeded) {
+    throw new ApiError('payload_too_large', `请求体超过 ${REQUEST_BODY_MAX_BYTES} 字节上限`, {
+      limit_bytes: REQUEST_BODY_MAX_BYTES,
+      drained_bytes: size
+    });
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * `x-zcc-idempotency` 响应头的值域（工单 COMPAT1/C1 在 `original | replayed` 之外
+ * 新增 `none`）。
+ *
+ * - `original`：这次是真跑了一次驱动器，响应是**首次**产出。
+ * - `replayed`：命中已登记的幂等作用域，原样重放**上一次**的 2xx。
+ * - `none`：**客户端没有显式 opt-in 幂等**（一个幂等头都没发），本次既不重放、
+ *   也不可被将来的请求重放。值域闭合就这三种，不存在"看起来像 original 但其实
+ *   是一次重放"的第四种。
+ */
+export const IDEMPOTENCY_RESPONSE_VALUES = ['original', 'replayed', 'none'] as const;
+export type IdempotencyResponseValue = (typeof IDEMPOTENCY_RESPONSE_VALUES)[number];
+
+/** `scope === null`（无显式 opt-in）就是 `none`，否则是 `original`。 */
+function idempotencyLabel(scope: string | null): IdempotencyResponseValue {
+  return scope === null ? 'none' : 'original';
+}
