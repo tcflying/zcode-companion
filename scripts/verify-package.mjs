@@ -133,6 +133,42 @@ async function assertPortFree() {
 await assertPortFree();
 
 /**
+ * 本门唯一用到的 `@electron/asar` 入口。模块形状在这里显式钉死，而不是让
+ * `tsc --checkJs` 去解析那个包自己的 d.ts：见 `loadAsarModule` 的说明。
+ *
+ * @typedef {{ listPackage: (asarPath: string, options: { isPack?: boolean }) => string[] }} AsarModule
+ */
+
+/**
+ * 运行期解析 `@electron/asar`。
+ *
+ * **为什么不能写成 `require('../apps/desktop/node_modules/@electron/asar')`**：那样
+ * tsc 会在**编译期**静态解析这个路径，而 `@electron/asar` 只装在 `apps/desktop`
+ * 下。根 `package.json` 没有 `workspaces`，根 `npm install` 不覆盖 `apps/desktop`，
+ * 于是干净克隆里 `npm run ci` 的 `typecheck:checkjs` 会在跑 `verify:package`
+ * **之前**就以 TS2307 变红——一道只有出包后才用得上的门，把类型门拖死了。
+ *
+ * 所以这里把模块 id 交给运行期拼装：tsc 不做静态解析，解析锚点则是
+ * `apps/desktop/package.json`，与在 `apps/desktop` 里执行 `npm install` 后的实际
+ * 解析路径一致（不再依赖「脚本恰好住在 scripts/」这一相对位置）。
+ *
+ * @returns {AsarModule}
+ */
+function loadAsarModule() {
+  const desktopRequire = createRequire(join(PROJECT_ROOT, 'apps', 'desktop', 'package.json'));
+  const moduleId = ['@electron', 'asar'].join('/');
+  try {
+    return /** @type {AsarModule} */ (desktopRequire(moduleId));
+  } catch (err) {
+    fail(
+      `读不了 @electron/asar（${err instanceof Error ? err.message : String(err)}）。`
+      + '它装在 apps/desktop 下，根 npm install 不覆盖该目录（根 package.json 没有 workspaces），'
+      + '请执行：cd apps/desktop && npm install'
+    );
+  }
+}
+
+/**
  * 产物 asar 里必须真的带着 `verify-contract.cjs`。
  *
  * 为什么门脚本自己 require 仓库里的那份还不够：`files` 规则哪天被收窄，产物就会
@@ -144,10 +180,9 @@ function assertAsarContains(/** @type {string} */ relative) {
   if (!existsSync(asar)) fail(`找不到产物 asar：${asar}（重新跑 npm run pack:win）`);
   let entries;
   try {
-    const asarModule = require('../apps/desktop/node_modules/@electron/asar');
     // 这版 @electron/asar 的 ListOptions 是必填参数（d.ts 里 `isPack` 没有 `?`）。
     // isPack=false = 列出文件条目（不是 unpack 后的目录树），正是「包里到底有什么」。
-    entries = asarModule.listPackage(asar, { isPack: false });
+    entries = loadAsarModule().listPackage(asar, { isPack: false });
   } catch (err) {
     fail(`读不了产物 asar（${err instanceof Error ? err.message : String(err)}）`);
   }

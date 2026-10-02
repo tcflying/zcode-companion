@@ -29,6 +29,9 @@
  *                 with the package's own runtime (driver=none, synthetic key):
  *                 it must render and serve GET /v1/models through app://.
  *                 Artifact missing / oversized / not self-contained → exit 1.
+ *                 Also requires the desktop app's own node_modules
+ *                 (@electron/asar, declared in apps/desktop/package.json), since
+ *                 the root install never covers apps/desktop.
  *
  * NOT_IMPLEMENTED (exit 3, block release):
  *   lint, test:integration, test:mutations, test:e2e, build
@@ -115,7 +118,14 @@ const COMMANDS = {
   'verify:package': {
     bin: 'scripts/verify-package.mjs',
     args: [],
-    required: ['apps/desktop/package.json', 'scripts/verify-package.mjs']
+    // 读产物 asar 用的是 apps/desktop 自己的 @electron/asar（显式 devDependency，
+    // 不是 electron-builder 的传递依赖）。它没装 = 构建前提没备齐，与 pack:win
+    // 同一个原因码 exit 4，不允许跑到脚本里再含糊地报一句「读不了 asar」。
+    required: [
+      'apps/desktop/package.json',
+      'apps/desktop/node_modules/@electron/asar/package.json',
+      'scripts/verify-package.mjs'
+    ]
   }
 };
 const NOT_IMPLEMENTED = new Set([

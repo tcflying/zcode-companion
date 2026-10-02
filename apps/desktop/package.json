@@ -12,6 +12,7 @@
   },
   "author": "ZCode Companion (独立软件 · 非 ZCode 官方)",
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "electron": "44.4.5",
     "electron-builder": "26.15.3"
   },

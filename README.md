@@ -47,6 +47,8 @@ cd apps/ui && npm install && cd ../..   # apps/ui 有独立 package.json，根 i
 ```
 
 > 漏掉第二步时 `npm run ci` 的 `typecheck:apps` 会因缺 react 类型变红。PowerShell 写法见 [`docs/USAGE.md` §2.1](docs/USAGE.md#21-安装依赖两步缺一不可)。
+>
+> 只有要**打包 / 验包**（[`docs/USAGE.md` §13.6](docs/USAGE.md#136-打包)）时才需要第三步 `cd apps/desktop && npm install`：`apps/desktop` 同样有独立 `package.json`，根 install 一样不覆盖。缺它时 `pack:win` / `verify:package` 以 exit 4 `GATE_PREREQUISITE_MISSING` 硬失败；`npm run ci` 不含这两道门。
 
 ### 步骤 2 — 设密钥并启动
 
@@ -107,7 +109,7 @@ curl -sS http://127.0.0.1:8790/v1/chat/completions -H "Authorization: Bearer <�
 | `GET /v1/models` | 给外部 IDE 的**纯 OpenAI 形状**模型列表（不带 `zcc` 扩展块） |
 | `POST /v1/chat/completions` | 标准 OpenAI chat completions，`stream: true` 走 SSE |
 
-每个响应都带一个 `zcc` 扩展块——**不读文档也能从响应里看出哪些参数没生效**（`parameters_not_forwarded`、`roles_folded`、`tools_forwarded`、`model_is_real` 等 15 个键）。字段规则见 [`docs/USAGE.md` §4–§5](docs/USAGE.md#4-端点)。
+`POST /v1/chat/completions` 的每个响应都带一个 `zcc` 扩展块（`stream: true` 与 `stream: false` 两路同形；另两条路径不带这个块）——**不读文档也能从响应里看出哪些参数没生效**（`parameters_not_forwarded`、`roles_folded`、`tools_forwarded`、`model_is_real` 等 15 个键）。字段规则见 [`docs/USAGE.md` §4–§5](docs/USAGE.md#4-端点)。
 
 ---
 
@@ -153,15 +155,15 @@ id 形态 `account:<plan>::<model>`，**一条目录条目 = 一个（套餐 × 
 npm run ci
 ```
 
-`ci` = `typecheck` + `typecheck:checkjs` + `typecheck:apps` + `test`。
+`ci` = `typecheck` + `typecheck:checkjs` + `typecheck:apps` + `test:ui` + `test`。
 
-**当前状态：20 个测试文件 / 765 个用例全绿**（vitest 5.0.2）。测试保持 **provider-free**：不启动官方 app-server、不发模型请求、不碰生产服务或数据库。`tests/integration` / `mutations` / `e2e` 三个类别**未接线**，其门经 `scripts/stage-gate.mjs` 以 `NOT_IMPLEMENTED` fail-closed。详见 [`docs/USAGE.md` §12](docs/USAGE.md#12-测试)。
+**当前状态：29 个测试文件 / 1006 个用例全绿**（vitest 5.0.2）——根工程 25 文件 / 884 用例（`test`），`apps/ui` 4 文件 / 122 用例（`test:ui`，跑 `apps/ui` 自己的 vitest）。测试保持 **provider-free**：不启动官方 app-server、不发模型请求、不碰生产服务或数据库。`tests/integration` / `mutations` / `e2e` 三个类别**未接线**，其门经 `scripts/stage-gate.mjs` 以 `NOT_IMPLEMENTED` fail-closed。详见 [`docs/USAGE.md` §12](docs/USAGE.md#12-测试)。
 
 ---
 
 ## 详细文档
 
-**[`docs/USAGE.md`](docs/USAGE.md)** —— 使用文档全集：12 章，含完整环境变量闭集、端点与 `zcc` 扩展块、请求字段接受/折叠/披露/拒绝四分法、模型选择、真实成本与延迟、完整安全模型、已知边界、排障表、以及逐条事实的**源码索引**。
+**[`docs/USAGE.md`](docs/USAGE.md)** —— 使用文档全集：13 章，含完整环境变量闭集、端点与 `zcc` 扩展块、请求字段接受/折叠/披露/拒绝四分法、模型选择、真实成本与延迟、完整安全模型、已知边界、排障表、以及逐条事实的**源码索引**。
 
 ---
 

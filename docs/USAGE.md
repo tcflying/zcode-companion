@@ -69,7 +69,7 @@ host-child.mjs（隔离层）
 | npm | **>= 11.16.0** | `package.json` 的 `engines.npm` |
 | ZCode 已登录 | 本机凭据仓 `~/.zcode/v2/credentials.json` 里**要有对应套餐的条目**。没有登录 → 启动不报错，但第一次请求会 `CREDENTIAL_ENTRY_MISSING` | `packages/official-host/src/credentials.ts` |
 | 官方安装 | `C:/ZCode/resources/glm/zcode.cjs` 存在。路径可用 `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` 间接定位 | `host-driver.ts` |
-| 依赖 | 工程根 `npm install` **+** `apps/ui` 内再执行一次 `npm install`，两步都要做（见下） | 根 `package.json` **没有 `workspaces` 字段**，`apps/ui` 不在根安装覆盖范围内 |
+| 依赖 | 工程根 `npm install` **+** `apps/ui` 内再执行一次 `npm install`，两步都要做（见下）。**只有打包 / 验包**（§13.6）才需要再加 `cd apps/desktop && npm install` | 根 `package.json` **没有 `workspaces` 字段**，`apps/ui` 与 `apps/desktop` 都不在根安装覆盖范围内 |
 
 ### 2.1 安装依赖（两步，缺一不可）
 
@@ -94,6 +94,17 @@ Pop-Location
 ```
 
 **为什么必须分两步：** `apps/ui` 有自己的 `package.json`（含 `@types/react` / `@types/react-dom`），而根 `package.json` 未声明 `workspaces`，所以根 `npm install` 不会替它装依赖。漏掉第二步时，`npm run ci` 的 `typecheck:apps`（`tsc --noEmit -p apps/ui/tsconfig.json`）会因为找不到 react 类型直接变红。
+
+**只有打包 / 验包才需要的第三步：** §13.6 的 `pack:win` 与 `verify:package` 依赖 `apps/desktop` 自己的 `node_modules`（`electron` / `electron-builder` / `@electron/asar`）。`apps/desktop` 同样有独立 `package.json`，根安装一样不覆盖它：
+
+```bash
+# Git Bash / PowerShell 通用
+cd apps/desktop
+npm install
+cd ../..
+```
+
+漏掉它时这两道门都以 `GATE_PREREQUISITE_MISSING`（exit 4）指名缺失路径后**硬失败**，不会静默跳过；反过来，`npm run ci` 本身**不含**这两道门，所以只跑 CI / 只用反代的人不必背这份安装量。
 
 检查 ZCode 凭据是否就位（**只读**，不打印任何值）：
 
@@ -774,7 +785,7 @@ curl -sS http://127.0.0.1:8790/v1/zcc/catalog -H "Authorization: Bearer <你的�
 npm run ci
 ```
 
-`ci` = `typecheck` + `typecheck:checkjs` + `typecheck:apps` + `test`。
+`ci` = `typecheck` + `typecheck:checkjs` + `typecheck:apps` + `test:ui` + `test`。
 
 **当前状态（2026-10-03 实测）：29 个测试文件 / 1006 个用例全绿。**
 
@@ -896,6 +907,8 @@ npm run ci
 
 ### 13.6 打包
 
+前置：**`cd apps/desktop && npm install`（§2.1 第三步）**。`apps/desktop` 有独立 `package.json`，根 `npm install` 不覆盖它；`pack:win` / `verify:package` 都要它自己的 `node_modules`。
+
 ```bash
 # 1) 先出界面产物（缺了它，pack:win 直接 exit 1，不打残包）
 cd apps/ui && npx vite build
@@ -909,7 +922,7 @@ npm run verify:package
 
 产物落在 `release/desktop/ZCodeCompanion-<版本>-win-x64-portable.exe`。
 
-`pack:win` 的 required 里含 `apps/ui/dist/index.html` 和 electron-builder 本身：少任何一个都是**硬失败**，而不是打个缺界面的包。
+`pack:win` 的 required 里含 `apps/ui/dist/index.html` 和 electron-builder 本身，`verify:package` 的 required 里含 `apps/desktop/node_modules/@electron/asar`：少任何一个都是**硬失败**（exit 4 `GATE_PREREQUISITE_MISSING`，指名缺失路径），而不是打个缺界面的包、或含糊地跳过去。
 
 `verify:package` 是 fail-closed 的四道检查，任一条不过就非零退出：
 
