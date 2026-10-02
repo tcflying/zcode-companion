@@ -1,6 +1,7 @@
 import { Chip, PageHeader, Section } from '../components/Chips';
 import { FieldList } from '../components/FieldList';
 import { StatePanel } from '../components/StatePanel';
+import { ProxyStatusCard } from '../components/ProxyStatusCard';
 import {
   BUILD_TAG,
   CURRENT_EVIDENCE,
@@ -10,8 +11,9 @@ import {
 import { evaluateWindow, formatClock, formatDuration } from '../lib/format';
 import { WINDOW_MODE_LABEL } from '../data/snapshot';
 import type { AppState } from '../app/useAppState';
+import type { DesktopState } from '../app/useDesktopState';
 
-export function OverviewPage({ state }: { state: AppState }) {
+export function OverviewPage({ state, desktop }: { state: AppState; desktop: DesktopState }) {
   const clock = formatClock(state.now);
   const uptime = formatDuration(Date.now() - state.bootedAt);
   const windowVerdict = evaluateWindow(state.now);
@@ -29,6 +31,8 @@ export function OverviewPage({ state }: { state: AppState }) {
           </>
         }
       />
+
+      <ProxyStatusCard desktop={desktop} />
 
       <div className="grid grid--status">
         <Section title="连接状态" description="app-server 运行时：本轮未启动、未连接、未握手。">

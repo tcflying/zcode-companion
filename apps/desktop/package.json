@@ -2,10 +2,64 @@
   "name": "@zcode-companion/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "ZCode Companion Electron shell (UI01). Loads the local UI bundle only; no network, no runtime spawn, no credentials.",
+  "description": "ZCode Companion desktop program (I10). Owns the reverse-proxy child process lifecycle; no separate console window, no key in the renderer.",
+  "productName": "ZCodeCompanion",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "smoke": "electron . --zcc-smoke"
+    "smoke": "electron . --zcc-smoke",
+    "pack:win": "electron-builder --win portable"
+  },
+  "author": "ZCode Companion (独立软件 · 非 ZCode 官方)",
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "dev.zcode.companion",
+    "productName": "ZCodeCompanion",
+    "artifactName": "${productName}-${version}-win-${arch}-portable.${ext}",
+    "asar": true,
+    "compression": "normal",
+    "directories": {
+      "output": "../../release/desktop",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "lib/**/*.cjs",
+      "assets/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../packages",
+        "to": "runtime/packages",
+        "filter": ["**/*.ts", "**/*.tsx", "**/*.mjs", "!**/node_modules/**"]
+      },
+      {
+        "from": "../../scripts/official-host",
+        "to": "runtime/scripts/official-host",
+        "filter": ["**/*.mjs"]
+      },
+      {
+        "from": "../../apps/ui/dist",
+        "to": "runtime/ui/dist"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.png"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-win-${arch}-portable.${ext}",
+      "unicode": true
+    }
   }
 }

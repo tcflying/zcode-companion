@@ -1,0 +1,15 @@
+[e2e] settings.json 已就位（端口 8791，key 未打印）
+[e2e] 桌面程序已拉起
+[e2e] GET /v1/models → 200，模型条目 10
+[e2e] GET /v1/zcc/catalog → 200，目录条目 18
+[e2e] CDP 已连上本程序的窗口（端口 9333）
+[e2e] 界面经 app:// 取目录 → 200，条目 18
+[e2e] 状态卡快照：state=running pid=39664 port=8791
+[e2e] 日志页子进程输出 13 行；尾部样例：["zcc-api auth=bearer [REDACTED]:a814504c4c9d（key 值永不打印）","zcc-api shutdown: 向本进程发送 SIGINT 或 SIGTERM 优雅关闭（在途请求有界收束 ≤ 5000ms，超时如实报 timedOut 并强拆 socket；不使用 process.exit 掩盖）","zcc-api event=request path=/v1/models method=GET status=401 ms=3 in_flight=1","zcc-api event=request path=/v1/models method=GET status=200 ms=0 in_flight=1","zcc-api event=request path=/v1/zcc/catalog method=GET status=200 ms=1 in_flight=1","zcc-api event=request path=/v1/zcc/catalog method=GET status=200 ms=0 in_flight=1"]
+[e2e] POST /v1/chat/completions → 200，模型回复："就绪，主上。"
+[e2e] 点「停止」按钮：found=true disabled=false
+[e2e] 停止后状态=stopped，原 pid=39664
+[e2e] 原 pid 39664 是否仍存活：false（已确认退出）
+[e2e] 点「启动」按钮：found=true disabled=false
+[e2e] 重新启动后 GET /v1/models → 200（true）
+[e2e] PASS：开发形态端到端全通

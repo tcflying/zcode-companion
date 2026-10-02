@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Chip, PageHeader, Section, Toggle } from '../components/Chips';
 import { StatePanel } from '../components/StatePanel';
 import { SETTINGS_SPEC, WINDOW_MODES, WINDOW_MODE_LABEL, WINDOW_RULE, type WindowMode } from '../data/snapshot';
@@ -11,22 +11,63 @@ import {
   resolveCatalogUrl
 } from '../data/localApiSource';
 import { evaluateWindow } from '../lib/format';
+import { saveSettings, UNAVAILABLE_REASON } from '../data/desktopBridge';
 import type { AppState } from '../app/useAppState';
 import type { useTheme } from '../app/theme';
+import type { DesktopState } from '../app/useDesktopState';
 
 export function SettingsPage({
   state,
-  theme
+  theme,
+  desktop
 }: {
   state: AppState;
   theme: ReturnType<typeof useTheme>;
+  desktop: DesktopState;
 }) {
   const [windowMode, setWindowMode] = useState<WindowMode>('advisory');
   const [redactDiagnostics, setRedactDiagnostics] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // 桌面设置的四项草稿。apiKey 的输入框是掩码：留空或仍是掩码都表示「不改」，
+  // 只有提交一个全新的非空串才会真的换 key。
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [portDraft, setPortDraft] = useState('8790');
+  const [driverDraft, setDriverDraft] = useState('official-host');
+  const [reasoningDraft, setReasoningDraft] = useState('low');
+  const [desktopSave, setDesktopSave] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const bundle = desktop.settings;
+    if (bundle === null) return;
+    setPortDraft(String(bundle.settings.apiPort));
+    setDriverDraft(bundle.settings.driver);
+    setReasoningDraft(bundle.settings.reasoning);
+  }, [desktop.settings]);
+
   const verdict = evaluateWindow(state.now);
   const baseUrlVerdict = resolveCatalogUrl(state.localApiBaseUrl);
+
+  const saveDesktopSettings = async () => {
+    setSaving(true);
+    setDesktopSave(null);
+    const result = await saveSettings({
+      ...(apiKeyDraft.trim() === '' ? {} : { apiKey: apiKeyDraft.trim() }),
+      apiPort: Number.parseInt(portDraft, 10),
+      driver: driverDraft,
+      reasoning: reasoningDraft
+    });
+    setSaving(false);
+    if (result.ok) {
+      setApiKeyDraft('');
+      setDesktopSave({ ok: true, text: '已保存到本机 settings.json。反代需要点「总览」页的「重启」后才会用上新配置。' });
+      desktop.refreshSettings();
+      desktop.refresh();
+    } else {
+      setDesktopSave({ ok: false, text: `未保存：${result.reason ?? '未知原因'}` });
+    }
+  };
 
   const onSave = () => {
     setSaved(true);
@@ -50,6 +91,138 @@ export function SettingsPage({
           </>
         }
       />
+
+      <Section
+        title="反代（桌面程序）"
+        description="这四项由桌面主进程持有并写进本机 userData/settings.json。API key 只存在于主进程内存与该文件：界面拿到的是掩码与 zcc-fp 指纹，永不接触明文。"
+        actions={
+          <button
+            type="button"
+            className="btn btn--primary"
+            data-action="save-desktop-settings"
+            disabled={!desktop.available || saving}
+            onClick={() => void saveDesktopSettings()}
+          >
+            {saving ? '保存中…' : '保存反代设置'}
+          </button>
+        }
+      >
+        {!desktop.available || desktop.settings === null ? (
+          <StatePanel tone="info" title="桌面壳未接入">
+            {UNAVAILABLE_REASON}。这四项设置只在桌面程序里可编辑——它们决定的是**主进程**怎么拉起子进程。
+          </StatePanel>
+        ) : (
+          <>
+            <div className="setting-facts setting-facts--stack">
+              <div>
+                <span>设置文件</span>
+                <span className="mono">{desktop.settings.settingsFile}</span>
+              </div>
+              <div>
+                <span>运行时形态</span>
+                <Chip tone="neutral">
+                  {desktop.settings.runtime.kind === 'packaged' ? '打包形态（随包携带）' : '开发形态（仓库内）'}
+                </Chip>
+              </div>
+              <div>
+                <span>首启引导</span>
+                {desktop.settings.seededFrom !== null ? (
+                  <Chip tone="ok">已从本产品自己的配置读回</Chip>
+                ) : desktop.settings.seedProblem !== null ? (
+                  <Chip tone="warn">未读到（{desktop.settings.seedProblem}）</Chip>
+                ) : (
+                  <Chip tone="pending">未触发</Chip>
+                )}
+              </div>
+            </div>
+
+            <div className="toolbar">
+              <label className="toolbar__field">
+                <span className="toolbar__label">API key</span>
+                <input
+                  className="input"
+                  type="password"
+                  data-field="api-key"
+                  autoComplete="off"
+                  value={apiKeyDraft}
+                  placeholder={
+                    desktop.settings.settings.apiKeySet
+                      ? `${desktop.settings.settings.apiKeyMasked}（留空 = 不改）`
+                      : '未配置'
+                  }
+                  onChange={(e) => setApiKeyDraft(e.target.value)}
+                />
+              </label>
+              <label className="toolbar__field">
+                <span className="toolbar__label">端口</span>
+                <input
+                  className="input"
+                  data-field="api-port"
+                  inputMode="numeric"
+                  value={portDraft}
+                  onChange={(e) => setPortDraft(e.target.value)}
+                />
+              </label>
+              <label className="toolbar__field">
+                <span className="toolbar__label">驱动器</span>
+                <select
+                  className="input input--select"
+                  data-field="driver"
+                  value={driverDraft}
+                  onChange={(e) => setDriverDraft(e.target.value)}
+                >
+                  {desktop.settings.settings.driverClosedSet.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="toolbar__field">
+                <span className="toolbar__label">推理档位</span>
+                <select
+                  className="input input--select"
+                  data-field="reasoning"
+                  value={reasoningDraft}
+                  onChange={(e) => setReasoningDraft(e.target.value)}
+                >
+                  {desktop.settings.settings.reasoningClosedSet.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="setting-facts setting-facts--stack">
+              <div>
+                <span>当前 key</span>
+                {desktop.settings.settings.apiKeySet ? (
+                  <Chip tone="ok">
+                    {desktop.settings.settings.apiKeyMasked} · {desktop.settings.settings.apiKeyFingerprint}
+                  </Chip>
+                ) : (
+                  <Chip tone="danger">未配置（反代不会启动）</Chip>
+                )}
+              </div>
+            </div>
+
+            {desktop.settings.loadProblems.length > 0 ? (
+              <StatePanel tone="error" title="设置文件里有被丢弃的字段">
+                {desktop.settings.loadProblems.join('；')}
+              </StatePanel>
+            ) : null}
+
+            {desktopSave !== null ? (
+              <div className="notice" role="status">
+                <span className="notice__tag">{desktopSave.ok ? '已保存' : '未保存'}</span>
+                <span className="notice__text">{desktopSave.text}</span>
+              </div>
+            ) : null}
+          </>
+        )}
+      </Section>
 
       <div className="grid grid--two">
         <Section

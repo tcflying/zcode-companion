@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "port": 8791,
+  "modelsEndpointItems": 10,
+  "catalogItems": 18,
+  "uiCatalogItems": 18,
+  "childLogLines": 13,
+  "chatStatus": 200,
+  "chatModel": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+  "chatReplyPreview": "就绪，主上。",
+  "stoppedPid": 39664,
+  "finalSnapshot": {
+    "state": "running",
+    "pid": 35760,
+    "port": 8791,
+    "external": false,
+    "lastError": null,
+    "lastChangedAt": 1790954344292,
+    "canControl": true,
+    "owned": true
+  }
+}

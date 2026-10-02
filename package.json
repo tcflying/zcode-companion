@@ -9,10 +9,11 @@
     "npm": ">=11.16.0"
   },
   "scripts": {
-    "ci": "npm run typecheck && npm run typecheck:checkjs && npm run typecheck:apps && npm run test",
+    "ci": "npm run typecheck && npm run typecheck:checkjs && npm run typecheck:apps && npm run test:ui && npm run test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:checkjs": "tsc --noEmit -p tsconfig.json --checkJs true",
     "typecheck:apps": "node scripts/stage-gate.mjs typecheck:apps",
+    "test:ui": "node scripts/stage-gate.mjs test:ui",
     "api:start": "node packages/api/bin/start-api.mjs",
     "lint": "node scripts/stage-gate.mjs lint",
     "test": "node scripts/stage-gate.mjs test",

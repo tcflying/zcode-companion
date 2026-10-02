@@ -13,7 +13,7 @@ export const UNKNOWN = 'unknown' as const;
 export const PRODUCT_NAME = 'ZCode Companion';
 export const PRODUCT_DISCLAIMER = '独立软件 · 非 ZCode 官方';
 export const PRODUCT_VERSION = '0.1.0';
-export const BUILD_TAG = 'UI01 界面壳（无运行时接入）';
+export const BUILD_TAG = 'I10 桌面程序（主进程托管本机反代）';
 
 /** 证据等级：来自 929 §11.4。当前一律 E0。 */
 export type EvidenceLevel = 'E0' | 'E1' | 'E2' | 'E3';

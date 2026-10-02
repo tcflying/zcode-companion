@@ -3,7 +3,9 @@ import { Chip, PageHeader, Section } from '../components/Chips';
 import { StatePanel } from '../components/StatePanel';
 import { LOG_LEVELS, LOG_LEVEL_LABEL, type LogLevel } from '../lib/logger';
 import { formatStamp } from '../lib/format';
+import { STREAM_LABEL } from '../data/desktopLabels';
 import type { AppState } from '../app/useAppState';
+import type { DesktopState } from '../app/useDesktopState';
 
 const REDACTION_SAMPLE =
   '脱敏自检：写入前替换 apiKey=sk-selfcheck-0000abcd 与 Authorization: Bearer eyJhbGciOi.selfcheck.token 样式串';
@@ -12,7 +14,7 @@ const REDACTION_SAMPLE =
 const SELF_CHECK_RAW =
   '脱敏自检样本（构造串，非真实凭据）：apiKey=sk-selfcheck-0000abcd, Authorization: Bearer eyJhbGciOi.selfcheck.token, credential: "plain-secret-value"';
 
-export function LogsPage({ state }: { state: AppState }) {
+export function LogsPage({ state, desktop }: { state: AppState; desktop: DesktopState }) {
   const [level, setLevel] = useState<'all' | LogLevel>('all');
   const [source, setSource] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'info' | 'problem'>('all');
@@ -46,15 +48,62 @@ export function LogsPage({ state }: { state: AppState }) {
         subtitle="本地日志缓冲。消息在写入界面状态之前统一经过脱敏，界面不可能出现凭据值。"
         badges={
           <>
-            <Chip tone="pending">持久化 未接入</Chip>
+            <Chip tone="pending">界面缓冲 {state.logs.length} / 200</Chip>
             <Chip tone="ok">脱敏 写前强制</Chip>
-            <Chip tone="neutral">缓冲 {state.logs.length} / 200</Chip>
+            <Chip tone="neutral">子进程尾 {desktop.logs.length} 行</Chip>
           </>
         }
       />
 
       <Section
-        title="本地日志"
+        title="反代子进程输出"
+        description="桌面主进程把子进程的 stdout / stderr 收进环形缓冲并实时推送。写入前逐行脱敏：注册过的凭据串、Bearer 令牌、key=value 形态一律替换为 [REDACTED]。"
+        actions={
+          <button type="button" className="btn" onClick={desktop.refreshLogs} disabled={!desktop.available}>
+            拉取最新
+          </button>
+        }
+      >
+        {!desktop.available ? (
+          <StatePanel tone="info" title="桌面壳未接入">
+            没有子进程可跟随。只有从桌面程序启动时，这里才会有内容。
+          </StatePanel>
+        ) : desktop.logs.length === 0 ? (
+          <StatePanel tone="empty" title="空状态：还没有子进程输出">
+            反代子进程启动后，它的每一行 stdout / stderr 都会实时出现在这里。
+          </StatePanel>
+        ) : (
+          <div className="table-wrap" role="region" aria-label="反代子进程输出" tabIndex={0}>
+            <table className="table table--logs">
+              <thead>
+                <tr>
+                  <th scope="col" className="th--time">
+                    时间
+                  </th>
+                  <th scope="col" className="th--level">
+                    来源流
+                  </th>
+                  <th scope="col">输出</th>
+                </tr>
+              </thead>
+              <tbody>
+                {desktop.logs.map((line) => (
+                  <tr className={`table__row table__row--${line.stream === 'stderr' ? 'warn' : 'debug'}`} key={line.seq}>
+                    <td className="mono th--time">{formatStamp(line.at)}</td>
+                    <td>
+                      <Chip tone={line.stream === 'stderr' ? 'warn' : 'neutral'}>{STREAM_LABEL[line.stream]}</Chip>
+                    </td>
+                    <td className="log-msg">{line.text}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="界面本地日志"
         description="级别 / 时间 / 来源 / 来源说明见下表。缓冲区仅存在于内存，关闭界面即清空。"
         actions={
           <div className="toolbar">

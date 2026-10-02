@@ -21,6 +21,7 @@
 10. [已知边界](#10-已知边界)
 11. [排障表](#11-排障表)
 12. [测试](#12-测试)
+13. [桌面程序（GUI）](#13-桌面程序gui)
 
 ---
 
@@ -122,6 +123,8 @@ npm run api:start -- --driver official-host
 ```
 
 > `<你的密钥>` 是**你自己选的**本机 API key（不是 ZCode 的凭据，也不是 MiniMax 的 key）。它只用于本机回环端口的 Bearer 认证，与官方额度无关。
+
+> **日常使用请看第 13 章（桌面程序）。** 上面这条是「无 GUI 形态」，适合排障和脚本化；桌面程序把同一份反代收进 GUI，双击一个 exe 即可，不弹独立控制台。两者起的是同一个反代入口、同一套 env 闭集、同一套错误码。
 
 ### 3.2 为什么 key 必须用环境变量而不是 `--api-key`
 
@@ -773,16 +776,24 @@ npm run ci
 
 `ci` = `typecheck` + `typecheck:checkjs` + `typecheck:apps` + `test`。
 
-**当前状态（2026-10-02 实测）：20 个测试文件 / 765 个用例全绿。**
+**当前状态（2026-10-03 实测）：29 个测试文件 / 1006 个用例全绿。**
 
 | 项 | 值 |
 | --- | --- |
-| 测试文件 | 20（`tests/unit/**` + `tests/contract/**`） |
-| 用例 | 765 |
+| 根工程测试文件 | 25（`tests/unit/**` + `tests/contract/**`） |
+| 根工程用例 | 884 |
+| `apps/ui` 测试文件 | 4（`npm run test:ui`，走 `apps/ui` 自己的 vitest） |
+| `apps/ui` 用例 | 122 |
 | 框架 | vitest 5.0.2 |
 | 超时 | 15s / 用例 |
 
+其中桌面程序（I10）新增 5 个根工程文件 / 119 个用例：状态机五态、并发启动的孤儿防护、`external` 可逆接管、`app://` 白名单与静态穿越、设置引导与掩码回提交、key 不泄漏不变式（含扫描器自测）、验包自检判据。
+
+`apps/ui` 的测试**不在根 `vitest.config.ts` 里**（UI01 有意把 `apps/` 隔离出根工程），但它由 `test:ui` 门接进了 `ci`——隔离不等于免检。`desktopBridge.test.ts` 守着的「桥缺席时不假装有桌面」这条产品承诺就在其中。
+
 `vitest.config.ts` 里 `passWithNoTests: false` 是刻意的：**空测试目录必须以非零码退出**。`tests/integration` / `mutations` / `e2e` 三个类别**未接线**，它们的 npm 门经 `scripts/stage-gate.mjs` 以 `NOT_IMPLEMENTED` fail-closed。
+
+> 开发形态的端到端（真拉反代、真发一条模型请求、点真按钮）**不在 `npm test` 里**：它依赖真实凭据与网络，会让默认测试面变成一条依赖真实配额的链。取证脚本见 `review-artifacts/i10/e2e/dev-e2e.mjs`。
 
 测试保持 **provider-free**：不启动官方 app-server、不发模型请求、不碰生产服务或数据库。
 
@@ -793,6 +804,133 @@ npm run ci
 - `DriverRequest` 上**没有**工具槽位
 - 付费通道黑名单闭集全集
 - 断言只增不减（零 `skip` / `todo` / `only` / `fails`）
+
+---
+
+## 13. 桌面程序（GUI）
+
+### 13.1 一句话
+
+**反代的启动、显示、操作全部收进 GUI，绝不弹独立 cmd 窗口。**
+
+第 3 章那套「先起命令��再另开一个窗口看日志」的用法仍然有效，但它是给排障用的。日常使用应该是：双击一个 exe，界面里把反代管起来。
+
+### 13.2 三种启动方式
+
+| 形态 | 命令 | 反代由谁拉起 |
+| --- | --- | --- |
+| 开发 | `cd apps/desktop && npm start` | 桌面程序主进程 |
+| 打包产物 | 双击 `ZCodeCompanion-<版本>-win-x64-portable.exe` | 桌面程序主进程 |
+| 纯 API（无 GUI） | 第 3 章的 `npm run api:start` | 你自己的终端 |
+
+**前两种才是本工单的形态**：反代是桌面程序的**子进程**（`windowsHide: true` + `shell: false`），所以整个过程只会出现一个窗口，没有任何独立控制台。
+
+### 13.3 它管什么
+
+主进程 spawn 的就是第 3 章那个反代入口：
+
+```
+<node> packages/api/bin/start-api.mjs --driver official-host
+```
+
+子进程只拿到 `ZCC_*` 闭集里的四个键（`ZCC_API_KEY` / `ZCC_API_PORT` / `ZCC_SHUTDOWN_GRACE_MS` / `ZCC_HOST_REASONING`）加上一小组 Windows 运行必需的环境键。**key 走环境变量、不走命令行**（理由见 §3.2）。
+
+> **上面那行 `<node>` 是 Electron 自带的 Node，不是你机器上装的 Node。** 实现见
+> `apps/desktop/main.cjs` 的 `nodeCommand()`：用 `process.execPath` 配上
+> `ELECTRON_RUN_AS_NODE=1`，让同一个可执行文件以纯 Node 形态跑反代入口。这条链在整棵
+> 进程树上成立——反代再去 spawn 官方 app-server 时会原样继承这个环境变量，孙进程同样
+> 以纯 Node 运行。**所以干净机器上没装 Node 也能用**，不需要额外预装运行时。
+
+界面（`app://` 协议）只有两条分支：
+
+- `/v1/` 前缀 → 主进程 `net.fetch` 转发到 `http://127.0.0.1:<端口>`，**注入** `Authorization: Bearer <key>`、**剥掉** `Origin` / `Cookie` / 渲染进程自带的 `Authorization`；
+- 其余路径 → `apps/ui/dist` 静态文件，目录穿越照旧 403。
+
+因此页面里那些 `/v1/...` 的相对路径 fetch 在桌面程序里照样能用，**界面代码不需要知道自己被谁加载**（dev 下靠 vite 反代、打包后靠 `app://`，两边同源同形）。
+
+**key 只活在主进程**：不进渲染进程、不进任何 IPC 载荷、不进日志、不进截图。界面拿到的只有「key 是否已配置」、掩码和 `zcc-fp:*` 指纹。
+
+### 13.4 五种状态，以及 `external` 是什么
+
+界面「总览」页的状态卡显示的是主进程的真实状态，逐条来自快照，界面不自己推断：
+
+| 状态 | 含义 | 启动 | 停止 |
+| --- | --- | --- | --- |
+| `stopped` | 没在跑 | 可用 | 不可用 |
+| `starting` | 正在拉起并等 `/v1/models` 探通 | 不可用 | 不可用 |
+| `running` | **子进程存活 且** `GET /v1/models` 探通 | 不可用 | 可用 |
+| `failed` | 拉起失败、超时，或子进程意外退出 | 可用 | 不可用 |
+| `external` | **启动前探测到该端口已有服务** | 可用（重探） | **禁用** |
+
+**`external` 是这一节最该记住的一条。** 启动前先探一次目标端口；探到活（`GET /v1/models` 返回 401 或 200 都算活）就进入 `external`，此时桌面程序**只观察**：
+
+- **停止 / 重启一律禁用**，点不动也调不动——主进程侧对 `stop()` 直接回 `EXTERNAL_NOT_OWNED`；
+- **绝不会向一个不是自己拉起来的进程发信号**；
+- **启动仍可点**，它会**重新探一次端口**：外部进程还在就继续只观察；你在别处停掉那份、
+  端口空出来之后，再点一次「启动」就由本程序接管。也就是说 `external` 不是一个只能
+  重启应用才能退出的死状态。
+
+「只观察」约束的是**发信号**，不是「永远不许接管一个空端口」——接管的前提是那个端口
+确实已经空了，此刻并不存在别人的进程。
+
+所以「端口被占」在这里不是一个错误，而是一个必须如实显示的事实：比如你已经用 §3.2 的
+命令在终端里起了一份反代，桌面程序就只旁看着，不会去动它，也不会把它顶掉。要接管，
+先自己在终端里停掉那份，再点「启动」。
+
+`running` 也不是「spawn 没报错」的乐观假设：它要求**子进程仍存活**且**探测通**两条同时成立。否则状态是 `failed`，并且 `failed` 一定带一句可读的最近错误。
+
+### 13.5 设置与首启引导
+
+设置落在 `app.getPath('userData')/settings.json`（Windows 上是 `%APPDATA%\ZCodeCompanion\settings.json`）：
+
+| 字段 | 缺省 | 说明 |
+| --- | --- | --- |
+| `apiKey` | 空 | 本机 API key；首启时若为空，从 `~/.minimax/config.yaml` 的 `custom_provider.zcc-companion.options.apiKey` 读回 |
+| `apiPort` | `8790` | 端口被占时进入 `external`，不会自动换端口 |
+| `driver` | `official-host` | 传给反代的 `--driver` |
+| `reasoning` | `low` | 映射到 `ZCC_HOST_REASONING` |
+
+首启引导读的那把 key 是**本产品自己生成**的（`zcc_` 开头、36 字符），单一用途回填，不涉及任何其它凭据。读不到就在设置页显示问题，不猜、不静默。
+
+改完设置**要点「重启」才生效**，界面会明确提示——运行中的子进程不会因为设置变了就自己换配置。
+
+### 13.6 打包
+
+```bash
+# 1) 先出界面产物（缺了它，pack:win 直接 exit 1，不打残包）
+cd apps/ui && npx vite build
+
+# 2) 出 portable exe
+cd ../.. && npm run pack:win
+
+# 3) 验包：从包外 cwd 启动 + 渲染 + /v1 转发
+npm run verify:package
+```
+
+产物落在 `release/desktop/ZCodeCompanion-<版本>-win-x64-portable.exe`。
+
+`pack:win` 的 required 里含 `apps/ui/dist/index.html` 和 electron-builder 本身：少任何一个都是**硬失败**，而不是打个缺界面的包。
+
+`verify:package` 是 fail-closed 的四道检查，任一条不过就非零退出：
+
+1. 产物存在，且 `release/desktop` 下**只有一个** `.exe`（有歧义即失败）；
+2. 体积不超过 `ZCC_PACKAGE_MAX_BYTES`（缺省 260 MiB）——顺手把整棵 `node_modules` 塞进去的包会在这里现形；
+3. 把 exe 的 **cwd 设成 `%TEMP%` 下的新目录**再启动：还依赖仓库相对路径的产物在这一步就起不来；
+4. exe 以 `--zcc-verify` 启动，用**包内**运行时（`driver=none`）拉起 API，让渲染进程经 `app://` 真发一次 `GET /v1/models`。
+
+> 自检全程只用**合成** key（`zcc_verify_local_only_*`），不读你的 `settings.json`、不读 `~/.minimax/config.yaml`、不碰 8790 上任何在跑的实例（自检端口由 `ZCC_VERIFY_PORT` 给出，缺省 8899）。
+
+### 13.7 已知边界
+
+| 边界 | 说明 |
+| --- | --- |
+| **官方运行时不在包里** | portable exe **不带** `C:/ZCode/resources/glm/zcode.cjs`。包自足的是**反代运行时**（`packages/` + `scripts/` + 界面产物）；真发模型请求仍要求本机装了 ZCode，否则 `official-host` 拿不到官方 bundle。`verify:package` 因此只验「渲染 + `/v1` 转发可达」，不验真实模型调用 |
+| Windows only | 官方 bundle 路径与隔离目录都是 Windows 形态；`pack:win` 名字里的 `win` 不是占位 |
+| 关窗即退出 | 没有「最小化到托盘后继续跑」这一档：关窗 → 退出 → 按 `ZCC_SHUTDOWN_GRACE_MS` 收束**自己 spawn 的**子进程 |
+| 单实例 | `requestSingleInstanceLock`：二次启动只聚焦既有窗口，不会拉起第二份反代 |
+| 外部客户端照旧 | 桌面程序只管 GUI 这条命脉。§6 那种「让 IDE 直连 `127.0.0.1:8790`」的用法不受影响，且此时桌面程序会显示为 `external` |
+| 日志是内存环形缓冲 | 只保留最近 600 行，退出即失；不落盘、不外传 |
+| 打包体积 | 约 100 MiB 量级（Electron 运行时本体占大头），上限门是 260 MiB |
 
 ---
 
@@ -813,4 +951,11 @@ npm run ci
 | 套餐缓存键映射、`entitled` 推导 | `packages/official-host/src/entitlement.ts` |
 | 目录构造、计费类别映射、offeringId 拆分 | `packages/plansrc/src/mapper.ts` |
 | 官方本地文件路径解析 | `packages/plansrc/src/reader.ts` |
+| 桌面主进程、窗口/托盘/单实例、smoke 与 verify 模式 | `apps/desktop/main.cjs` |
+| `app://` 白名单、头注入与剥除、静态穿越防护 | `apps/desktop/lib/app-protocol.cjs` |
+| 五态状态机、子进程 env 闭集、有界停止 | `apps/desktop/lib/proxy-manager.cjs` |
+| 设置持久化与首启引导、`publicSettings` 脱敏 | `apps/desktop/lib/settings.cjs` |
+| dev / 打包两种寻址形态 | `apps/desktop/lib/runtime-paths.cjs` |
+| 日志环形缓冲与按值脱敏 | `apps/desktop/lib/log-ring.cjs` |
+| 渲染进程能力边界（contextIsolation / sandbox） | `apps/desktop/preload.cjs` |
 | npm 脚本、Node 版本要求 | `package.json` |

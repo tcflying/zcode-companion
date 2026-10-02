@@ -20,10 +20,18 @@
  *                 turn the main chain red, so this gate is not a manual-only
  *                 gate. If apps/ui/tsconfig.json is missing the gate fails with
  *                 APPS_PROJECT_NOT_CREATED (exit 4), never a silent pass.)
+ *   pack:win       electron-builder --win portable (I10). Requires the desktop
+ *                 app's own node_modules (electron + electron-builder, installed
+ *                 under apps/desktop) plus apps/ui/dist, which ships as one of
+ *                 the package's extraResources. A missing prerequisite is exit 4
+ *                 GATE_PREREQUISITE_MISSING, never a "skipped" pass.
+ *   verify:package runs the built portable exe from a **cwd outside the repo**,
+ *                 with the package's own runtime (driver=none, synthetic key):
+ *                 it must render and serve GET /v1/models through app://.
+ *                 Artifact missing / oversized / not self-contained → exit 1.
  *
  * NOT_IMPLEMENTED (exit 3, block release):
- *   lint, test:integration, test:mutations, test:e2e, build, pack:win,
- *   verify:package
+ *   lint, test:integration, test:mutations, test:e2e, build
  *
  * Exit codes:
  *   0        gate passed
@@ -71,7 +79,7 @@ const CATEGORY_DIRS = Object.values(IMPLEMENTED);
 const VITEST_RUN_ALL = 'test';
 
 // Non-vitest implemented gates: a real command with a real propagated exit code.
-/** @type {Record<string, { bin: string, args: string[], required?: string[] }>} */
+/** @type {Record<string, { bin: string, args: string[], required?: string[], cwd?: string }>} */
 const COMMANDS = {
   'typecheck:apps': {
     bin: 'node_modules/typescript/bin/tsc',
@@ -80,6 +88,34 @@ const COMMANDS = {
     // precondition of this gate and is checked explicitly below, so "the apps
     // project was never created" can never be reported as a passing typecheck.
     required: ['apps/ui/tsconfig.json']
+  },
+  // I10：apps/ui 自己的 vitest。UI01 把 apps/ 隔离出根 vitest 工程是有意裁定
+  // （根 vitest.config.ts 不动，保持原样），但**隔离不等于免检**——
+  // `desktopBridge.test.ts` 守着「桥缺席时不假装有桌面」这条产品承诺，不跑就没人守。
+  // 按裁定接入 ci：它跑自己的 vitest，走真实退出码。
+  'test:ui': {
+    bin: 'node_modules/vitest/vitest.mjs',
+    args: ['run', '--root', 'apps/ui'],
+    // 隔离工程的项目配置进 required：缺了就 exit 1，不许「没有测试所以通过」。
+    required: ['apps/ui/vitest.config.ts', 'apps/ui/package.json']
+  },
+  // I10 出包：electron-builder 出 portable exe。界面产物是 extraResources 的一份，
+  // 少了它包就不自足——所以它进 required，缺了就 exit 1 而不是打个残包。
+  'pack:win': {
+    bin: 'apps/desktop/node_modules/electron-builder/cli.js',
+    args: ['--win', 'portable', '--projectDir', 'apps/desktop'],
+    required: [
+      'apps/desktop/package.json',
+      'apps/desktop/node_modules/electron/package.json',
+      'apps/desktop/node_modules/electron-builder/package.json',
+      'apps/ui/dist/index.html'
+    ]
+  },
+  // I10 验包：产物存在 + 体积达标 + 从包外 cwd 启动 + 渲染成功 + /v1 转发可达。
+  'verify:package': {
+    bin: 'scripts/verify-package.mjs',
+    args: [],
+    required: ['apps/desktop/package.json', 'scripts/verify-package.mjs']
   }
 };
 const NOT_IMPLEMENTED = new Set([
@@ -87,9 +123,7 @@ const NOT_IMPLEMENTED = new Set([
   'test:integration',
   'test:mutations',
   'test:e2e',
-  'build',
-  'pack:win',
-  'verify:package'
+  'build'
 ]);
 
 /**
@@ -190,24 +224,31 @@ if (gate in COMMANDS) {
   // source root and IS inside tsconfig.json's include.
   const command = COMMANDS[gate];
   if (command === undefined) fail(1, `GATE_ERROR: no command definition for ${gate}`);
-  const { bin, args, required } = command;
+  const { bin, args, required, cwd } = command;
   // Q1: the gate is wired into `npm run ci`, so "the project this gate needs is
   // not there" must be loud, distinct and blocking — never a silent skip and
   // never indistinguishable from a clean typecheck.
+  //
+  // 原因码按门区分：typecheck:apps 缺的是那个**独立工程**的配置（APPS_PROJECT_NOT_CREATED）；
+  // 打包 / 验包缺的是构建前提（GATE_PREREQUISITE_MISSING）。两者都 exit 4，
+  // 但混用同一个词会让「apps 工程没建」和「electron-builder 没装」看起来像同一件事。
   for (const rel of required ?? []) {
     const requiredPath = join(resolve(root), rel);
-    if (!existsSync(requiredPath)) {
+    if (existsSync(requiredPath)) continue;
+    if (gate === 'typecheck:apps') {
       fail(4, `APPS_PROJECT_NOT_CREATED: ${gate} requires ${requiredPath} under root ${resolve(root)}. `
         + 'The apps/ tree is a separate nested project that is deliberately NOT part of the root '
         + 'tsconfig.json, so this gate cannot pass without it.');
     }
+    fail(4, `GATE_PREREQUISITE_MISSING: ${gate} requires ${requiredPath} under root ${resolve(root)}. `
+      + '先补齐该前提（见 docs/USAGE.md「桌面程序」章）再跑这道门；不允许跳过。');
   }
   const script = join(resolve(root), bin);
   if (!existsSync(script)) {
     fail(1, `GATE_ERROR: ${gate} command not found: ${script}`);
   }
   const child = spawn(process.execPath, [script, ...args], {
-    cwd: resolve(root),
+    cwd: join(resolve(root), cwd ?? ''),
     env: process.env,
     stdio: 'inherit'
   });

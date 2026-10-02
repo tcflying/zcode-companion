@@ -179,13 +179,33 @@ describe('stage gate classification contract', () => {
   }, 180000);
 
   it('NOT_IMPLEMENTED gates exit non-zero with the NOT_IMPLEMENTED marker', async () => {
-    const gates = ['lint', 'test:integration', 'test:mutations', 'test:e2e', 'build', 'pack:win', 'verify:package'];
+    // I10 实现了 pack:win 与 verify:package，因此这两个门**移出**本表；
+    // 它们的分类由下一条用例从正面钉住（不再是 NOT_IMPLEMENTED）。
+    const gates = ['lint', 'test:integration', 'test:mutations', 'test:e2e', 'build'];
     for (const gate of gates) {
       const r = await runNode([STAGE_GATE, gate]);
       expect(r.code, `${gate} must block release (non-zero)`).not.toBe(0);
       expect(r.out + r.err).toContain('NOT_IMPLEMENTED');
     }
-  }, 60000);
+  });
+
+  it('pack:win / verify:package 已实现：不再 NOT_IMPLEMENTED，缺前提时报真实原因码', async () => {
+    // 一个空 root：前提文件全都不在。这两道门**必须**因此报各自的真实原因码
+    // （GATE_PREREQUISITE_MISSING / 找不到命令），而不是退回 NOT_IMPLEMENTED ——
+    // 后者意味着「实现没做」，前者才是「实现做了但前提没备齐」。
+    const bareRoot = mkdtempSync(join(tmpdir(), 'zcc-gate-prereq-'));
+    try {
+      for (const gate of ['pack:win', 'verify:package']) {
+        const r = await runNode([STAGE_GATE, gate, '--root', bareRoot], { timeoutMs: 60000 });
+        expect(r.out + r.err, `${gate} 不能再声称 NOT_IMPLEMENTED`).not.toContain('NOT_IMPLEMENTED');
+        expect(r.code, `${gate} 缺前提时必须非零`).toBe(4);
+        expect(r.out + r.err, `${gate} 必须指名缺哪个前提`).toContain('GATE_PREREQUISITE_MISSING');
+      }
+    } finally {
+      rmSync(bareRoot, { recursive: true, force: true });
+      expect(existsSync(bareRoot), 'the temporary prerequisite root must be reclaimed').toBe(false);
+    }
+  }, 120000);
 
   it('unknown gate name exits non-zero with UNKNOWN_GATE', async () => {
     const r = await runNode([STAGE_GATE, 'definitely-not-a-gate']);
