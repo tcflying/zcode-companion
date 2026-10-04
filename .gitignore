@@ -22,3 +22,6 @@ tmp/
 .env.*
 *.pem
 *.key
+
+# Local mechanical backups taken on this machine (never a source of record)
+AGENTS.md.bak-*
