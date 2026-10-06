@@ -25,9 +25,9 @@ const bridge = {
   /** 取一次完整快照：状态机状态、PID、端口、external 标志、最近错误。 */
   getSnapshot: () => ipcRenderer.invoke('zcc:desktop:state'),
   /** 订阅状态与日志尾推流；返回退订函数。 */
-  subscribe: (handler) => {
+  subscribe: (/** @type {(payload: unknown) => void} */ handler) => {
     if (typeof handler !== 'function') throw new TypeError('subscribe 需要一个回调函数');
-    const listener = (_event, payload) => {
+    const listener = (/** @type {unknown} */ _event, /** @type {unknown} */ payload) => {
       try {
         handler(payload);
       } catch {
@@ -41,13 +41,14 @@ const bridge = {
   stop: () => ipcRenderer.invoke('zcc:desktop:stop'),
   restart: () => ipcRenderer.invoke('zcc:desktop:restart'),
   /** 取子进程输出尾部（环形缓冲，已脱敏）。 */
-  getLogTail: (limit) => ipcRenderer.invoke('zcc:desktop:log', typeof limit === 'number' ? limit : 200),
+  getLogTail: (/** @type {number | undefined} */ limit) =>
+    ipcRenderer.invoke('zcc:desktop:log', typeof limit === 'number' ? limit : 200),
   getSettings: () => ipcRenderer.invoke('zcc:desktop:settings:get'),
   /**
    * 保存设置。`apiKey` 留空或等于掩码表示「不改」，换 key 才提交新值。
    * 返回体同样只含掩码与指纹。
    */
-  saveSettings: (next) => ipcRenderer.invoke('zcc:desktop:settings:save', next)
+  saveSettings: (/** @type {unknown} */ next) => ipcRenderer.invoke('zcc:desktop:settings:save', next)
 };
 
 contextBridge.exposeInMainWorld('zccDesktop', Object.freeze(bridge));

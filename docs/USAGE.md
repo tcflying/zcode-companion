@@ -274,7 +274,7 @@ zcc-api 已关闭 closed=<bool> timedOut=<bool>
 | `reasoning_effort_applied` | 实际采用的推理档位。`null` = 客户端没发，用驱动器缺省。 |
 | `parameters_not_forwarded` | 收到、校验通过、但**没转发**的参数名。**恒在场**（可能是 `[]`）。输出序固定：A 类表键序 → `metadata` / `user` → `stream_options.include_obfuscation` → 上限键名。 |
 | `roles_folded` | 本次被折叠进 prompt 上下文的指令 role（`system` / `developer`）。**恒在场**（可能是 `[]`），按首次出现序去重。 |
-| `tools_received` | 客户端这次声明了几条工具。缺席 / `null` / `[]` 都是 `0`。**恒在场。** |
+| `tools_received` | 客户端这次声明了几条工具。**缺席 / `[]` 才是 `0`**；**`null` 不是 `0`**——`null` 是非法形状，API 层在解析阶段就 422（`unsupported_parameter`、指名 `tools`），请求被拒后没有响应，本键也就无从披露（与 §5.3 一致）。成功受理的响应里**恒在场**。 |
 | `tools_forwarded` | **恒为 0**。这是**结构事实**不是可调策略：驱动器契约 `DriverRequest` 上根本没有工具槽位。 |
 | `tool_choice_received` | 客户端实际发的 `tool_choice`。`null` = 没发。披露"发了什么"，**不是**"我们采用了什么"——这里永远没有"采用"这个动作。 |
 | `host` | `{ "permission_mode": "...", "tool_policy": "..." }`。驱动器自报的实现事实。**缺省缺席** = 驱动器没有可披露的实现事实（fixture / 无驱动器）。值是闭集短码，不含路径、不含 prompt、零凭据。 |
@@ -532,9 +532,9 @@ account:<plan>::<model>
 | `GLM-5.2` | 1000000 | `disabled` / `high` / `max` | `text`, `tool_call`, `output_text` |
 | `GLM-5-Turbo` | 200000 | `disabled` / `enabled` | `text`, `tool_call`, `output_text` |
 
-**注意这里的口径差异**：目录的 `reasoning` 是**官方能力**的如实转写，**不等于**本端点 `reasoning_effort` 的合法闭集（§5.1 的 `low` / `high` / `max`）。给 `GLM-5.2` 发 `reasoning_effort: "low"` 会被 API 层 422——目录说官方支持 `disabled`/`high`/`max`，本端点只认 `low`/`high`/`max`，交集会误导。
+**注意这里的口径差异**：目录的 `reasoning` 是**官方能力**的如实转写，**不等于**本端点 `reasoning_effort` 的合法闭集（§5.1 的 `low` / `high` / `max`）。**API 层只查这一张全局闭集，不与目录按模型求交集**：`parseChatRequest` 里没有"把 `reasoning_effort` 与该模型目录 `reasoning` 取交集"的步骤，所以给 `GLM-5.2` 发 `reasoning_effort: "low"` **不会**被 API 层 422——它被接受（解析结果 `reasoning: "low"`）并原样转交驱动器。反过来，目录里写的 `disabled`（`GLM-5.2` / `GLM-5-Turbo`）与 `enabled`（`GLM-5-Turbo`）**才是**会被 API 层 422 的值（闭集外）。`low` 发给 `GLM-5.2` 之后在官方一侧的真实行为**尚未验证**，本文档不对此作任何承诺。
 
-选模型时**以 `reasoning` 含 `low` 的那几条为准**（`GLM-5.3` 与 `GLM-5.3-Flash`），这是本端点三档推理都能用的全集。
+选模型时，若希望**目录能力**与本端点三档（`low` / `high` / `max`）都吻合，看**目录 `reasoning` 含 `low` 的那几条**（`GLM-5.3` 与 `GLM-5.3-Flash`）——这是能力对齐上的建议，**不是 API 层的拒绝规则**：目录里不含 `low` 的那几条（`GLM-5.2` / `GLM-5-Turbo`）在 API 层发 `low` 同样会通过。
 
 ### 7.3 两条通道
 
@@ -910,19 +910,32 @@ npm run ci
 前置：**`cd apps/desktop && npm install`（§2.1 第三步）**。`apps/desktop` 有独立 `package.json`，根 `npm install` 不覆盖它；`pack:win` / `verify:package` 都要它自己的 `node_modules`。
 
 ```bash
-# 1) 先出界面产物（缺了它，pack:win 直接 exit 1，不打残包）
+# 1) 先出界面产物（缺它，pack:win 以 exit 4 GATE_PREREQUISITE_MISSING 硬失败，不打残包；
+#    也可用门内的等价形态 npm run build:ui）
 cd apps/ui && npx vite build
 
-# 2) 出 portable exe
+# 2) 出 portable exe（界面产物存在且可用时，门内会自己先跑一遍 build:ui）
 cd ../.. && npm run pack:win
 
 # 3) 验包：从包外 cwd 启动 + 渲染 + /v1 转发
 npm run verify:package
 ```
 
+界面产物不满足"存在且可用"时，`pack:win` 的补救入口是 `npm run build:ui`（等价形态 `node scripts/stage-gate.mjs build:ui`，`cwd=apps/ui`、参数 `build`）；它自己的 required 是 `apps/ui/index.html` 与 `apps/ui/package.json`，缺一即 exit 4。
+
 产物落在 `release/desktop/ZCodeCompanion-<版本>-win-x64-portable.exe`。
 
 `pack:win` 的 required 里含 `apps/ui/dist/index.html` 和 electron-builder 本身，`verify:package` 的 required 里含 `apps/desktop/node_modules/@electron/asar`：少任何一个都是**硬失败**（exit 4 `GATE_PREREQUISITE_MISSING`，指名缺失路径），而不是打个缺界面的包、或含糊地跳过去。
+
+**光"存在"不算可用**，`pack:win` 在**任何 spawn 之前**还要过两道产物准入检查（`stage-gate.mjs` 的 `verifyBuiltDist`），拒绝时 electron-builder 不会被拉起来：
+
+| 原因码 | 判定 | 处置 |
+| --- | --- | --- |
+| exit 4 `GATE_PREREQUISITE_MISSING`（不带子码） | `required` 里的路径不存在，**含 `apps/ui/dist/index.html` 整体缺失** | 补齐缺失路径。**注意：dist 整体缺失时门不会替你构建**，直接按上面的 `npm run build:ui` 先出产物 |
+| exit 4 `GATE_PREREQUISITE_MISSING: STALE_UI_DIST` | 界面产物早于界面输入（`apps/ui` 下任一输入比 dist 里最旧的文件更新；扫描排除 `apps/ui/dist` 与 `apps/ui/node_modules` 自身） | 改了源码没重 build 的陈旧产物。先跑 `npm run build:ui` 再跑本门 |
+| exit 4 `GATE_PREREQUISITE_MISSING: INCOMPLETE_UI_DIST` | `dist/index.html` 没有引用任何本地构建产物，或它引用的本地资源有缺失 | 残缺产物。先跑 `npm run build:ui` 再跑本门 |
+
+上面三道都过之后，门内的 `build:ui` 才作为 `pack:win` 的前置步骤串行执行（`vite build`）；它非零即整门失败，**退出码原样透传**，后面的 electron-builder **不会被 spawn**。
 
 `verify:package` 是 fail-closed 的四道检查，任一条不过就非零退出：
 

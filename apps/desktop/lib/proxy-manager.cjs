@@ -189,6 +189,116 @@ function createProxyManager(deps) {
    */
   let startInFlight = false;
 
+  /**
+   * 本次启动尝试的**一次性完成保护**。
+   *
+   * `error`（可执行文件 / cwd 失效时的异步 ENOENT）、`exit`、启动超时三条路径会
+   * **同时**抵达同一批字段：Node 在 spawn 失败时先抛 `error`，某些平台上还会补一个
+   * `close`/`exit`。三条路径共用这一个闸，**谁先到谁定终态**，后到的直接被忽略——
+   * 否则会产出「先 failed 又 stopped」这种从未发生过的状态组合，界面上就是一个
+   * 凭空的二次结论。
+   *
+   * `code === null` = 还没有任何人定终态。`wake` 是轮询等待的唤醒口：`error` 抵达时
+   * 靠它把 `start()` 立刻叫醒，而不是白等到下一个轮询节拍（默认 150ms 起）、甚至
+   * 一路等到 startTimeoutMs 报一个把真实原因整个丢掉的 `START_TIMEOUT`。
+   * @type {{ code: string | null, wake: (() => void) | null }}
+   */
+  const attempt = { code: /** @type {string|null} */ (null), wake: /** @type {(() => void)|null} */ (null) };
+
+  /**
+   * 抢一次性完成保护。
+   * @param {string} code
+   * @returns {boolean} true = 本次调用定下了终态；false = 终态早已被别人定走。
+   */
+  function claimAttempt(code) {
+    if (attempt.code !== null) return false;
+    attempt.code = code;
+    const wake = attempt.wake;
+    attempt.wake = null;
+    if (wake) wake();
+    return true;
+  }
+
+  /**
+   * 挂起一轮轮询等待，但被 `error` / `exit` **立刻**唤醒。
+   * @param {number} ms
+   * @returns {Promise<void>}
+   */
+  function waitForAttemptTick(ms) {
+    return new Promise((resolvePromise) => {
+      /** @type {any} */
+      let timer = null;
+      const done = () => {
+        if (timer !== null) clearTimeout(timer);
+        if (attempt.wake === done) attempt.wake = null;
+        resolvePromise(undefined);
+      };
+      timer = setTimeout(done, ms);
+      attempt.wake = done;
+    });
+  }
+
+  /**
+   * 把 Node 的 spawn `error` 收成**不扩大错误信息面**的一小段。
+   *
+   * 只取 `code`（`ENOENT` / `EACCES` …）这一个**原因标记**：`err.message` 里带着
+   * 可执行文件的完整路径，`err.syscall` 同样带路径，两者都按「不得为『好排查』把
+   * 路径/字段/参数原样写进日志或错误体」的口径**不进** `lastError`。凭据形态的字段
+   * （env / args）更是完全不碰——key 只活在 env 里，失败原因不需要它。
+   * @param {any} err
+   * @returns {string}
+   */
+  function describeSpawnError(err) {
+    const code =
+      err !== null && typeof err === 'object' && typeof (/** @type {any} */ (err).code) === 'string'
+        ? /** @type {any} */ (err).code
+        : null;
+    return code === null || code === '' ? 'UNKNOWN' : code;
+  }
+
+  /**
+   * 自有 ChildProcess 的**异步**失败通道。
+   *
+   * `spawn()` 本身没抛**不代表起来了**：可执行文件或 cwd 失效是 Node 异步
+   * `emit('error', err)`（`ENOENT`）。不订阅它 ⇒ EventEmitter 的「error 无监听即抛」
+   * ⇒ 只能靠宿主（Electron）的全局 `uncaughtException` 兜底 ⇒ 管理器**永远等不到
+   * 失败信号**，一路轮询到 startTimeoutMs，把 `ENOENT` 这个真实原因整个丢掉，只报
+   * 一个误导性的 `START_TIMEOUT`。
+   *
+   * 宿主的既有行为已对 electron v44.4.5 上游 `lib/browser/init.ts:17-33` 核实：
+   * 它注册了 `process.on('uncaughtException', ...)`，注释为 "Don't quit on fatal
+   * error."，只弹错误框、**不退出**。所以这里**不能**断言「桌面必崩」——那条是假的；
+   * 但「不崩」也不等于「没事」：失败信号会被宿主兜底悄悄吃掉，真实原因照样丢。
+   * 正因如此，这个订阅必须由管理器自己完成，不能指望宿主。
+   *
+   * @param {FakeChild} target
+   * @param {any} err
+   */
+  function onSpawnError(target, err) {
+    if (target !== child) return; // 已被替换的旧子进程，忽略。
+    // 两种情况都**不是**「拉起失败」，必须放行到既有路径，不许在这里捏造终态：
+    //  1. `intentionalStop`：用户主动停止。`stopOwned()` 已经置位，而 SIGINT 打到
+    //     一个已经不在的进程上时，Node 会补一个 `ESRCH` error —— 那是**我们自己要
+    //     的收束动作**的回声，不是启动失败。只挡 `state` 会让 starting 窗口内的
+    //     stop() 凭空造出 SPAWN_FAILED，终态从基线的 stopped 变成 failed。
+    //  2. `state !== 'starting'`：`running` 之后 Node 仍可能为 kill 失败发 error
+    //     （那时 `start()` 已经回过 `STARTED` 了），报成 `SPAWN_FAILED` 是谎报。
+    if (intentionalStop || state !== 'starting') {
+      deps.logRing.append('main', `反代子进程发出 error（${describeSpawnError(err)}），当前非拉起失败，已忽略。`, now());
+      return;
+    }
+    const reason = `反代子进程拉起失败（异步 error：${describeSpawnError(err)}）。请检查反代运行时的路径与权限是否仍然有效。`;
+    // 与 exit / 超时共用同一个闸：先到者定终态。
+    if (!claimAttempt('SPAWN_FAILED')) return;
+    detachStreams(target);
+    deps.logRing.flush(now());
+    // 进程根本没起来，**没有**可回收的 OS 句柄：发任何信号都是发给一个不存在的
+    // 进程，属于「假装收干净」。这里只把管理器侧的引用放掉。
+    child = null;
+    pid = null;
+    setState('failed', reason);
+  }
+
   function notify() {
     lastChangedAt = now();
     deps.onChange?.();
@@ -300,7 +410,12 @@ function createProxyManager(deps) {
 
     startInFlight = true;
     try {
+      // 活动配置在这里**成对固定**：端口与 spawn 规格取自同一瞬间的同一次 `configure`。
+      // 紧接着就是第一个 `await`（预探）。若把 spawn 规格留到 await 之后再读，预探期间
+      // 的一次保存就会让「spawn 用新配置、probe 仍打旧端口」——子进程在 A 端口监听、
+      // 探活在 B 端口打：A 已经就绪也报 `START_TIMEOUT`，B 上有残留服务反而报 `STARTED`。
       const targetPort = port;
+      const activeSpec = spawnSpec;
       const alive = await deps.probeApi(targetPort).catch(() => false);
       if (alive) {
         child = null;
@@ -319,8 +434,12 @@ function createProxyManager(deps) {
 
       /** @type {FakeChild} */
       let spawned;
+      // 一次性完成保护按**每次尝试**复位。迟到的旧子进程事件被 `target !== child`
+      // 挡在 claim 之前，所以复位不会让上一次尝试的尾巴污染这一次。
+      attempt.code = null;
+      attempt.wake = null;
       try {
-        spawned = deps.spawnChild(spawnSpec);
+        spawned = deps.spawnChild(activeSpec);
       } catch (err) {
         setState('failed', `反代子进程拉起失败：${err instanceof Error ? err.message : String(err)}`);
         return { ok: false, code: 'SPAWN_FAILED' };
@@ -328,28 +447,52 @@ function createProxyManager(deps) {
       child = spawned;
       pid = typeof spawned.pid === 'number' ? spawned.pid : null;
       attachStreams(spawned);
-      spawned.on('exit', (/** @type {number|null} */ code, /** @type {string|null} */ signal) =>
-        onExit(spawned, code, signal)
-      );
+      // **立刻**订阅 `error`：`spawn()` 不抛 ≠ 起来了。可执行文件 / cwd 失效走的是
+      // Node 的异步 error 通道（见 `onSpawnError`），漏订阅就永远进不了失败路径。
+      spawned.on('error', (/** @type {any} */ err) => onSpawnError(spawned, err));
+      spawned.on('exit', (/** @type {number|null} */ code, /** @type {string|null} */ signal) => {
+        // 身份守卫放在抢闸**之前**：一次迟到的旧 exit 不许白白吃掉本次尝试的闸。
+        if (spawned !== child) return;
+        // 与 error 共用一次性完成保护：error 先到时（异步 ENOENT），终态已定，
+        // 这次 exit 不得再改写状态、也不得覆盖掉真实原因。
+        //
+        // **但主动停止要放行**：`stopOwned()` 发的 SIGINT 引发的 exit 正是它要等的那个
+        // 兑现，被同一个闸拦下 ⇒ `onExit` 永不执行 ⇒ `stopWaiter` 永不 resolve ⇒
+        // 收束只能走满 grace + SIGKILL + 2s 兜底，并给子进程补一刀本不该发的 SIGKILL。
+        // 主动停止的终态由 `onExit` 的 `intentionalStop` 分支负责，不会与抢闸冲突：
+        // 它落的 `stopped` 随后仍会被超时分支的 `setState('failed', reason)` 收成
+        // START_TIMEOUT —— 与本次修复前的既有语义逐字一致。
+        if (!intentionalStop && !claimAttempt('CHILD_EXITED')) return;
+        onExit(spawned, code, signal);
+      });
 
       const deadline = now() + startTimeoutMs;
-      // 轮询到「探通」/「子进程先死」/「超时」三者之一为止。
+      // 轮询到「探通」/「子进程先死（含异步 error）」/「超时」三者之一为止。
       for (;;) {
+        // 一次性完成保护：error / exit 已经定过终态就立刻交出，绝不再往下走一步，
+        // 把真实原因覆盖成 CHILD_EXITED 或 START_TIMEOUT。
+        if (attempt.code !== null) return { ok: false, code: attempt.code };
         if (child !== spawned) return { ok: false, code: 'CHILD_EXITED' };
         const reachable = await deps.probeApi(targetPort).catch(() => false);
+        // 探测在途期间抵达的 error / exit 优先于「探不通」：进程都没起来，探通没有意义。
+        if (attempt.code !== null) return { ok: false, code: attempt.code };
         if (reachable) {
+          // **故意不抢闸**：running 之后的意外退出仍必须由 `onExit` 正常落 failed。
           setState('running', null);
           return { ok: true, code: 'STARTED' };
         }
         if (now() >= deadline) {
           const reason = `反代子进程在 ${startTimeoutMs}ms 内没有在 127.0.0.1:${targetPort} 上探通（GET /v1/models）。`;
+          // **先抢闸再收束**：`stopOwned()` 期间抵达的 error 不得把 failed 改写一次，
+          // 那是两个终态。
+          claimAttempt('START_TIMEOUT');
           // 先收束掉这个探不通的子进程，**再**落 failed：反序会把失败态覆盖成 stopped，
           // 界面上就变成「什么都没发生过」。
           await stopOwned();
           setState('failed', reason);
           return { ok: false, code: 'START_TIMEOUT' };
         }
-        await new Promise((r) => setTimeout(r, pollIntervalMs));
+        await waitForAttemptTick(pollIntervalMs);
       }
     } finally {
       // 无论如何复位：漏复位会把状态机永久锁在 BUSY，比原 bug 更难查。
@@ -458,6 +601,14 @@ function createProxyManager(deps) {
       configuredPort = config.port;
       if (state === 'running' || state === 'starting') {
         return { applied: false, reason: 'PROXY_RUNNING' };
+      }
+      // **预探窗口**：`state` 要到预探返回之后才置成 `starting`，所以这段窗口里只读
+      // `state` 的守卫看到的是 `stopped`，会把在途 `start()` 的活动配置整个换掉——
+      // 端口换了、spawn 规格换了，而在途 start 的探针还打旧端口，结果就是错位。
+      // 这里**只记待生效配置**（`configuredPort`，界面据此显示「待重启生效」），
+      // 活动配置一律不换；由 `start()` 在第一次 await 之前成对固定来保证一致。
+      if (startInFlight) {
+        return { applied: false, reason: 'PROXY_START_IN_FLIGHT' };
       }
       port = config.port;
       spawnSpec = config.spawnSpec;

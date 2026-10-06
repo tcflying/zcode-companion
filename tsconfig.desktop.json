@@ -10,20 +10,13 @@
     "exactOptionalPropertyTypes": false,
     "noEmit": true,
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false
   },
-  "include": [
-    "vitest.config.ts",
-    "scripts/**/*.mjs",
-    "tests/**/*.mjs",
-    "tests/**/*.ts",
-    "packages/**/*.ts",
-    "packages/**/*.tsx"
-  ],
-  "exclude": ["node_modules", "dist", "coverage", "apps"]
+  "include": ["apps/desktop/**/*.cjs"],
+  "exclude": ["node_modules", "apps/desktop/node_modules", "dist", "coverage"]
 }

@@ -47,6 +47,15 @@ const {
 } = require('./lib/settings.cjs');
 const { assessSpawnStep } = require('./lib/verify-contract.cjs');
 
+/**
+ * 本窗口实际交给 Electron 的 `webPreferences`。
+ *
+ * Electron 44 的 `WebPreferences` 类型里没有 `permissions`（`node_modules/electron/electron.d.ts`
+ * 全文无该字段），但这行配置是既有运行时对象的一部分：删掉它会改运行时对象。这里只做
+ * **类型层的局部扩展**，断言之外的运行时内容逐字节不变。
+ * @typedef {import('electron').WebPreferences & { permissions: string[] }} DesktopWebPreferences
+ */
+
 /* -------------------------------------------------------------------------- */
 /* 运行形态                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -119,6 +128,11 @@ let mainWindow = null;
 /** @type {Tray | null} */
 let tray = null;
 
+/**
+ * 主进程侧的一条日志：进环形缓冲（已脱敏），不落盘、不进 IPC 载荷。
+ * @param {string} text
+ * @returns {void}
+ */
 function logMain(text) {
   logRing.append('main', text, Date.now());
 }
@@ -179,14 +193,18 @@ function applySettings() {
 }
 
 const manager = createProxyManager({
+  // 真实 spawn 句柄比 `FakeChild` 契约宽一格：`ChildProcess.pid` 是 `number | undefined`，
+  // 契约要求 `number`。这里只做类型层断言，spawn 的调用参数与调用时机均未改动。
   spawnChild: (spec) =>
-    spawn(spec.command, spec.args, {
-      env: spec.env,
-      cwd: spec.cwd,
-      windowsHide: spec.windowsHide,
-      shell: spec.shell,
-      stdio: ['ignore', 'pipe', 'pipe']
-    }),
+    /** @type {import('./lib/proxy-manager.cjs').FakeChild} */ (
+      spawn(spec.command, spec.args, {
+        env: spec.env,
+        cwd: spec.cwd,
+        windowsHide: spec.windowsHide,
+        shell: spec.shell,
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+    ),
   probeApi,
   logRing,
   startTimeoutMs: START_TIMEOUT_MS,
@@ -200,6 +218,7 @@ manager.configure({ port: settings.apiPort, spawnSpec: buildSpawnSpec() });
 /* app:// 协议                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/** @type {Record<string, string>} */
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -210,6 +229,12 @@ const MIME = {
   '.woff2': 'font/woff2'
 };
 
+/**
+ * 本机拒绝转发时的回包：如实说「没发出去」，绝不伪装成上游错误。
+ * @param {number} status
+ * @param {unknown} payload
+ * @returns {Response}
+ */
 function jsonResponse(status, payload) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -217,6 +242,11 @@ function jsonResponse(status, payload) {
   });
 }
 
+/**
+ * 读 dist 里的静态文件。取不到就是 404，绝不回落成「成功」。
+ * @param {string} file
+ * @returns {Promise<Response>}
+ */
 async function serveStatic(file) {
   try {
     const res = await net.fetch(`file://${file.replace(/\\/g, '/')}`);
@@ -227,6 +257,12 @@ async function serveStatic(file) {
   }
 }
 
+/**
+ * 把 `/v1/...` 转发到本机 API：成功如实回上游状态，失败如实报失败。
+ * @param {Request} request
+ * @param {string} rawPath
+ * @returns {Promise<Response>}
+ */
 async function forwardToApi(request, rawPath) {
   const built = buildUpstreamRequest(rawPath, {
     port: settings.apiPort,
@@ -277,7 +313,10 @@ function registerAppProtocol() {
   protocol.handle('app', async (request) => {
     const decision = routeAppRequest(request.url, { distRoot: UI_DIST });
     if (decision.kind === 'reject') return new Response('forbidden', { status: 403 });
-    if (decision.kind === 'forward') return forwardToApi(request, decision.rawPath);
+    // `RouteDecision` 把 `rawPath` / `pathname` 各自标成可选，`kind` 收窄带不动它们；
+    // 但 `routeAppRequest` 的 forward 分支只返回 `{ kind: 'forward', rawPath: string }`
+    // （见 lib/app-protocol.cjs），断言与下面 pathname 那行是同一套写法。
+    if (decision.kind === 'forward') return forwardToApi(request, /** @type {string} */ (decision.rawPath));
     return serveStatic(/** @type {string} */ (decision.pathname));
   });
 }
@@ -336,6 +375,11 @@ function iconImage() {
   return nativeImage.createEmpty();
 }
 
+/**
+ * 建主窗口。硬边界在下面的 `setWindowOpenHandler` / `will-navigate` 里，配置本身不松。
+ * @param {{ hidden: boolean }} options
+ * @returns {BrowserWindow}
+ */
 function createWindow(options) {
   const win = new BrowserWindow({
     width: 1280,
@@ -346,14 +390,15 @@ function createWindow(options) {
     backgroundColor: '#f4f6fa',
     title: 'ZCode Companion（独立软件 · 非 ZCode 官方）',
     icon: iconImage(),
-    webPreferences: {
+    // 类型层扩展只为容纳 `permissions`（见文件头的 DesktopWebPreferences），运行时对象不变。
+    webPreferences: /** @type {DesktopWebPreferences} */ ({
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
       permissions: []
-    }
+    })
   });
 
   // 硬边界：任何非 app:// 的导航或窗口打开一律拒绝，保证界面不可能访问外部。
@@ -417,7 +462,7 @@ function runSmoke() {
   mainWindow.webContents.once('did-finish-load', () => {
     setTimeout(async () => {
       try {
-        const image = await mainWindow.webContents.capturePage();
+        const image = await /** @type {BrowserWindow} */ (mainWindow).webContents.capturePage();
         fs.mkdirSync(path.dirname(SMOKE_OUT), { recursive: true });
         fs.writeFileSync(SMOKE_OUT, image.toPNG());
         console.log(`[smoke] rendered -> ${SMOKE_OUT} (${image.getSize().width}x${image.getSize().height})`);
@@ -432,11 +477,26 @@ function runSmoke() {
 }
 
 /**
+ * verify 的每一步记录。前五项与 `lib/verify-contract.cjs` 的 `SpawnStep` 对齐（判据只有
+ * 那一份），后两项是 app:// 转发自检专用。
+ * @typedef {import('./lib/verify-contract.cjs').SpawnStep & { status?: unknown, apiKeyLeaked?: boolean }} VerifyStep
+ */
+
+/**
  * 包自足性自检（`verify:package` 门用）：
  * 用**包内**的反代运行时（driver=none，不接任何真实模型）把 API 拉起来，再让渲染
  * 进程经 `app://` 真发一次 `GET /v1/models`，最后把结果写到 `ZCC_VERIFY_OUT`。
  */
 async function runVerify() {
+  /**
+   * verify 报告：落盘内容与门判定都只读它。`dispose` 在写盘之后才补上，因此不进入 JSON。
+   * @type {{
+   *   ok: boolean,
+   *   steps: VerifyStep[],
+   *   reason: string | undefined,
+   *   dispose?: { ok: boolean, code: string }
+   * }}
+   */
   const report = { ok: false, steps: [], reason: /** @type {string|undefined} */ (undefined) };
   /**
    * 落盘 + 收束 + 退出。
@@ -470,7 +530,7 @@ async function runVerify() {
       await finish(1);
       return;
     }
-    const inPage = await mainWindow.webContents.executeJavaScript(
+    const inPage = await /** @type {BrowserWindow} */ (mainWindow).webContents.executeJavaScript(
       `(async () => {
          try {
            const res = await fetch('/v1/models', { headers: { accept: 'application/json' } });
@@ -488,7 +548,7 @@ async function runVerify() {
     if (!report.ok) report.reason = `app:// → /v1/models 未打通：${JSON.stringify(inPage)}`;
 
     if (VERIFY_SHOT) {
-      const image = await mainWindow.webContents.capturePage();
+      const image = await /** @type {BrowserWindow} */ (mainWindow).webContents.capturePage();
       fs.mkdirSync(path.dirname(VERIFY_SHOT), { recursive: true });
       fs.writeFileSync(VERIFY_SHOT, image.toPNG());
     }

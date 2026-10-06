@@ -167,6 +167,92 @@ function printRedacted(runtime, report) {
   }
 }
 
+/**
+ * F11 (ZC-03). The ONE answer P4 accepts, and nothing else.
+ *
+ * This is not a new contract. `probe-plan` has published it all along — see the
+ * `P4-capabilities-readback` step's own `expect`: the official readback is
+ * `{id, result}` with NO `jsonrpc` member (E-BUNDLE-021/024: the response
+ * schema is `.strict()` and declares no other member), and `result` is the
+ * compiled-in literal `{independentPlanState: true}` (E-BUNDLE-003). What was
+ * missing is the CODE that enforces it. Until now the verdict was the
+ * transport's: a frame that arrived, was well enough formed to parse, and
+ * carried the id we sent. That is a true statement about bytes and a false
+ * statement about the capability, which is the whole of F11.
+ */
+const P4_ACCEPTED_TOP_LEVEL_KEYS = Object.freeze(['id', 'result']);
+
+/**
+ * F11. The shape half of the acceptance: the response frame carries ONLY `id`
+ * and `result`.
+ *
+ * Compared in sorted order because JSON object key order carries no protocol
+ * meaning (the same is said where the outbound frame's key order is explained).
+ * Kept as its own named predicate so it can be removed, and only it, and the
+ * removal can be shown to change an outcome.
+ *
+ * @param {readonly string[]} keys sorted top-level key names
+ * @returns {boolean}
+ */
+function hasOfficialP4Shape(keys) {
+  return keys.length === P4_ACCEPTED_TOP_LEVEL_KEYS.length
+    && keys.every((key, index) => key === P4_ACCEPTED_TOP_LEVEL_KEYS[index]);
+}
+
+/**
+ * F11. The value half of the acceptance: `result` is EXACTLY
+ * `{independentPlanState: true}` — one key, and that value.
+ *
+ * A capability that came back `false` is not a smaller success; it is the
+ * absence of the one thing P4 exists to observe.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isAcceptedP4Result(value) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const keys = Object.keys(/** @type {Record<string, unknown>} */ (value));
+  if (keys.length !== 1 || keys[0] !== 'independentPlanState') return false;
+  return /** @type {Record<string, unknown>} */ (value)['independentPlanState'] === true;
+}
+
+/**
+ * F11. The semantic verdict on a frame that ALREADY correlated with our id.
+ *
+ * Why this is not redundant with the correlation check: the client classifies a
+ * frame that carries an id and an `error` member as `error_response`, and its
+ * waiter selector accepts `error_response` exactly like `response` when the id
+ * matches. A correlated ERROR therefore reaches the caller as a transport
+ * success, which is why an error used to be reported as an acceptance.
+ *
+ * Only the CORRELATED frame is ever judged here. An error frame whose id is NOT
+ * the one we sent never arrives at this function: it neither satisfies the
+ * waiter nor ends the wait (I02-F3-3), so the relevance protection is untouched
+ * — it still ends up in `frameLog`, and a later correct response still wins.
+ *
+ * @param {any} frame the correlated frame, verbatim
+ * @param {any} shape its `describeFrameShape` summary, or null when there was none
+ * @param {any} runtime the loaded runtime module, for the OFFICIAL classifier
+ * @returns {{accepted: boolean, frameKind: string, topLevelKeys: readonly string[], reasons: readonly string[]}}
+ */
+function assessP4Semantics(frame, shape, runtime) {
+  const frameKind = runtime.classifyInboundFrame(frame);
+  const topLevelKeys = Array.isArray(shape?.topLevelKeys) ? [...shape.topLevelKeys] : Object.keys(frame);
+  const reasons = [];
+  if (frameKind !== 'response') {
+    reasons.push(`the correlated frame is an official "${frameKind}" frame, not a result response`);
+  }
+  if (!hasOfficialP4Shape([...topLevelKeys].sort())) {
+    reasons.push(
+      `top-level keys are ${JSON.stringify(topLevelKeys)}, expected exactly ["id","result"] — the official response schema is .strict() and declares no other member (E-BUNDLE-021/024)`
+    );
+  }
+  if (!isAcceptedP4Result(frame['result'])) {
+    reasons.push(`result is ${JSON.stringify(frame['result'] ?? null)}, expected exactly {"independentPlanState":true} (E-BUNDLE-003)`);
+  }
+  return { accepted: reasons.length === 0, frameKind, topLevelKeys, reasons };
+}
+
 /** @param {any} runtime */
 async function commandEvidence(runtime) {
   const report = runtime.buildProbeReport(null);
@@ -466,6 +552,12 @@ async function commandProbe(runtime) {
       // rejection frame that arrives first no longer ends the wait.
       const res = await client.request(P4_METHOD, {}, timeoutMs);
       const idMatched = res.kind === 'ok' && res.frame.id === expectedId;
+      /**
+       * F11. Set only on the correlated path, and only to say whether the
+       * ANSWER was accepted — never to re-decide correlation.
+       * @type {{accepted: boolean, frameKind: string, topLevelKeys: readonly string[], reasons: readonly string[]} | null}
+       */
+      let semanticVerdict = null;
       // I02-F3-1. Diagnostics are revealed HERE and only here. P2/P3 and the
       // passive observation above keep the value-free summary.
       const p4Shape = res.kind === 'ok'
@@ -483,9 +575,29 @@ async function commandProbe(runtime) {
         );
         exitCode = 1;
       } else {
-        process.stderr.write(
-          `I02 P4: correlated. id ${expectedId} matched, result ${JSON.stringify(res.frame.result ?? null)}.\n`
-        );
+        // F11. Correlation is NOT acceptance. The frame carries the id we sent;
+        // from here the ANSWER has to be the official one, or the run failed.
+        // A capability that reads false, a correlated error, or a frame with a
+        // member the official `.strict()` schema does not declare are all drift.
+        semanticVerdict = assessP4Semantics(res.frame, p4Shape, runtime);
+        if (semanticVerdict.accepted) {
+          process.stderr.write(
+            `I02 P4: correlated. id ${expectedId} matched, result ${JSON.stringify(res.frame.result ?? null)}.\n`
+          );
+        } else {
+          process.stderr.write(
+            `I02 P4: correlated id ${expectedId} matched, but SEMANTIC ACCEPTANCE FAILED `
+            + `(official classification: "${semanticVerdict.frameKind}"):\n`
+          );
+          for (const reason of semanticVerdict.reasons) {
+            process.stderr.write(`I02 P4:   ${reason}\n`);
+          }
+          process.stderr.write(
+            'I02 P4: this is drift in the readback, not a passing acceptance. Record it. Do NOT substitute\n'
+            + 'I02 P4: the installed version, and do NOT treat a correlated frame as a verified capability.\n'
+          );
+          exitCode = 1;
+        }
       }
       if (p4Shape !== null && p4Shape.errorValues !== null && p4Shape.errorValues.code !== null) {
         const ev = p4Shape.errorValues;
@@ -519,7 +631,30 @@ async function commandProbe(runtime) {
         // back for any other method, by anything.
         result: res.kind === 'ok' ? res.frame.result ?? null : null,
         responseIdMatchedRequest: idMatched,
-        outcome: res.kind === 'ok' ? 'ok' : res.code,
+        /**
+         * F11. `outcome` is now ONE verdict, not the transport's opinion, and it
+         * has exactly three terminal states so the three failures stay
+         * distinguishable in the data:
+         *   `ok`                 — correlated AND the official answer
+         *   `semantic_rejected`  — correlated, but the answer is not the official one
+         *   `uncorrelated`       — a frame arrived, but not the one we asked
+         * A frame that merely arrived is never `ok`. Reporting `ok` on a run
+         * that exits non-zero would be the same class of defect this closes.
+         */
+        outcome: res.kind !== 'ok'
+          ? res.code
+          : (semanticVerdict === null ? 'uncorrelated' : (semanticVerdict.accepted ? 'ok' : 'semantic_rejected')),
+        // F11. The semantic half, in full: the official classification of the
+        // correlated frame, the key names it carried, and every reason it was
+        // refused. null when nothing correlated.
+        semanticAcceptance: semanticVerdict === null
+          ? null
+          : {
+            accepted: semanticVerdict.accepted,
+            frameKind: semanticVerdict.frameKind,
+            topLevelKeys: semanticVerdict.topLevelKeys,
+            reasons: semanticVerdict.reasons
+          },
         outcomeDetail: res.kind === 'ok' ? null : res.detail,
         resultShape: p4Shape,
         // I02-F3-1. The revealed protocol diagnostics, or null when there was

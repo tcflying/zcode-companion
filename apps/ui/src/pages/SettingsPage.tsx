@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Chip, PageHeader, Section, Toggle } from '../components/Chips';
 import { StatePanel } from '../components/StatePanel';
 import { SETTINGS_SPEC, WINDOW_MODES, WINDOW_MODE_LABEL, WINDOW_RULE, type WindowMode } from '../data/snapshot';
@@ -31,25 +31,51 @@ export function SettingsPage({
 
   // 桌面设置的四项草稿。apiKey 的输入框是掩码：留空或仍是掩码都表示「不改」，
   // 只有提交一个全新的非空串才会真的换 key。
+  // 其余三项的初值直接取自已读到的设置：拿不到就留空串——**不预填 8790 /
+  // official-host / low 那组默认值**，因为它们不是主进程里的真实配置，
+  // 一旦被提交就是一次静默覆盖。留空则这三栏在读到之前根本不渲染
+  // （见下面的分支），用户也就无从把它们当成现值。
+  // 惰性初值保证**首帧**就是对的，不依赖 effect 补跑。
   const [apiKeyDraft, setApiKeyDraft] = useState('');
-  const [portDraft, setPortDraft] = useState('8790');
-  const [driverDraft, setDriverDraft] = useState('official-host');
-  const [reasoningDraft, setReasoningDraft] = useState('low');
+  const [portDraft, setPortDraft] = useState(() => String(desktop.settings?.settings.apiPort ?? ''));
+  const [driverDraft, setDriverDraft] = useState(() => desktop.settings?.settings.driver ?? '');
+  const [reasoningDraft, setReasoningDraft] = useState(() => desktop.settings?.settings.reasoning ?? '');
   const [desktopSave, setDesktopSave] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const bundle = desktop.settings;
-    if (bundle === null) return;
-    setPortDraft(String(bundle.settings.apiPort));
-    setDriverDraft(bundle.settings.driver);
-    setReasoningDraft(bundle.settings.reasoning);
-  }, [desktop.settings]);
+  // 卡上硬边界：保存**要求已成功加载**。从未读到、正在读、读到一半失败，
+  // 三种情况下一律不可保存——否则初始草稿（8790 / official-host / low）
+  // 会把主进程里的真实配置覆盖掉。
+  const settingsLoaded = desktop.settingsLoad === 'loaded';
+  /** 上一次成功的值仍在手上，但本次没读到：界面照常显示，并明确标陈旧。 */
+  const settingsStale = desktop.settingsLoad === 'failed' && desktop.settings !== null;
+  /** 渲染这一段表单的前提就是手上真有值——把它取成本地量，让下面的窄化成立。 */
+  const bundle = desktop.settings;
+
+  // 只有在真读到值之后才用主进程的数据覆写草稿。这里刻意**不用 useEffect**：
+  // effect 在首帧之后才跑，中间那一帧界面显示的是初始默认值（8790 /
+  // official-host / low），而它们并不是主进程里的真实配置。渲染期按
+  // bundle 身份对齐，是"拿 props 重置 state"的标准写法，也就没有那一帧。
+  const [seededBundle, setSeededBundle] = useState(desktop.settings);
+  if (desktop.settings !== seededBundle) {
+    setSeededBundle(desktop.settings);
+    const next = desktop.settings;
+    if (next !== null) {
+      setPortDraft(String(next.settings.apiPort));
+      setDriverDraft(next.settings.driver);
+      setReasoningDraft(next.settings.reasoning);
+    }
+  }
 
   const verdict = evaluateWindow(state.now);
   const baseUrlVerdict = resolveCatalogUrl(state.localApiBaseUrl);
 
   const saveDesktopSettings = async () => {
+    // 函数体自身也设防：按钮的 disabled 可以被绕过，这里才是硬门。
+    if (desktop.settingsLoad !== 'loaded') {
+      setDesktopSave({ ok: false, text: '未保存：桌面设置尚未成功读取，不允许用界面草稿覆盖本机配置。' });
+      return;
+    }
     setSaving(true);
     setDesktopSave(null);
     const result = await saveSettings({
@@ -100,36 +126,44 @@ export function SettingsPage({
             type="button"
             className="btn btn--primary"
             data-action="save-desktop-settings"
-            disabled={!desktop.available || saving}
+            disabled={!settingsLoaded || saving}
             onClick={() => void saveDesktopSettings()}
           >
             {saving ? '保存中…' : '保存反代设置'}
           </button>
         }
       >
-        {!desktop.available || desktop.settings === null ? (
+        {desktop.settingsLoad === 'no-bridge' ? (
           <StatePanel tone="info" title="桌面壳未接入">
             {UNAVAILABLE_REASON}。这四项设置只在桌面程序里可编辑——它们决定的是**主进程**怎么拉起子进程。
           </StatePanel>
-        ) : (
+        ) : desktop.settingsLoad === 'loading' ? (
+          <StatePanel tone="loading" title="正在读取桌面设置">
+            正在向桌面主进程读取本机 settings.json。读到之前保存保持关闭，以免用界面草稿覆盖未知的真实配置。
+          </StatePanel>
+        ) : desktop.settingsLoad === 'failed' && bundle === null ? (
+          <StatePanel tone="error" title="读取桌面设置失败">
+            没能读到本机 settings.json，也没有上一次成功的值可保留。保存保持关闭——在读到真实配置之前，界面不会替你猜这四项该是什么。
+          </StatePanel>
+        ) : bundle === null ? null : (
           <>
             <div className="setting-facts setting-facts--stack">
               <div>
                 <span>设置文件</span>
-                <span className="mono">{desktop.settings.settingsFile}</span>
+                <span className="mono">{bundle.settingsFile}</span>
               </div>
               <div>
                 <span>运行时形态</span>
                 <Chip tone="neutral">
-                  {desktop.settings.runtime.kind === 'packaged' ? '打包形态（随包携带）' : '开发形态（仓库内）'}
+                  {bundle.runtime.kind === 'packaged' ? '打包形态（随包携带）' : '开发形态（仓库内）'}
                 </Chip>
               </div>
               <div>
                 <span>首启引导</span>
-                {desktop.settings.seededFrom !== null ? (
+                {bundle.seededFrom !== null ? (
                   <Chip tone="ok">已从本产品自己的配置读回</Chip>
-                ) : desktop.settings.seedProblem !== null ? (
-                  <Chip tone="warn">未读到（{desktop.settings.seedProblem}）</Chip>
+                ) : bundle.seedProblem !== null ? (
+                  <Chip tone="warn">未读到（{bundle.seedProblem}）</Chip>
                 ) : (
                   <Chip tone="pending">未触发</Chip>
                 )}
@@ -146,8 +180,8 @@ export function SettingsPage({
                   autoComplete="off"
                   value={apiKeyDraft}
                   placeholder={
-                    desktop.settings.settings.apiKeySet
-                      ? `${desktop.settings.settings.apiKeyMasked}（留空 = 不改）`
+                    bundle.settings.apiKeySet
+                      ? `${bundle.settings.apiKeyMasked}（留空 = 不改）`
                       : '未配置'
                   }
                   onChange={(e) => setApiKeyDraft(e.target.value)}
@@ -171,7 +205,7 @@ export function SettingsPage({
                   value={driverDraft}
                   onChange={(e) => setDriverDraft(e.target.value)}
                 >
-                  {desktop.settings.settings.driverClosedSet.map((d) => (
+                  {bundle.settings.driverClosedSet.map((d) => (
                     <option key={d} value={d}>
                       {d}
                     </option>
@@ -186,7 +220,7 @@ export function SettingsPage({
                   value={reasoningDraft}
                   onChange={(e) => setReasoningDraft(e.target.value)}
                 >
-                  {desktop.settings.settings.reasoningClosedSet.map((r) => (
+                  {bundle.settings.reasoningClosedSet.map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>
@@ -198,9 +232,9 @@ export function SettingsPage({
             <div className="setting-facts setting-facts--stack">
               <div>
                 <span>当前 key</span>
-                {desktop.settings.settings.apiKeySet ? (
+                {bundle.settings.apiKeySet ? (
                   <Chip tone="ok">
-                    {desktop.settings.settings.apiKeyMasked} · {desktop.settings.settings.apiKeyFingerprint}
+                    {bundle.settings.apiKeyMasked} · {bundle.settings.apiKeyFingerprint}
                   </Chip>
                 ) : (
                   <Chip tone="danger">未配置（反代不会启动）</Chip>
@@ -208,9 +242,15 @@ export function SettingsPage({
               </div>
             </div>
 
-            {desktop.settings.loadProblems.length > 0 ? (
+            {settingsStale ? (
+              <StatePanel tone="error" title="以下设置已陈旧">
+                本次读取桌面设置失败，下面四项是**上一次成功读到**的值，可能已不是主进程当前的配置。保存保持关闭。
+              </StatePanel>
+            ) : null}
+
+            {bundle.loadProblems.length > 0 ? (
               <StatePanel tone="error" title="设置文件里有被丢弃的字段">
-                {desktop.settings.loadProblems.join('；')}
+                {bundle.loadProblems.join('；')}
               </StatePanel>
             ) : null}
 

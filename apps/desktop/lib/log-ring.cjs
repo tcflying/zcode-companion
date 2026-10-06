@@ -7,8 +7,9 @@
  *  2. 注册机密时**不打印**注册动作，也不把机密写进任何可被读取的字段；缓冲区
  *     与 `tail()` 返回的对象里都只会看到 `[REDACTED]`。
  *  3. 容量固定；超出从头覆盖（最旧的行先掉），并如实报告 `dropped` 计数。
- *  4. 子进程输出按行切分，**不缓存半个行**：读到的残片进 `pending`，
- *     收到换行才落一条，进程结束后 `flush()` 把残片作为最后一条落盘。
+ *  4. 子进程输出按行切分，**不缓存半个行**：读到的残片进 `partial`，
+ *     收到换行才落一条，**残片一旦被换行消费就从 `partial` 里删除**，
+ *     进程结束后 `flush()` 把残片作为最后一条落盘。
  *
  * 纯 Node 实现，不依赖 Electron，因此可被单测直接引用。
  */
@@ -88,7 +89,12 @@ function createLogRing(options) {
       for (const line of lines) {
         buffer.push({ seq: ++seq, at: stamp, stream, text: redactLine(line, secrets) });
       }
+      // 残片的唯一状态就是"还没被换行确认的那一段"。`rest` 为空说明上一批残片
+      // 已经被换行**消费**掉了，此时必须 `delete`——只 `set` 不 `delete` 会让旧
+      // 前缀一直挂在 Map 上：下个 chunk 的首行再拼一次，`flush()` 又把它当成新
+      // 的一条落盘。
       if (rest.length > 0) partial.set(stream, rest);
+      else partial.delete(stream);
       while (buffer.length > capacity) {
         buffer.shift();
         dropped++;

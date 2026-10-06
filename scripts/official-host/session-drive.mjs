@@ -216,6 +216,7 @@ import {
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import {
   OFFICIAL_APP_SERVER_EXIT_GRACE_MS as APP_SERVER_EXIT_GRACE_MS,
   HOST_DEBUG_ENV_KEY as OFFICIAL_HOST_DEBUG_ENV_KEY,
@@ -957,8 +958,31 @@ export async function driveSession({ child, request, port, emit, timeoutMs }) {
   const permissionMode = resolveHostPermissionMode(process.env);
   const startedAt = Date.now();
 
-  /** @type {string[]} */
-  const buffer_ = [];
+  /**
+   * **ZC-23 / F03：跨 `data` 块的 NDJSON 正文必须"拼"成行，不能"分段"解析。**
+   *
+   * 这里原来是一个 `string[]`：`pushOutbound` 把**每个** `data` 块按 `\n` 切段，逐段推进去，
+   * `flushBuffered` 再**逐段**当"整行"送 `JSON.parse`。于是官方 stdout 上一行 NDJSON
+   * 落在两个 `data` 块里时（管道读批边界与官方写批边界无关，这必然发生），两段
+   * **都**解析失败 ⟹ **整行被丢**；而 `turn.completed` 那一行如果恰好完整到达，
+   * `finish` 照常发出——症状是"成功但正文缺段"，比直接失败更难发现。
+   *
+   * 现在只保留**一个**跨块累积的半行前缀：凑满一整行才解析，凑不满就**留在串里**等下一块。
+   * 字节输入一个没少、没重、没换序。
+   *
+   * `settle` 的唤醒条件随之从 `buffer_.length === 0` 变成 `pendingLine === ''`，
+   * **语义一字未改**："读缓冲空了"，而不是"outbound 里有东西了"（理由见
+   * {@link awaitResponseFor}）。终态（`finish` / `failed`）的判定也一个字没动。
+   */
+  /** @type {string} 跨块累积的半行前缀。`''` ⟺ 读缓冲已空。 */
+  let pendingLine = '';
+  /**
+   * **UTF-8 解码器**：官方 stdout 是**字节流**，一个多字节字完全可能落在两个 `data` 块
+   * 之间。逐块 `chunk.toString('utf8')` 会让那一个字在**两块里各自**变成 U+FFFD
+   * （替换字符）——那是**静默丢字**，连"行 JSON 解析失败"这条线索都不留。
+   * `StringDecoder` 逐字保留半个序列，跨块拼好再解，所以正文逐字等于整块输入。
+   */
+  const outboundDecoder = new StringDecoder('utf8');
   /** @type {string[]} */
   const outbound = [];
   let outboundDone = false;
@@ -966,83 +990,85 @@ export async function driveSession({ child, request, port, emit, timeoutMs }) {
   const waiters = [];
 
   /**
-   * 把从官方 **stdout** 读到的字节切成行。非 JSON 行丢弃并继续——
+   * 把从官方 **stdout** 读到的**连续字节**接上尚未成行的前缀，再按 `\n` 切行。
+   * 非 JSON 行在 {@link consumeOutboundLine} 里丢弃并继续——
    * 不猜它是什么，也不让它卡住等待。
    *
-   * @param {string} text
+   * @param {string} text 本次 `data` 事件的**完整**解码文本（跨块的半个 UTF-8 字已由
+   *   `outboundDecoder` 拼好）
    */
   function pushOutbound(text) {
-    let at = text.indexOf('\n');
-    if (at < 0) {
-      buffer_.push(text);
-      return;
-    }
-    let rest = text;
+    pendingLine += text;
+    let at = pendingLine.indexOf('\n');
+    if (at < 0) return;
     while (at >= 0) {
-      buffer_.push(rest.slice(0, at));
-      rest = rest.slice(at + 1);
-      at = rest.indexOf('\n');
+      const line = pendingLine.slice(0, at);
+      pendingLine = pendingLine.slice(at + 1);
+      consumeOutboundLine(line);
+      at = pendingLine.indexOf('\n');
     }
-    buffer_.push(rest);
-    flushBuffered();
-  }
-
-  function flushBuffered() {
-    while (buffer_.length > 0) {
-      const line = /** @type {string} */ (buffer_.shift());
-      if (line.trim() === '') continue;
-      const parsed = safeParse(line);
-      if (parsed === null) continue;
-      // **反向请求不进事件流**：官方 `pTt.requestClient` 把它的帧写到应答流
-      // （即子进程 stdout，也就是我们这条流）。这类帧既不是对 `session/*` 的应答，
-      // 也不是 `session/event`，让它混进 `outbound` 只会污染 `extractSessionId` /
-      // `mapOfficialEventToChannel` 的输入。识别出来就地应答掉（见文件头"出站凭据闸门"）。
-      //
-      // **两条反向请求，判别互斥**（各自按 method 字面量）且**处理方式不同**：
-      //  - `session/requestRuntimePreferences`（HOSTFIX4）：**同步**应答，值恒定。
-      //    它挂在 `session/create` 的关键路径上（`CXa` → `CKo`，`timeoutMs: 15e3`），
-      //    不答就是 15 秒后整轮 `session/create` 抛掉。
-      //  - `interaction/requestProviderRuntimeHeaders`（HOSTFIX3）：**异步**应答，
-      //    要过我们的 port（唯一出站凭据闸门）。
-      if (isSessionRequestRuntimePreferencesRequest(parsed)) {
-        answerSessionRuntimePreferences(/** @type {Record<string, any>} */ (parsed));
-        continue;
-      }
-      // **COMPAT1/C4：工具权限 / 用户输入**。同样是**同步**应答、同样的理由——
-      // 官方 `pTt.requestClient` 对这两条**没有设 `timeoutMs`**（`dRn` 逐字只给
-      // `{sessionId, kind, …}`），所以不答就是 promise 永不落定、挂到我们自己的
-      // 300 s 墙钟上限。处置与上面两条**不同**的是"答什么"：权限按策略允许/拒绝，
-      // 用户输入恒取消（子宿主没有交互式用户通道）。
-      if (isToolPermissionRequest(parsed)) {
-        answerToolPermission(/** @type {Record<string, any>} */ (parsed));
-        continue;
-      }
-      if (isUserInputRequest(parsed)) {
-        answerUserInput(/** @type {Record<string, any>} */ (parsed));
-        continue;
-      }
-      if (isProviderRuntimeHeadersRequest(parsed)) {
-        answerProviderRuntimeHeaders(/** @type {Record<string, any>} */ (parsed));
-        continue;
-      }
-      // **HOSTFIX5 · r2：容忍官方自发的无 id 通知。**
-      //
-      // 官方 app-server 在我们写零帧时就自发吐出 `{method, params}` 的
-      // `startup/storageState` 通知（顶层**无 `id`**，实测条数 5 或 27）。官方
-      // `fTt.dispatchLine` 对 id 缺省的帧逐字记 `"ZCode Protocol notification ignored"`。
-      //
-      // 处置必须**唯一**：**不答**（不是反向请求）、**不误判**（上面两个判别器都要求
-      // `id` 在场，已天然排除）、**不进 outbound**（否则 `extractSessionId` 会拿
-      // 通知 `params` 里的字段去认 `session/create` 的回执）。**只计数。**
-      if (isUnsolicitedNotification(parsed)) {
-        unsolicitedNotificationsIgnored += 1;
-        continue;
-      }
-      outbound.push(line);
-    }
-    if (buffer_.length === 0) {
+    if (pendingLine === '') {
       for (const waiter of waiters.splice(0)) waiter();
     }
+  }
+
+  /**
+   * 消费**一整行**（跨块拼接已完成，这里不再关心它当初被切成几段）。
+   *
+   * 判别与处置逐条不变：反向请求就地应答、官方自发的无 id 通知只计数、其余进 `outbound`。
+   *
+   * @param {string} line 一整行 NDJSON（**不含**行尾换行）
+   */
+  function consumeOutboundLine(line) {
+    if (line.trim() === '') return;
+    const parsed = safeParse(line);
+    if (parsed === null) return;
+    // **反向请求不进事件流**：官方 `pTt.requestClient` 把它的帧写到应答流
+    // （即子进程 stdout，也就是我们这条流）。这类帧既不是对 `session/*` 的应答，
+    // 也不是 `session/event`，让它混进 `outbound` 只会污染 `extractSessionId` /
+    // `mapOfficialEventToChannel` 的输入。识别出来就地应答掉（见文件头"出站凭据闸门"）。
+    //
+    // **两条反向请求，判别互斥**（各自按 method 字面量）且**处理方式不同**：
+    //  - `session/requestRuntimePreferences`（HOSTFIX4）：**同步**应答，值恒定。
+    //    它挂在 `session/create` 的关键路径上（`CXa` → `CKo`，`timeoutMs: 15e3`），
+    //    不答就是 15 秒后整轮 `session/create` 抛掉。
+    //  - `interaction/requestProviderRuntimeHeaders`（HOSTFIX3）：**异步**应答，
+    //    要过我们的 port（唯一出站凭据闸门）。
+    if (isSessionRequestRuntimePreferencesRequest(parsed)) {
+      answerSessionRuntimePreferences(/** @type {Record<string, any>} */ (parsed));
+      return;
+    }
+    // **COMPAT1/C4：工具权限 / 用户输入**。同样是**同步**应答、同样的理由——
+    // 官方 `pTt.requestClient` 对这两条**没有设 `timeoutMs`**（`dRn` 逐字只给
+    // `{sessionId, kind, …}`），所以不答就是 promise 永不落定、挂到我们自己的
+    // 300 s 墙钟上限。处置与上面两条**不同**的是"答什么"：权限按策略允许/拒绝，
+    // 用户输入恒取消（子宿主没有交互式用户通道）。
+    if (isToolPermissionRequest(parsed)) {
+      answerToolPermission(/** @type {Record<string, any>} */ (parsed));
+      return;
+    }
+    if (isUserInputRequest(parsed)) {
+      answerUserInput(/** @type {Record<string, any>} */ (parsed));
+      return;
+    }
+    if (isProviderRuntimeHeadersRequest(parsed)) {
+      answerProviderRuntimeHeaders(/** @type {Record<string, any>} */ (parsed));
+      return;
+    }
+    // **HOSTFIX5 · r2：容忍官方自发的无 id 通知。**
+    //
+    // 官方 app-server 在我们写零帧时就自发吐出 `{method, params}` 的
+    // `startup/storageState` 通知（顶层**无 `id`**，实测条数 5 或 27）。官方
+    // `fTt.dispatchLine` 对 id 缺省的帧逐字记 `"ZCode Protocol notification ignored"`。
+    //
+    // 处置必须**唯一**：**不答**（不是反向请求）、**不误判**（上面两个判别器都要求
+    // `id` 在场，已天然排除）、**不进 outbound**（否则 `extractSessionId` 会拿
+    // 通知 `params` 里的字段去认 `session/create` 的回执）。**只计数。**
+    if (isUnsolicitedNotification(parsed)) {
+      unsolicitedNotificationsIgnored += 1;
+      return;
+    }
+    outbound.push(line);
   }
 
   /**
@@ -1147,10 +1173,34 @@ export async function driveSession({ child, request, port, emit, timeoutMs }) {
   const input = childStdin;
   const output = childStdout;
   // 读应答只认 `output`；`input` 上的 data 事件对我们没有意义（官方不会往请求流写）。
+  //
+  // **ZC-23 / F03：这里必须过 `StringDecoder`，不能逐块 `toString('utf8')`。**
+  // 管道读批边界与官方写批边界无关，所以"一个多字节字横跨两块"是常态而不是边角；
+  // 逐块解码会让它在两块里各自变成 U+FFFD。字符串块（测试夹具/内存流）原样透传。
   output.on('data', (/** @type {Buffer|string} */ chunk) => {
-    pushOutbound(typeof chunk === 'string' ? chunk : chunk.toString('utf8'));
+    pushOutbound(typeof chunk === 'string' ? chunk : outboundDecoder.write(chunk));
   });
   output.on('end', () => {
+    // **ZC-23 返工：末行没有换行符时，必须在 `'end'` 上冲一次。**
+    //
+    // 旧实现（`buffer_.push(rest); flushBuffered();`）在**一个 `data` 块里含 `\n`** 时会把
+    // 尾随残片也 safeParse 一次——所以"完整合法 JSON、只是缺尾换行"的末行**曾经**能被
+    // 消费、终态能落。改成 `pendingLine` 跨块累积之后，这行会被永远留在串里，
+    // 于是该终态失配到 `SESSION_TIMEOUT`：那是 `pushOutbound` 重构引入的**回归**，
+    // 不是行为变更。
+    //
+    // 这里把残片送进**同一条**判别与处置路径（{@link consumeOutboundLine}）**恰好一次**：
+    //  - 完整合法 JSON ⟹ 与 HEAD 同路径被消费、终态照落；
+    //  - 不完整 / 垃圾残片 ⟹ `safeParse` 失败，仍被丢弃，不误报终态。
+    //
+    // **只挂在 `'end'`，不挂 `'exit'`**：官方 fatal 退出时 stdout 可能根本不 `end`，
+    // 那条路径归下面 `child.on('exit')`，它只落定 `outboundDone`、不碰解析。
+    // `finish` / `failed` 的判定本身一个字未动。
+    if (pendingLine !== '') {
+      const tail = pendingLine;
+      pendingLine = '';
+      consumeOutboundLine(tail);
+    }
     outboundDone = true;
     for (const waiter of waiters.splice(0)) waiter();
   });
@@ -1496,7 +1546,7 @@ export async function driveSession({ child, request, port, emit, timeoutMs }) {
    *
    * ## 为什么不能只 `settle` 一次（HOSTFIX6 实测踩到）
    *
-   * `settle` 的唤醒条件是 `flushBuffered` 末尾的 `if (buffer_.length === 0)`，
+   * `settle` 的唤醒条件是 `pushOutbound` 末尾的 `if (pendingLine === '')`，
    * 也就是"**读缓冲空了**"，而**不是**"outbound 里有东西了"。官方 app-server
    * 自发的 5–27 条 `startup/storageState` 通知同样会满足它——它们被
    * `isUnsolicitedNotification` 计数后丢掉，**一行都不进 outbound**。

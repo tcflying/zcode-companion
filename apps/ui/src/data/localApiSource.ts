@@ -23,7 +23,7 @@
  *  3. 失败一律映射到 UI02 已登记的失败原因，并**保留刷新前的旧列表**：
  *       - 回环守卫拒绝            → `transport_not_wired`
  *       - fetch 抛错（进程不在/端口不可达）→ `api_not_running`
- *       - 已连接但超时被中止       → `timeout`
+ *       - 已连接但**响应头或响应正文**未在预算内完成（被中止）→ `timeout`
  *       - 非 2xx / 响应体读中断   → `connection_failed`
  *       - 2xx 但正文不是合法 JSON → `malformed_payload`
  *       - 2xx 且 JSON 合法但形状不合契约 → `malformed_payload`（由 modelSource 解析层整体拒绝）
@@ -191,6 +191,39 @@ function errorText(err: unknown): string {
   return String(err);
 }
 
+function abortError(): Error {
+  const err = new Error('The operation was aborted.');
+  err.name = 'AbortError';
+  return err;
+}
+
+/**
+ * 在**同一个超时预算内**读取响应正文。
+ *
+ * 为什么必须自己与 abort 竞速（ZC-49 / F28）：平台 fetch 的 `res.text()` 只有在被
+ * abort 时才拒绝，而"2xx 头已返回、正文不结束"的连接不会自己结束。若把计时器在
+ * 头返回后就清掉，正文等待就进入**没有任何应用上限**的挂起，刷新永远停在 busy。
+ * 这里不新增计时器——只复用驱动 abort 的那一个，因此预算仍是同一个 `timeoutMs`。
+ */
+function readBodyWithinBudget(res: LocalApiResponseLike, signal: AbortSignal): Promise<string> {
+  const text = res.text();
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise<string>((resolve, reject) => {
+    const onAbort = (): void => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    text.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(value);
+      },
+      (err: unknown) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(err);
+      }
+    );
+  });
+}
+
 /* ------------------------------------------------------------------ *
  * 本机 API 来源执行器
  * ------------------------------------------------------------------ */
@@ -200,7 +233,8 @@ export function createLocalApiSourceLoader(options: LocalApiSourceOptions = {}):
   const timeoutMs = options.timeoutMs ?? CATALOG_REQUEST_TIMEOUT_MS;
   const fetchImpl = options.fetchImpl;
 
-  return async () => {
+  return async (transport) => {
+    if (transport !== 'local_api') return offlineSourceLoader(transport);
     // 守卫先行：不合规的 base URL 一个字节都不发出去。
     const verdict = resolveCatalogUrl(baseUrl);
     if (!verdict.ok) {
@@ -218,67 +252,78 @@ export function createLocalApiSourceLoader(options: LocalApiSourceOptions = {}):
 
     const controller = new AbortController();
     let timedOut = false;
+    // 同一预算覆盖「fetch + 响应头」与「完整正文」两段（ZC-49 / F28）：
+    // 头返回不再撤销预算，只有外层 finally 才清理。
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
     }, timeoutMs);
 
-    let res: LocalApiResponseLike;
     try {
-      res = await doFetch(verdict.url, {
-        method: 'GET',
-        cache: 'no-store',
-        redirect: 'error',
-        headers: { accept: 'application/json' },
-        signal: controller.signal
-      });
-    } catch (err) {
-      if (timedOut) {
+      let res: LocalApiResponseLike;
+      try {
+        res = await doFetch(verdict.url, {
+          method: 'GET',
+          cache: 'no-store',
+          redirect: 'error',
+          headers: { accept: 'application/json' },
+          signal: controller.signal
+        });
+      } catch (err) {
+        if (timedOut) {
+          throw new SourceUnavailableError(
+            'timeout',
+            `读取目录超时：${verdict.url} 在 ${timeoutMs}ms 内没有返回完整响应，请求已被中止（${errorText(err)}）。超时不做部分采纳。`,
+            REFRESH_FAILURE_INFO.timeout.remedy
+          );
+        }
         throw new SourceUnavailableError(
-          'timeout',
-          `读取目录超时：${verdict.url} 在 ${timeoutMs}ms 内没有返回完整响应，请求已被中止（${errorText(err)}）。超时不做部分采纳。`,
-          REFRESH_FAILURE_INFO.timeout.remedy
+          'api_not_running',
+          `本机 API 未启动或端口不可达：${verdict.url}（${errorText(err)}）。` +
+            `本产品只请求本机回环上的 companion API，不重试、不换来源、不填任何替代数据。`,
+          REFRESH_FAILURE_INFO.api_not_running.remedy
         );
       }
-      throw new SourceUnavailableError(
-        'api_not_running',
-        `本机 API 未启动或端口不可达：${verdict.url}（${errorText(err)}）。` +
-          `本产品只请求本机回环上的 companion API，不重试、不换来源、不填任何替代数据。`,
-        REFRESH_FAILURE_INFO.api_not_running.remedy
-      );
+
+      if (!res.ok) {
+        const diag = diagnosticHeaderText(res);
+        throw new SourceUnavailableError(
+          'connection_failed',
+          `目录端点返回非 2xx：${verdict.url} → HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ''}` +
+            `${diag ? `｜${diag}` : ''}。已连接上来源但响应不合格，不部分采纳响应体。`,
+          REFRESH_FAILURE_INFO.connection_failed.remedy
+        );
+      }
+
+      let body: string;
+      try {
+        body = await readBodyWithinBudget(res, controller.signal);
+      } catch (err) {
+        if (timedOut) {
+          throw new SourceUnavailableError(
+            'timeout',
+            `读取目录正文超时：${verdict.url} 在 ${timeoutMs}ms 内返回了 HTTP ${res.status} 响应头，但响应正文没有在同一个预算内读完，请求已被中止（${errorText(err)}）。超时不做部分采纳。`,
+            REFRESH_FAILURE_INFO.timeout.remedy
+          );
+        }
+        throw new SourceUnavailableError(
+          'connection_failed',
+          `目录响应体读取中断：${verdict.url} 返回 2xx 但正文读不出来（${errorText(err)}）。`,
+          REFRESH_FAILURE_INFO.connection_failed.remedy
+        );
+      }
+
+      try {
+        return JSON.parse(body) as unknown;
+      } catch (err) {
+        throw new SourceUnavailableError(
+          'malformed_payload',
+          `目录响应体不是合法 JSON：${verdict.url} 返回 HTTP ${res.status}，正文前 200 字符=${JSON.stringify(body.slice(0, 200))}（${errorText(err)}）。`,
+          REFRESH_FAILURE_INFO.malformed_payload.remedy
+        );
+      }
     } finally {
       clearTimeout(timer);
-    }
-
-    if (!res.ok) {
-      const diag = diagnosticHeaderText(res);
-      throw new SourceUnavailableError(
-        'connection_failed',
-        `目录端点返回非 2xx：${verdict.url} → HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ''}` +
-          `${diag ? `｜${diag}` : ''}。已连接上来源但响应不合格，不部分采纳响应体。`,
-        REFRESH_FAILURE_INFO.connection_failed.remedy
-      );
-    }
-
-    let body: string;
-    try {
-      body = await res.text();
-    } catch (err) {
-      throw new SourceUnavailableError(
-        'connection_failed',
-        `目录响应体读取中断：${verdict.url} 返回 2xx 但正文读不出来（${errorText(err)}）。`,
-        REFRESH_FAILURE_INFO.connection_failed.remedy
-      );
-    }
-
-    try {
-      return JSON.parse(body) as unknown;
-    } catch (err) {
-      throw new SourceUnavailableError(
-        'malformed_payload',
-        `目录响应体不是合法 JSON：${verdict.url} 返回 HTTP ${res.status}，正文前 200 字符=${JSON.stringify(body.slice(0, 200))}（${errorText(err)}）。`,
-        REFRESH_FAILURE_INFO.malformed_payload.remedy
-      );
     }
   };
 }

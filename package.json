@@ -9,10 +9,11 @@
     "npm": ">=11.16.0"
   },
   "scripts": {
-    "ci": "npm run typecheck && npm run typecheck:checkjs && npm run typecheck:apps && npm run test:ui && npm run test",
+    "ci": "npm run typecheck && npm run typecheck:checkjs && npm run typecheck:apps && npm run typecheck:desktop && npm run test:ui && npm run test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:checkjs": "tsc --noEmit -p tsconfig.json --checkJs true",
     "typecheck:apps": "node scripts/stage-gate.mjs typecheck:apps",
+    "typecheck:desktop": "node scripts/stage-gate.mjs typecheck:desktop",
     "test:ui": "node scripts/stage-gate.mjs test:ui",
     "api:start": "node packages/api/bin/start-api.mjs",
     "lint": "node scripts/stage-gate.mjs lint",
@@ -23,6 +24,7 @@
     "test:mutations": "node scripts/stage-gate.mjs test:mutations",
     "test:e2e": "node scripts/stage-gate.mjs test:e2e",
     "build": "node scripts/stage-gate.mjs build",
+    "build:ui": "node scripts/stage-gate.mjs build:ui",
     "pack:win": "node scripts/stage-gate.mjs pack:win",
     "verify:package": "node scripts/stage-gate.mjs verify:package"
   },

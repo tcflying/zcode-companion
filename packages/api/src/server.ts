@@ -794,6 +794,53 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
   /* 幂等表                                                              */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * **可淘汰**的重放条目 = 已结算（`state === 'done'`）**且**确实持有可重放正文
+   * （`replay !== null`）。两条缺一都还会漏：
+   *
+   *  - 缺 `state`：一条 `in_flight`（驱动器还在跑）的登记会被当成最旧条目删掉，
+   *    下一个同作用域请求查不到登记 → 第二次进驱动器 → 同一次操作两次 200、
+   *    上游额度被重复消耗（F02）。`current === entry` 只保护**提交**，
+   *    它**不保护在途登记**。
+   *  - 缺 `replay`：SSE 产出超过 `STREAM_BUFFER_MAX_BYTES` 时不会调用
+   *    `commitReplay`（见 `writeSseStream`），那条登记是「已结算但没有可重放正文」。
+   *    删掉它会把同键重试从 `idempotency_replay_unavailable` 退化成新 operation，
+   *    于是又是一次重复执行。
+   *
+   * **仍未消除的风险（不得当成已修复）**：一条**已结算**的条目被淘汰之后，
+   * 同键重试仍会变成一次新的驱动器调用。这条「预算压力下的潜在重复额度消耗」
+   * 是预算有界性与幂等语义之间**本来就存在**的取舍，本卡只把淘汰范围收紧到
+   * 「已结算且可释放」，并没有、也无法靠本卡把它消掉。
+   */
+  const isEvictableReplay = (entry: StoredOperation): boolean => entry.state === 'done' && entry.replay !== null;
+
+  /**
+   * 逐出最旧的**可淘汰**条目，直到回到预算之内。
+   *
+   * 找不到候选就停（而不是退而求其次删一条仍在执行的登记）：宁可让预算**暂时**
+   * 超限，也不让一条还在跑的登记消失——省下的那点内存远小于重复执行一次上游的代价。
+   * 实际可发生的情形只有「表里剩下的全是 `in_flight`」，而这类条目 `bytes === 0`、
+   * 不占 `replayBytes`，因此字节预算（真正的内存上限）不会被突破；条目数则由限流
+   * 的并发上限从外部封顶。
+   */
+  const evictReplayOverflow = (): void => {
+    while (replayBytes > REPLAY_STORE_MAX_BYTES || operations.size > MAX_IDEMPOTENCY_ENTRIES) {
+      let victimScope: string | null = null;
+      // 插入序 = 登记序 = 请求到达序；这里跳过的那些**不是**被保护，而是不能删。
+      for (const [key, candidate] of operations) {
+        if (isEvictableReplay(candidate)) {
+          victimScope = key;
+          break;
+        }
+      }
+      if (victimScope === null) break;
+      const victim = operations.get(victimScope);
+      if (victim === undefined) break;
+      replayBytes -= victim.bytes;
+      operations.delete(victimScope);
+    }
+  };
+
   const commitReplay = (scope: string, entry: StoredOperation, contentType: string, body: string): void => {
     const current = operations.get(scope);
     if (current === undefined) return;
@@ -805,14 +852,14 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     entry.contentType = contentType;
     entry.bytes = Buffer.byteLength(body, 'utf8');
     replayBytes += entry.bytes;
-    while (replayBytes > REPLAY_STORE_MAX_BYTES || operations.size > MAX_IDEMPOTENCY_ENTRIES) {
-      const oldest = operations.keys().next();
-      if (oldest.done === true) break;
-      const victim = operations.get(oldest.value);
-      if (victim === undefined) break;
-      replayBytes -= victim.bytes;
-      operations.delete(oldest.value);
-    }
+    // **结算必须先于淘汰。** 本函数就是「已结算」的时刻：驱动器产出结束、完整 2xx
+    // 正文已经拿到。旧顺序把 `state = 'done'` 留在 `runChat` 里（`commitReplay` 之后），
+    // 于是本条在淘汰扫描里仍被读成 `in_flight`——被自己的淘汰条件挡在门外。真按
+    // 「只加 state 过滤、顺序照旧」去改，本条永远不是候选：表一旦被在途条目占满，
+    // `MAX_IDEMPOTENCY_ENTRIES` 就再也收不回来，预算上限静默失效。先结算再淘汰，
+    // 「已结算且可释放」才是同一时刻成立的事实。
+    entry.state = 'done';
+    evictReplayOverflow();
   };
 
   const releaseOperation = (scope: string): void => {
@@ -826,6 +873,40 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
   /* 请求入口与生命周期                                                  */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * 解码失败时 `urlPath` 停留的**占位标签**。
+   *
+   * 它**不是**一个合法路径，只用来让下面 catch / finally 两条日志在解码失败时
+   * 仍有话可说。之所以不给原始路径占位：这条路径是**完全不受信任**的请求字节，
+   * 把它原样写进日志正是「为『好排查』把路径/字段/参数原样写出」。
+   */
+  const UNDECODABLE_PATH_LABEL = '<invalid-percent-encoding>';
+
+  /**
+   * 请求路径的百分号解码。**解码失败必须是一次普通的拒绝，不是一次进程退出。**
+   *
+   * F01（未持 key 即可终止 API）：这段解码原来在请求 `try` **之外**、且在
+   * Host / Origin / Bearer 三道门**之前**，`/%`、`/%ZZ` 让 `decodeURIComponent`
+   * 抛 `URIError`；异常沿 `parserOnIncoming` 逃逸成 uncaught，API 进程带
+   * `exit.code=1` 退出，而攻击者连一把 key 都不需要。
+   *
+   * 三条边界都在这里守住：
+   *  1. **不把解码后移到认证门之后**——那样会改变现有 401/403 语义，是另一个
+   *     入口的修法。解码仍留在原来的位置（门之前），只是失败不再外泄。
+   *  2. **不装全局兜底**——没有 `uncaughtException`、没有 try/catch 吞异常，
+   *     失败就地变成一条 400 响应。
+   *  3. **不新增 errors.ts 的 code**——复用既有 `invalid_request`
+   *     （`API_ERROR_SPECS` 里就是 400 / `contract_violation` / `not_submitted`）。
+   */
+  const decodeRequestPath = (rawPath: string): string => {
+    try {
+      return decodeURIComponent(rawPath);
+    } catch {
+      // 错误体与日志都不回显原始路径：只给一个固定的「编码不合法」结论。
+      throw new ApiError('invalid_request', '请求路径不是合法的百分号编码', { path_encoding: 'invalid' });
+    }
+  };
+
   const requestListener: http.RequestListener = (req, res) => {
     inFlight += 1;
     const startedAt = now();
@@ -838,9 +919,15 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     res.on('finish', settle);
     res.on('close', settle);
 
-    const urlPath = decodeURIComponent((req.url ?? '/').split('?')[0] ?? '/');
+    // 只切掉查询串：`?q=%` 里的 `%` 从来不参与解码（split('?')[0]），这条既有行为不变。
+    const rawPath = (req.url ?? '/').split('?')[0] ?? '/';
+    // 解码失败时 `urlPath` 停在占位标签上，于是 catch / finally 两条日志都不会
+    // 把这条不受信任的原始路径原样写出。
+    let urlPath = UNDECODABLE_PATH_LABEL;
     void (async () => {
       try {
+        // 仍在原来的位置：Host / Origin / Bearer 门之前。位置不动，语义就不变。
+        urlPath = decodeRequestPath(rawPath);
         if (req.method === 'OPTIONS') {
           // CORS 关闭：预检一律 405，且不写任何 access-control-* 头。
           throw new ApiError('method_not_allowed', '本机 API 不开启 CORS，不处理预检请求', { cors: 'disabled' }, 'method');
