@@ -573,6 +573,8 @@ export interface RefreshState {
   failure: RefreshFailure | null;
   /** 上一次成功读到的条目数，用于呈现"来源列表变化"。 */
   previousEntryCount: number | null;
+  /** Difference from the last successful catalog; null until the first success. */
+  delta: ListDelta | null;
 }
 
 export interface ListDelta {
@@ -593,8 +595,8 @@ export function listDelta(before: ModelEntry[], after: ModelEntry[]): ListDelta 
 }
 
 export function describeDelta(d: ListDelta): string {
-  if (d.previous === null || d.previous === 0) {
-    return `首次读回：${d.current} 个条目（新增 ${d.added.length}，此前没有可对比的列表）`;
+  if (d.previous === null) {
+    return `首次读回：${d.current} 个条目（此前没有可对比的列表）`;
   }
   if (d.added.length === 0 && d.removed.length === 0) return `与上次一致：${d.current} 个条目，无增删`;
   return (
@@ -653,8 +655,12 @@ export function completeRefresh(
       }
     };
   }
+  const delta: ListDelta = state.lastSuccessAt === null
+    ? { added: [], removed: [], kept: 0, previous: null, current: parsed.entries.length }
+    : listDelta(state.entries, parsed.entries);
   return {
     ...state,
+    delta,
     status: 'ok',
     lastAttemptAt: at,
     lastSuccessAt: at,
@@ -698,6 +704,7 @@ export function createInitialSourceState(): ModelSourceState {
       revision: '未接入',
       entries: [],
       failure: null,
+      delta: null,
       previousEntryCount: null
     },
     manualEntries: []

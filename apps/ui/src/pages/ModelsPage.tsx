@@ -5,7 +5,6 @@ import {
   BILLING_CLASS_LABEL,
   BILLING_CLASS_RULE,
   BILLING_CLASS_SENDABLE,
-  CATALOG_STATE,
   CURRENT_EVIDENCE,
   MODEL_COLUMNS,
   NO_CREDIT_LABEL,
@@ -35,7 +34,6 @@ import {
   filterEntries,
   fixtureScenarioLabel,
   isFixtureScenario,
-  listDelta,
   describeDelta,
   removeManualEntry,
   runRefresh,
@@ -231,7 +229,7 @@ export function ModelsPage({ state }: { state: AppState }) {
       state.log('WARN', 'ui.source', `来源刷新失败（${next.failure.reason}）：${next.failure.detail}`);
       return;
     }
-    const delta = describeDelta(listDelta([], next.entries));
+    const delta = next.delta === null ? '' : describeDelta(next.delta);
     setNotice({ tone: 'ok', text: `刷新完成：${delta}。条目可用性仍为「${UNVERIFIED_LABEL}」。` });
     state.log('INFO', 'ui.source', `来源刷新完成：${delta}`);
   }, [refresh, transport, state, sourceLoader, fixtureScenario, state.localApiEnabled, catalogUrlVerdict]);
@@ -270,10 +268,7 @@ export function ModelsPage({ state }: { state: AppState }) {
   const deltaText = useMemo(() => {
     if (refresh.status !== 'ok' && refresh.status !== 'failed') return null;
     if (refresh.entries.length === 0) return null;
-    return describeDelta({
-      ...listDelta([], refresh.entries),
-      previous: refresh.previousEntryCount
-    });
+    return refresh.delta === null ? null : describeDelta(refresh.delta);
   }, [refresh]);
 
   return (
@@ -479,6 +474,11 @@ export function ModelsPage({ state }: { state: AppState }) {
                     <span className="mono">?sourceFixture={fixtureScenario}</span> 切到本地 fixture，
                     <strong>不发起任何网络请求</strong>。
                   </>
+                ) : transport === 'local_config_file' ? (
+                  <>
+                    当前选择本地配置文件来源：文件读取尚未接线，<strong>本次不请求本机 API，零网络</strong>。
+                    刷新按 <span className="mono">transport_not_wired</span> 失败并保留已有列表。
+                  </>
                 ) : state.localApiEnabled ? (
                   <>
                     已开启「连接本机 API」：刷新会真实请求{' '}
@@ -593,7 +593,7 @@ export function ModelsPage({ state }: { state: AppState }) {
 
       <Section
         title="模型 / 套餐目录"
-        description={`目录 revision ${CATALOG_STATE.catalogRevision} · 账号 epoch ${CATALOG_STATE.accountEpoch} · 配置 revision ${CATALOG_STATE.configRevision} · 最近同步 ${CATALOG_STATE.lastSyncedAt} · 当前展示条目 ${visible.length}（来源模式：${SOURCE_MODE_LABEL[mode]}）`}
+        description={`目录 revision ${refresh.lastSuccessAt === null ? 'unknown' : refresh.revision} · 账号 epoch unknown · 配置 revision unknown · 最近同步 ${refresh.lastSuccessAt === null ? 'unknown' : formatStamp(refresh.lastSuccessAt)} · 当前展示条目 ${visible.length}（来源模式：${SOURCE_MODE_LABEL[mode]}）`}
         actions={
           <div className="toolbar">
             <label className="toolbar__field">
@@ -767,6 +767,10 @@ export function ModelsPage({ state }: { state: AppState }) {
             title={`刷新失败：${describeRefreshFailure(refresh.failure.reason).info.title}`}
           >
             <RefreshFailureDetails state={refresh} />
+          </StatePanel>
+        ) : refresh.status === 'ok' && refresh.entries.length > 0 ? (
+          <StatePanel tone="info" title="来源读取成功">
+            已读取 {refresh.entries.length} 个条目。{deltaText}
           </StatePanel>
         ) : (
           <StatePanel

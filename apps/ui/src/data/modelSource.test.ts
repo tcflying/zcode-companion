@@ -1,7 +1,8 @@
 /**
  * UI02 单元测试：来源模式切换语义、刷新结果与失败呈现、写死条目的不可发送性。
  *
- * 全部为纯函数 / 本地状态测试：零网络、零磁盘、无 React 依赖。
+ * 既有分组为纯函数 / 本地状态测试；ZC-51 追加真实页面回调和 SSR 接线验证。
+ * 全部零网络、零磁盘，不代替真实 mounted React 或 GUI 验收。
  * 不使用恒真断言、不 skip。
  *
  * 本轮（UI02-F1）新增覆盖：
@@ -235,7 +236,8 @@ describe('/v1/zcc/catalog 契约解析：六种离线 fixture 场景', () => {
     expect(r1.status).toBe('ok');
     expect(r1.revision).toBe('fixture-rev-1');
     expect(r1.entries).toHaveLength(2);
-    expect(describeDelta(listDelta([], r1.entries))).toContain('首次读回');
+    expect(r1.delta?.previous).toBeNull();
+    expect(describeDelta(r1.delta!)).toContain('首次读回');
 
     const r2 = await runRefresh(r1, fixtureLoader(CATALOG_FIXTURE_V2), () => 200);
     expect(r2.status).toBe('ok');
@@ -876,5 +878,141 @@ describe('C1(b) 默认路径零网络：执行器选择与网络原语回归钉'
     expect(SOURCE_ENDPOINT.startsWith('/')).toBe(true);
     expect(SOURCE_ENDPOINT).not.toMatch(/^https?:\/\//i);
     expect(SOURCE_ENDPOINT).not.toMatch(/^[a-z][a-z0-9+.-]*:/i);
+  });
+});
+
+
+// ZC-51: execute the real ModelsPage refresh callback and render its returned
+// element tree. Hook storage is deterministic; this is not mounted DOM/GUI.
+import { vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type { AppState } from '../app/useAppState';
+
+async function zc51PageHarness(payloads: unknown[]) {
+  const slots: unknown[] = [];
+  const logs: string[] = [];
+  let cursor = 0;
+  vi.resetModules();
+  vi.doMock('react', async (original) => ({
+    ...(await original<typeof import('react')>()),
+    useState: (initial: unknown) => {
+      const n = cursor++;
+      if (!(n in slots)) slots[n] = typeof initial === 'function' ? initial() : initial;
+      return [slots[n], (next: unknown) => { slots[n] = typeof next === 'function' ? next(slots[n]) : next; }];
+    },
+    useRef: (initial: unknown) => {
+      const n = cursor++;
+      if (!(n in slots)) slots[n] = { current: initial };
+      return slots[n];
+    },
+    useMemo: (fn: () => unknown) => fn(),
+    useCallback: (fn: unknown) => fn
+  }));
+  vi.doMock('./localApiSource', async (original) => ({
+    ...(await original<typeof import('./localApiSource')>()),
+    resolveSourceLoaderForUi: () => async () => {
+      if (!payloads.length) throw new Error('fixture exhausted');
+      return payloads.shift();
+    }
+  }));
+  const { ModelsPage } = await import('../pages/ModelsPage');
+  const state: AppState = {
+    logs: [], log: (_level, _source, message) => { logs.push(message); },
+    clearLogs: () => undefined, bootedAt: 0, now: 0, clockBroken: false,
+    setClockBroken: () => undefined, localApiEnabled: true,
+    setLocalApiEnabled: () => undefined, localApiBaseUrl: '', setLocalApiBaseUrl: () => undefined
+  };
+  const render = () => { cursor = 0; return ModelsPage({ state }); };
+  function findRefresh(value: unknown): (() => void) | undefined {
+    if (Array.isArray(value)) {
+      for (const child of value) { const found = findRefresh(child); if (found) return found; }
+    } else if (value && typeof value === 'object') {
+      const node = value as { type?: unknown; props?: Record<string, unknown> };
+      if (node.type === 'button' && typeof node.props?.children === 'string' && node.props.children.includes('刷新来源')) {
+        return node.props.onClick as () => void;
+      }
+      if (node.props) for (const child of Object.values(node.props)) {
+        const found = findRefresh(child); if (found) return found;
+      }
+    }
+    return undefined;
+  }
+  return {
+    logs,
+    html: () => renderToStaticMarkup(render()),
+    refresh: async () => {
+      const click = findRefresh(render());
+      if (!click) throw new Error('real refresh button not found');
+      click();
+      for (let i = 0; i < 12; i++) await Promise.resolve();
+    },
+    restore: () => { vi.doUnmock('react'); vi.doUnmock('./localApiSource'); vi.resetModules(); vi.restoreAllMocks(); }
+  };
+}
+
+describe('ZC-51 actual page refresh wiring', () => {
+  it('first success has a success panel and dynamic revision/time without inventing epoch', async () => {
+    const h = await zc51PageHarness([CATALOG_FIXTURE_V1]);
+    try {
+      vi.spyOn(Date, 'now').mockReturnValue(0);
+      expect(h.html()).toContain('目录 revision unknown');
+      expect(h.html()).toContain('最近同步 unknown');
+      await h.refresh();
+      const html = h.html();
+      expect(html).not.toContain('来源当前返回 0 个条目');
+      expect(html).toContain('来源读取成功');
+      expect(html).toContain('目录 revision fixture-rev-1');
+      expect(html).toMatch(/最近同步 1970-/);
+      expect(html).toContain('账号 epoch unknown');
+      expect(html).toContain('配置 revision unknown');
+      expect(h.logs.at(-1)).toContain('首次读回');
+      expect(h.logs.at(-1)).not.toContain('新增 2');
+    } finally { h.restore(); }
+  });
+  it('same list and removal share the correct delta across notice, log and summary', async () => {
+    const one = { ...CATALOG_FIXTURE_V1, revision: 'one-row', models: CATALOG_FIXTURE_V1.models.slice(0, 1) };
+    const h = await zc51PageHarness([CATALOG_FIXTURE_V1, CATALOG_FIXTURE_V1, one]);
+    try {
+      await h.refresh(); await h.refresh();
+      expect(h.logs.at(-1)).toContain('与上次一致：2 个条目，无增删');
+      expect(h.html().split('与上次一致：2 个条目，无增删').length).toBeGreaterThanOrEqual(3);
+      await h.refresh();
+      expect(h.logs.at(-1)).toContain('新增 0');
+      expect(h.logs.at(-1)).toContain('消失 1');
+      expect(h.logs.at(-1)).toContain('保持 1 个');
+      const html = h.html();
+      expect(html.split('新增 0').length).toBeGreaterThanOrEqual(3);
+      expect(html).toContain('目录 revision one-row');
+    } finally { h.restore(); }
+  });
+  it('empty failure keeps rows/revision and the next success compares against the last successful list', async () => {
+    const one = { ...CATALOG_FIXTURE_V1, revision: 'after-failure', models: CATALOG_FIXTURE_V1.models.slice(0, 1) };
+    const h = await zc51PageHarness([CATALOG_FIXTURE_V1, { revision: 'empty', models: [] }, one]);
+    try {
+      await h.refresh(); await h.refresh();
+      const failed = h.html();
+      expect(failed).toContain('保留刷新前读到的 2 条');
+      expect(failed).toContain('目录 revision fixture-rev-1');
+      expect(failed).not.toContain('目录 revision empty');
+      await h.refresh();
+      expect(h.logs.at(-1)).toContain('新增 0');
+      expect(h.logs.at(-1)).toContain('消失 1');
+      expect(h.logs.at(-1)).toContain('保持 1 个');
+    } finally { h.restore(); }
+  });
+});
+
+
+describe('ZC-51 known empty baseline', () => {
+  it('a known empty baseline is comparable, while only null means no prior catalog', () => {
+    const entries = parseCatalogPayload(CATALOG_FIXTURE_V1);
+    if (!entries.ok) throw new Error('invalid fixture');
+    const delta = listDelta([], entries.entries);
+    expect(delta.previous).toBe(0);
+    expect(describeDelta(delta)).toContain('新增 2');
+    expect(describeDelta(delta)).not.toContain('首次读回');
+    expect(describeDelta(listDelta([], []))).toBe('与上次一致：0 个条目，无增删');
+    expect(describeDelta({ ...delta, previous: null })).toContain('首次读回');
+    expect(describeDelta({ ...delta, previous: null })).not.toContain('新增');
   });
 });
