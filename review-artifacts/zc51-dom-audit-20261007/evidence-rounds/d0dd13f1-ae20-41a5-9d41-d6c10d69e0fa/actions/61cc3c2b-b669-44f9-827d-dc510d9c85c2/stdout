@@ -1,0 +1,31 @@
+RC=1
+--- OUT ---
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+ × src/pages/__zc51_dom_probe2.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S1 首刷 2 行：表格出现两行、摘要说「首次读回」而非「新增 2」、notice 非空 143ms
+   → expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain 'm1'
+ × src/pages/__zc51_dom_probe2.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S2 相同 2 行再刷：摘要变「与上次一致」，仍不出现「新增 2」 216ms
+   → expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '与上次一致'
+ × src/pages/__zc51_dom_probe2.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S3 2→1：页面摘要出现 0 新增 / 1 消失 / 1 保持 231ms
+   → expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '新增 0'
+ × src/pages/__zc51_dom_probe2.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S4 失败保留旧表：第二次读空源失败后，表格仍保留上一次的 2 行 124ms
+   → expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain 'm1'
+ × src/pages/__zc51_dom_probe2.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S5 未接 epoch：标题里账号/配置 revision 为 unknown，首刷前目录 revision 亦为 unknown 110ms
+   → expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '目录 revision rev-x'
+
+ Test Files  1 failed (1)
+      Tests  5 failed (5)
+   Start at  07:49:54
+   Duration  1.33s (tests 67%, setup 22%, transform 8%, import 3%)
+
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__zc51_dom_probe2.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S1 首刷 2 行：表格出现两行、摘要说「首次读回」而非「新增 2」、notice 非空
+AssertionError: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain 'm1'
+
+Expected: "m1"
+Received: "模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死固定（手工录入）。两种模式都只影响列表来源，不影响发送门。来源模式 动态刷新额度 无可用额度证据等级 E0零 dispatch来源模式两种模式随时可切换，切换不会清空任何已输入内容：写死条目与上次读到的来源条目都保留，切回即恢复显示。条目可用性一律「未验证」dynamic · 动态刷新（手动点刷新重新读取来源）来源由本机读取，手动点「刷新来源」重新读一次。刷新只读取目录，不发送任何模型请求。当前生效manual · 写死固定（主上手工录入条目）由主上手工录入条目。录入内容不会被官方验证，也不会因此获得可发送资格。可切换提示刷新失败：连接失败（connection_failed）—— 目录响应体读取中断：http://127.0.0.1:8790/v1/zcc/catalog 返回 2xx 但正文读不出来（TypeError: res.text is not a function）。来源通道本机 companion API（读取模型目录）本地配置文件（读取模型目录）刷新来源（只读取，不发送）契约：/v1/zcc/catalog。UI04 起本通道有真实执行器：设置页显式开启「连接本机 API」后，只向本机回环（或同源反代）发起 GET 请求，只读取目录、不发任何模型请求；未开启时按未接线失败并显示原因。网络边界已开启「连接本机 API」：刷新会真实请求 http://127.0.0.1:8790/v1/zcc/catalog，只读取目录、不发送任何模型请求。回环守卫只放行 127.0.0.1 / localhost / [::1] 或同源；浏览器 CSP connect-src 'self' http://127.0.0.1:8790，其他来源一律被拒。最近一次刷新2026-10-07 07:49:54（本机时钟）最近一次成功未刷新过结果失败（点击刷新 1 次）来源 revision未接入当前列表条目0列表变化尚无成功读回记录契约契约（协调者裁定，照此实现）：来源读取端点 /v1/zcc/catalog，返回 { revision: string, models: [{ modelId, displayName, provider, billingClass: 'subscription'|'promotion'|'metered_api'|'unknown', contextLength: number|null, reasoning: string[], capabilities: string[] }] }。外部 IDE 用的标准 /v1/models（id/object/created/owned_by）不是本来源，解析层会整体拒绝。字段缺失 / 类型错 / 非法枚举一律整体拒绝并进错误面板，不部分采纳、不静默降级。UI04 起：开启「连接本机 API」后真实 fetch 该端点（仅回环 / 同源，仍不发送任何模型请求）；未开启则按未接线失败。额度 / 桶读数三个来源必须分栏：单位不同、采集方不同、不能互相替代，也不能合并成一个“余额”。无可用额度本软件请求 token 统计无可用额度单位token来源本软件自身计数读数无可用额度仅统计由本软件发起的请求；当前请求数为 0（未接入读数）账号套餐权威桶无可用额度单位积分 / 余额（官方单位，未接入）来源官方账号侧读数读数无可用额度无可用额度；读数延迟与其他会话并行消费会污染前后差值活动优惠说明无可用额度单位—来源官方活动资格读数无可用额度无可用额度；活动时间落在窗口内不等于有资格额度额度现状：普通套餐与 Start Plan 当前都没有可用额度。界面不显示任何看起来像真实可用套餐的名称、余额或剩余量；所有条目的可用性一律显示「未验证」。E0未知：无有效资格/用量证据 —— 权益未确认，暂不可发送。在取得 E1 及以上资格与计费证据之前，发送门保持关闭；本产品界面上不存在任何可点击的发送入口（dispatch = 0）。模型 / 套餐目录目录 revision unknown · 账号 epoch unknown · 配置 revision unknown · 最近同步 unknown · 当前展示条目 0（来源模式：dynamic · 动态刷新（手动点刷新重新读取来源））搜索计费类别全部subscription · 订阅扣桶promotion · 活动优惠metered_api · 按量计费unknown · 未知（保守拒发）当前筛选：全部计费类别 · 来源模式 dynamic · 动态刷新（手动点刷新重新读取来源） · 搜索词「（空）」· 来源条目 0 条显示名providermodelId计费类别上下文长度token推理档位能力标签状态操作占位行未接入（无真实条目）unknown—unknown未接入未接入未接入unknown不可发送（E0）占位行未接入（无真实条目）unknown—unknown未接入未接入未接入unknown不可发送（E0）占位行未接入（无真实条目）unknown—unknown未接入未接入未接入unknown不可发送（E0）错误状态刷新失败：连接失败失败原因connect
+TEMP_REMOVED=True

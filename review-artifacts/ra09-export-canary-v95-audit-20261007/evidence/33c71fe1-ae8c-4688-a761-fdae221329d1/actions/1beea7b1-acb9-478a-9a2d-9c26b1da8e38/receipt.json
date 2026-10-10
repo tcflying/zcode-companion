@@ -1,0 +1,35 @@
+{
+  "task": "business-v95b-20261007",
+  "round": "33c71fe1-ae8c-4688-a761-fdae221329d1",
+  "project": "companion-export-canary",
+  "action": "1beea7b1-acb9-478a-9a2d-9c26b1da8e38",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-audit-20261007\\private\\run-probe.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1",
+  "pid": 59452,
+  "startedUtc": "2026-10-07T07:00:56.689941+00:00",
+  "start_ns": 1791356456689952300,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T07:00:58.084245+00:00",
+  "end_ns": 1791356458084262600,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\actions\\1beea7b1-acb9-478a-9a2d-9c26b1da8e38\\stdout",
+      "sha256": "bfaf24add0f383484c53b86d2ea90f581c34db1a2efd0017e03e5d87534d3384",
+      "mtime_ns": 1791356458035233100
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\actions\\1beea7b1-acb9-478a-9a2d-9c26b1da8e38\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791356456689644700
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+RC=1
+     × 早发出晚返回的读取必须被拒（同一 seq 守卫在 stream 层的等价裁决） 5ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Duration  217ms (transform 60%, import 21%, tests 12%, worker 6%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/app/__zc45_private_probe.test.ts > ZC-45 B2: settingsReadSeq 守卫的逆序语义 > 早发出晚返回的读取必须被拒（同一 seq 守卫在 stream 层的等价裁决）
+AssertionError: expected true to be false // Object.is equality
+TEMP_PROBE_REMOVED=True

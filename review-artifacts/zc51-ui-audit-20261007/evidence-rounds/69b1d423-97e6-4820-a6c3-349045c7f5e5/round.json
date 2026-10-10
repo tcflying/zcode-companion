@@ -1,0 +1,10 @@
+{
+  "task": "zc51-ui-audit",
+  "projects": [
+    "render",
+    "negative"
+  ],
+  "round": "69b1d423-97e6-4820-a6c3-349045c7f5e5",
+  "directory": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-ui-audit-20261007\\evidence-rounds\\69b1d423-97e6-4820-a6c3-349045c7f5e5",
+  "createdUtc": "2026-10-06T23:37:05.891382+00:00"
+}

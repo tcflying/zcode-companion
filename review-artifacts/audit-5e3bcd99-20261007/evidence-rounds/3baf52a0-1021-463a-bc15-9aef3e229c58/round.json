@@ -1,0 +1,10 @@
+{
+  "task": "companion-audit-5e3bcd99",
+  "projects": [
+    "contract",
+    "errorclass"
+  ],
+  "round": "3baf52a0-1021-463a-bc15-9aef3e229c58",
+  "directory": "G:\\zcode-project\\zcode-companion\\review-artifacts\\audit-5e3bcd99-20261007\\evidence-rounds\\3baf52a0-1021-463a-bc15-9aef3e229c58",
+  "createdUtc": "2026-10-06T22:49:41.746395+00:00"
+}

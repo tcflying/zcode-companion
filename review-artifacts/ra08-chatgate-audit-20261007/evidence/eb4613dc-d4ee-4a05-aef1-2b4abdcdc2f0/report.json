@@ -1,0 +1,33 @@
+{
+  "task": "ra08-chatgate",
+  "round": "eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0",
+  "status": "blocked",
+  "projects": {
+    "chatgate": {
+      "actions": [
+        "961d1f88-34e3-4c87-bf81-1f87fee5c968",
+        "5f024287-a79d-437a-b439-2465650c1a82",
+        "a7437f21-f4c7-44a2-9e27-7660d705b2fb"
+      ],
+      "explanation": "RA-08 会话页（ChatPage）E0 发送门真实挂载验收。定案 961d1f88：pid 65184，exit 0，2026-10-07T03:02:59Z-03:03:01Z，VITEST_EXIT=0 / CLASS=all_passed / Tests 5 passed (5)。G1 空草稿正控：value 为空串、草稿字数 0、发送按钮 disabled、E0 口径文案「权益未确认，暂不可发送」与 dispatch = 0 在页、fetch/XHR/WebSocket/IPC 四通道计数全 0 且 callLog 为空数组。G2 长中文草稿（122 字）+ 真实 Enter（keydown/keypress/keyup 三连）：草稿原样保留、字数 122、对话轮数恒为 5、5 个 .bubble 无一含草稿文本、发送门仍 disabled、四通道零 dispatch。G3 恶意 HTML/Markdown 草稿（script/onerror img/javascript: 图片/iframe + 长中文）：不产生真实 script 与 iframe 元素、window.__pwned 与 __pwned2 均 undefined、连续两次 Enter 草稿不变字数不变、零 dispatch。G4 清空草稿：清空前 evil 串长度大于 0 且 el.value 与字数计数器一致，清空后 value 为空串、字数 0，并留下「草稿已清空…dispatch = 0」日志；空态下重复点击清空两次仍幂等不抛错；全程零 dispatch、发送门仍 disabled。G5 disabled 按钮无法触发发送：对 disabled 的「不可发送（E0）」与 disabled 的「取消」按钮直接调用 .click() 绕过 React 委托，加真实 Enter，三轮交互后 .turn 数量不变、草稿与字数不变、fetch/XHR/WebSocket/IPC 四通道计数逐项为 0、callLog 空。静态对照 5f024287 只读核 ChatPage.tsx SHA256=a09b9d89fe67fd2c644edfa56039ada1f18f839a7a9bc63faf7d1f61b7639db4 与 snapshot.ts SHA256=3f4600a22e90963ee224e17ba0e62d8a51cfa888520a390f073e621906b4cfb8 与本轮开始前逐字节一致；剔除注释与字符串字面量后的代码区零 fetch/XHR/WebSocket/ipc/axios/chat_completions 命中；无 onKeyDown/onKeyPress/onKeyUp；发送按钮标签体 9 行含 disabled 不含 onClick；全文件 onClick 恰为 1 处且属 handleClearDraft。a7437f21 把封存 stdout 转录为结构化裁定 JSON 产物（generated=True，sha256 1ee58bc44ac165fc1c0c7656646076ee9fe60b0f1c0e29a3f3df64bb63289c9e）。正式源码零改动，apps/ui git CLEAN，未提交未推送。",
+      "blockers": [
+        {
+          "condition": "会话页发送门在无真实浏览器、无真实网络的合成环境下取得，Markdown 净化未单独验收，故只能记为未完成签收而非成功",
+          "gap": "happy-dom 20.11.6 非真实浏览器（无布局/CSS/Tab 焦点序列/真实键盘处理）；fetch/XMLHttpRequest/WebSocket 全为替身，本轮不存在真实网络；ChatPage 本身不引用 assistant 消息接口，探针未注入任何不存在的接口；草稿仅验证作为文本不产生真实元素与请求，不构成完整 Markdown/HTML 净化能力验收；RA-08 要求的总览页/请求记录/API关闭页/设置诊断页、多尺寸缩放 800x600/1280x720/1920x1080 及 125%/150%、Tab 焦点、完整恶意 Markdown 渲染全未测",
+          "action": "a7437f21-f4c7-44a2-9e27-7660d705b2fb",
+          "observed": "NOT_SIGNED",
+          "required": "SIGNED",
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\chatgate-verdict.json",
+            "sha256": "1ee58bc44ac165fc1c0c7656646076ee9fe60b0f1c0e29a3f3df64bb63289c9e",
+            "pointer": ["ra08_overall"],
+            "observed": "NOT_SIGNED"
+          }
+        }
+      ],
+      "diagnosis": "本轮 status=blocked 的唯一原因是 RA-08 整体未签收，不是会话页发送门缺陷。会话页子项在零失败动作的干净证据链上 5/5 全绿。本轮开 round 前先在工作区预验证了全部三个脚本，因此没有产生任何失败 action——这正是吸取上一轮 artifact 路径复用导致两个 round 作废的教训。预验证共拦下 4 处探针/检测器自身缺陷：(.turn 轮数误写 4 实为 5（PLACEHOLDER_TURNS 4 条加 :70 结果未知占位 1 条）；.bubble 检查误用整页 text() 而 happy-dom 会把 textarea 的 value 映进 textContent 导致草稿必然「出现」，改查 .bubble 才准确；静态检测按固定子串切片会把下一个按钮的 onClick 误算进发送按钮标签，改按行回溯定位；另一版按行找 /> 越界，因 ChatPage:99-107 按钮标签跨 9 行且收尾是 </button>，改为以 </button> 或 /> 任一先出现为准并加越界保护。此外第一版静态检测全文件搜 WebSocket 会命中 :95 placeholder 文案里的「没有 fetch/XHR/WebSocket」，改为先剔除注释与字符串字面量再搜标识符后归零——这是假红，不是产品存在 WebSocket 调用。",
+      "unverified": "happy-dom 20.11.6 非真实浏览器（无布局/CSS/Tab 焦点序列/真实键盘处理）；fetch/XMLHttpRequest/WebSocket 全为替身，本轮不存在真实网络，故只能证明该页在合成环境下不产生任何 dispatch，不证明真实浏览器与真实网络下的等价行为。草稿转义不等于完整 Markdown/HTML 净化验收（裁定产物中 markdown_sanitization_verified=false）。真实 assistant 消息接口不存在，本轮也未注入任何替代接口，故助手气泡侧零请求只由占位常量和源码零调用点支撑。RA-08 整体仍未签收：总览页/请求记录/API关闭页/设置诊断页、多尺寸缩放 800x600/1280x720/1920x1080 及 125%/150%、Tab 焦点顺序、完整恶意 Markdown 渲染全未测。",
+      "nextstep": "会话页 E0 发送门子项已闭合，等主上裁决是否签收。RA-08 剩余页面（总览/请求记录/API关闭页/设置诊断）与多尺寸缩放、Tab 焦点、Markdown 净化渲染仍待覆盖。"
+    }
+  }
+}

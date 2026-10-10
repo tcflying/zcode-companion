@@ -1,0 +1,11 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  09:36:45
+   Duration  2.00s (tests 78%, setup 14%, transform 5%, import 2%)
+
+VITEST_EXIT=0
+CLASS=all_passed

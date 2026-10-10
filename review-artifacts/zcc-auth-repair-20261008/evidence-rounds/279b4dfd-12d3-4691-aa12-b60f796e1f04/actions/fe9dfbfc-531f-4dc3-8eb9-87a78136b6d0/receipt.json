@@ -1,0 +1,35 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "279b4dfd-12d3-4691-aa12-b60f796e1f04",
+  "project": "zcc-auth",
+  "action": "fe9dfbfc-531f-4dc3-8eb9-87a78136b6d0",
+  "argv": [
+    "C:/Program Files/PowerShell/7/pwsh.exe",
+    "-NoProfile",
+    "-Command",
+    "$ErrorActionPreference = \"Stop\"; & \"C:/Users/datoo/AppData/Roaming/npm/mcode.ps1\" provider test zcc-companion --model \"account:bigmodel-individual-coding-plan::GLM-5.3-Flash\" --json; exit $LASTEXITCODE"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\279b4dfd-12d3-4691-aa12-b60f796e1f04",
+  "pid": 44504,
+  "startedUtc": "2026-10-07T21:38:21.216956+00:00",
+  "start_ns": 1791409101216971700,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T21:38:55.149392+00:00",
+  "end_ns": 1791409135149408200,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\279b4dfd-12d3-4691-aa12-b60f796e1f04\\actions\\fe9dfbfc-531f-4dc3-8eb9-87a78136b6d0\\stdout",
+      "sha256": "7995c5e9acc66732b7a0985778aaa7e25231cd76faea359315cba7f149aecdc6",
+      "mtime_ns": 1791409135105577500
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\279b4dfd-12d3-4691-aa12-b60f796e1f04\\actions\\fe9dfbfc-531f-4dc3-8eb9-87a78136b6d0\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791409101216974100
+    }
+  ]
+}

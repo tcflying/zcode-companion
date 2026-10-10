@@ -1,0 +1,49 @@
+{
+  "task": "ra08-sameid",
+  "round": "88c6eb46-18f2-46ba-8390-97cc7efef2d4",
+  "project": "sameid",
+  "action": "8bf081f9-cfd7-4976-aafe-dbb4633c13bd",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\private\\summarize.py",
+    "sameid-summary-v3.json"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4",
+  "pid": 66212,
+  "startedUtc": "2026-10-07T01:41:33.207729+00:00",
+  "start_ns": 1791337293207739500,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T01:41:33.245511+00:00",
+  "end_ns": 1791337293245528000,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4\\sameid-summary-v3.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4\\sameid-summary-v3.json",
+        "sha256": "5117bc438f304917daadcbea3276292a4ba2fe3751d55d1c284cea18d018452f",
+        "mtime_ns": 1791337293239215700
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4\\actions\\8bf081f9-cfd7-4976-aafe-dbb4633c13bd\\stdout",
+      "sha256": "00615938db1c2206e6e7a9b4b000986225f555a7976bab90890c7425bf434ee6",
+      "mtime_ns": 1791337293239215700
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4\\actions\\8bf081f9-cfd7-4976-aafe-dbb4633c13bd\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791337293206899400
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+MUTANT_SHA256=bdc7131baf25b42d73341ada468fc664a971a263bc18a92ad22e74b2d885951f
+REAL_SHA256  =78acdb7a2266a3dca4f36543bf7cab0b0cfe57cc888f01abc815269a39642e43
+RC=1
+ Test Files  1 failed (1)
+      Tests  no tests
+   Duration  524ms (setup 93%, transform 6%, worker 1%)
+TEMP_REMOVED=True
+SHADOW_REMOVED=True

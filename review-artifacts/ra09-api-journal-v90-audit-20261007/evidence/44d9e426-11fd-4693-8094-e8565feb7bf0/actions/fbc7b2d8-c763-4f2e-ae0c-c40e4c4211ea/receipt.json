@@ -1,0 +1,36 @@
+{
+  "task": "business-v90-20261007",
+  "round": "44d9e426-11fd-4693-8094-e8565feb7bf0",
+  "project": "companion-journal",
+  "action": "fbc7b2d8-c763-4f2e-ae0c-c40e4c4211ea",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\node_modules\\typescript\\bin\\tsc",
+    "--noEmit",
+    "-p",
+    "G:\\zcode-project\\zcode-companion\\tsconfig.json"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-v90-audit-20261007\\evidence\\44d9e426-11fd-4693-8094-e8565feb7bf0",
+  "pid": 41048,
+  "startedUtc": "2026-10-07T06:22:20.915515+00:00",
+  "start_ns": 1791354140915530000,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T06:22:21.227879+00:00",
+  "end_ns": 1791354141227909900,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-v90-audit-20261007\\evidence\\44d9e426-11fd-4693-8094-e8565feb7bf0\\actions\\fbc7b2d8-c763-4f2e-ae0c-c40e4c4211ea\\stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791354140914738600
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-v90-audit-20261007\\evidence\\44d9e426-11fd-4693-8094-e8565feb7bf0\\actions\\fbc7b2d8-c763-4f2e-ae0c-c40e4c4211ea\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791354140915738300
+    }
+  ]
+}

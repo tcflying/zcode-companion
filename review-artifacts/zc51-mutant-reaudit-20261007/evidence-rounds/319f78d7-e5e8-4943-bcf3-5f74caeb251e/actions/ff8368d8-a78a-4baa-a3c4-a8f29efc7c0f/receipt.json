@@ -1,0 +1,33 @@
+{
+  "task": "zc51-mutant-reaudit",
+  "round": "319f78d7-e5e8-4943-bcf3-5f74caeb251e",
+  "project": "mutant",
+  "action": "ff8368d8-a78a-4baa-a3c4-a8f29efc7c0f",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-mutant-reaudit-20261007\\private\\mutant_runner.py"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-mutant-reaudit-20261007\\evidence-rounds\\319f78d7-e5e8-4943-bcf3-5f74caeb251e",
+  "pid": 38656,
+  "startedUtc": "2026-10-07T00:02:12.451357+00:00",
+  "start_ns": 1791331332451366300,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T00:02:14.343095+00:00",
+  "end_ns": 1791331334343109600,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-mutant-reaudit-20261007\\evidence-rounds\\319f78d7-e5e8-4943-bcf3-5f74caeb251e\\actions\\ff8368d8-a78a-4baa-a3c4-a8f29efc7c0f\\stdout",
+      "sha256": "805c3fdf879dbfd0f8792cf84ca25fdee89507297b50ecdfc314641c28fc00d7",
+      "mtime_ns": 1791331334335733200
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-mutant-reaudit-20261007\\evidence-rounds\\319f78d7-e5e8-4943-bcf3-5f74caeb251e\\actions\\ff8368d8-a78a-4baa-a3c4-a8f29efc7c0f\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791331332451375100
+    }
+  ]
+}

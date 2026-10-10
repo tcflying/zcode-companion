@@ -1,0 +1,44 @@
+{
+  "schema": "zcc-operation-status/1",
+  "task": "ZCC-AUTH-20261008",
+  "stage": "operations-metadata-readonly",
+  "startedUtc": "2026-10-07T21:46:26.873Z",
+  "window": {
+    "startUtc": "2026-10-07T21:38:21.216956Z",
+    "endUtc": "2026-10-07T21:38:55.149392Z"
+  },
+  "source": "apps/desktop/main.cjs: journalDir = path.dirname(settingsFile); journalFile = journal.json",
+  "candidates": [
+    {
+      "dir": "C:\\Users\\datoo\\AppData\\Roaming\\ZCodeCompanion",
+      "dirExists": true,
+      "settingsJsonExists": true,
+      "journalJsonExists": false,
+      "selected": false
+    },
+    {
+      "dir": "C:\\Users\\datoo\\AppData\\Roaming\\zcode-companion",
+      "dirExists": false,
+      "settingsJsonExists": false,
+      "journalJsonExists": false,
+      "selected": false
+    },
+    {
+      "dir": "C:\\Users\\datoo\\AppData\\Roaming\\Electron",
+      "dirExists": true,
+      "settingsJsonExists": false,
+      "journalJsonExists": false,
+      "selected": false
+    }
+  ],
+  "journalFound": false,
+  "journalPath": null,
+  "entriesInWindow": [],
+  "inFlightCount": null,
+  "terminalInWindow": [],
+  "verdict": "JOURNAL_NOT_PERSISTED_ON_DISK",
+  "notes": [
+    "userData 目录存在且与 settings.json 同根，但 journal.json 不在磁盘上 —— 与 start-api.mjs 文档一致：journalDir 缺省即纯内存不落盘。"
+  ],
+  "finishedUtc": "2026-10-07T21:46:26.874Z"
+}

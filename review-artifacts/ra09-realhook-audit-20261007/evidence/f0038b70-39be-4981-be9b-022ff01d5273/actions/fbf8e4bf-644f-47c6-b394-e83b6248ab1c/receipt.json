@@ -1,0 +1,51 @@
+{
+  "task": "ra09-realhook",
+  "round": "f0038b70-39be-4981-be9b-022ff01d5273",
+  "project": "realhook",
+  "action": "fbf8e4bf-644f-47c6-b394-e83b6248ab1c",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\private\\summarize.py",
+    "realhook-verdict.json",
+    "365ebc8b-1c7e-49da-9fed-1f2f56307a84",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273",
+  "pid": 33952,
+  "startedUtc": "2026-10-07T04:06:21.604158+00:00",
+  "start_ns": 1791345981604176500,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T04:06:21.645218+00:00",
+  "end_ns": 1791345981645234100,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\realhook-verdict.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\realhook-verdict.json",
+        "sha256": "9e48c400a48d761b51cf2f49f2fe225d32bdac0f1ba118fdfce06feec58ad4d0",
+        "mtime_ns": 1791345981639954000
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\actions\\fbf8e4bf-644f-47c6-b394-e83b6248ab1c\\stdout",
+      "sha256": "7376f960451a24edbef220f63c7835301354a59798483d5fa4831bffea9909ab",
+      "mtime_ns": 1791345981639954000
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\actions\\fbf8e4bf-644f-47c6-b394-e83b6248ab1c\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791345981604175600
+    }
+  ]
+}

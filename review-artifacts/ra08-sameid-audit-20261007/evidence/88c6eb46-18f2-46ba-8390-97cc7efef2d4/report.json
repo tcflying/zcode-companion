@@ -1,0 +1,40 @@
+{
+  "task": "ra08-sameid",
+  "round": "88c6eb46-18f2-46ba-8390-97cc7efef2d4",
+  "status": "blocked",
+  "projects": {
+    "sameid": {
+      "actions": [
+        "c1d8741e-941c-4d43-9f1e-76f8f56b272d",
+        "8b76b772-092c-40b4-882d-db73e3c1632e",
+        "44d4afb0-b730-4f1c-96c4-6d979b4cbcf4",
+        "c6aa26ea-cd25-45a4-8907-4d9039e8a14c",
+        "b293ea06-80d7-4f88-b9f5-989b972edfcc",
+        "877ca142-2716-4a1d-9ccf-e434a25404e2",
+        "9d219699-95ad-4ea7-80c1-db17c1efe2cb",
+        "52d1e7f4-45a1-45b5-8e26-c9e660b7b179",
+        "262e8959-4c50-415d-8678-bb502fa56446",
+        "8bf081f9-cfd7-4976-aafe-dbb4633c13bd"
+      ],
+      "explanation": "RA-08 同 ID 冲突真实挂载验收，子项结论已闭合。定案 b293ea06：pid 1732，exit 0，2026-10-07T01:36:44Z-01:36:47Z，VITEST_EXIT=0 / CLASS=all_passed / Tests 3 passed (3) / 2.00s。K1 同名两域各自独立（写死只见手工 1 行 origin=手工录入 provider=unknown；动态只见来源 2 行，同名来源行 origin 仍为来源读回、provider 未被 unknown 覆盖）；K2 删同名手工条目后真实刷新来源（fetch 次数增加且全为 /v1/zcc/catalog），来源条目 2 条、当前列表条目 2、origin/provider 未污染、摘要为「与上次一致」且不含新增 1 / 消失 1；K3 正控：同名手工仍在时来源真由 2 变 1，delta 如实报「消失 1（src-b），保持 1 个，2 → 1」，排除 delta 恒零假绿。静态对照 9d219699 只读核 modelSource.ts SHA256=78acdb7a2266a3dca4f36543bf7cab0b0cfe57cc888f01abc815269a39642e43 与本轮开始前逐字节一致，双 key 命名空间 manual:m / source:、activeEntries 三元二选一、HAS_merged_domains=False 无任何 concat 合并、listDelta 只比 refresh.entries、removeManualEntry 只 filter 手工域且不触碰 refresh 全部成立。8bf081f9 把封存 stdout 转录为结构化 JSON 产物（generated=True, sha256 5117bc438f304917daadcbea3276292a4ba2fe3751d55d1c284cea18d018452f）。正式源码零改动，apps/ui git CLEAN，未提交未推送。",
+      "blockers": [
+        {
+          "condition": "同 ID 冲突子项在无真实浏览器、无真实 8790 服务、全替身 fetch 的环境下取得，且 RA-08 其余页面未覆盖，故只能记为未完成签收而非成功",
+          "gap": "happy-dom 20.11.6 非真实浏览器（无布局/CSS/可见性/Tab 焦点）；fetch 全替身，无真实 8790 服务、无回环守卫、无真实上游目录，catalog 为合成数据；RA-08 要求的总览/聊天/请求记录/API关闭页/设置诊断页、多尺寸缩放、Tab 焦点、恶意 Markdown 全未测；同域内重复 id 的 listDelta 语义未验",
+          "action": "8bf081f9-cfd7-4976-aafe-dbb4633c13bd",
+          "observed": "NOT_SIGNED",
+          "required": "SIGNED",
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4\\sameid-summary-v3.json",
+            "sha256": "5117bc438f304917daadcbea3276292a4ba2fe3751d55d1c284cea18d018452f",
+            "pointer": ["ra08_overall"],
+            "observed": "NOT_SIGNED"
+          }
+        }
+      ],
+      "diagnosis": "本轮 status=blocked 有两个原因，均非同 ID 子项缺陷：(1) 证据检查器规则要求同一项目内不得存在失败 action 才可写 success，而本项目有 6 次工具/探针/环境自身缺陷的失败 action（c1d8741e vitest 路径指向 apps/ui/node_modules 但 vitest 5.0.2 实际在仓库根 node_modules；8b76b772 探针挂到 src/ 下导致 ./ModelsPage 相对导入失败、Tests no tests；44d4afb0 与 c6aa26ea 两次断言锚点写错，源码 ModelsPage.tsx:540-541 是 <dt>当前列表条目</dt><dd>{n}</dd>，实测文本无空格；877ca142 经 python -c 传参时反引号被 PowerShell 吞掉且 cwd 为 round 目录；52d1e7f4 摘要脚本 int('(3)') 解析失败），这些失败全部保留不删不改；K1 在第一次可运行轮次即绿，K2/K3 的红与产品行为无关——原始 stdout 里产品真实渲染的 delta 文案本就正确。(2) 即使子项 3/3 全绿，happy-dom 非真浏览器、fetch 全替身，只能证明逻辑隔离与请求面；RA-08 要求的其余页面与多尺寸/焦点/恶意 Markdown 均未覆盖，故只能记为未完成签收。262e8959 亦失败：脚本输出名写死与 --artifact 名不一致，generated=False，按协议另起 v3 路径重跑为 8bf081f9。",
+      "unverified": "happy-dom 20.11.6 非真实浏览器（无布局/CSS/可见性/Tab 焦点）；fetch 全替身，无真实 8790 服务、无回环守卫、无真实上游目录，catalog 为合成数据，故只证明逻辑隔离与请求面。同域内重复 id（来源侧同名重复 key、手工侧同名重复 key）的 listDelta 语义未验。RA-08 整体仍未签收：总览/聊天/请求记录/API关闭页/设置诊断页、多尺寸缩放、Tab 焦点、恶意 Markdown 全未测。前 6 次失败均为探针/工具/环境自身缺陷，非产品缺陷；K1 首次运行即绿。",
+      "nextstep": "同 ID 冲突缺口已闭合，等主上裁决是否签收 RA-08 子项。RA-08 剩余页面（总览/聊天/请求记录/API关闭页/设置诊断）与多尺寸缩放、Tab 焦点、恶意 Markdown 仍待覆盖。"
+    }
+  }
+}

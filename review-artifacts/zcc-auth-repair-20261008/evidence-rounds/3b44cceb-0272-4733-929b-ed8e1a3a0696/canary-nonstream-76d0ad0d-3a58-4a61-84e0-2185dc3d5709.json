@@ -1,0 +1,70 @@
+{
+  "schema": "zcc-live-canary-nonstream/2",
+  "task": "ZCC-AUTH-20261008",
+  "requestId": "76d0ad0d-3a58-4a61-84e0-2185dc3d5709",
+  "executed": false,
+  "target": {
+    "baseURL": "http://127.0.0.1:8791/v1",
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "reasoningEffort": "low",
+    "stream": false
+  },
+  "timing": {
+    "requestStartedUtc": null,
+    "httpReceivedUtc": null,
+    "bodyFinishedUtc": null,
+    "requestEndedUtc": null,
+    "durationMs": null,
+    "aborted": false,
+    "abortReason": null
+  },
+  "clientTimeoutMs": 90000,
+  "clientTimeoutIsMeasurementOnly": true,
+  "http": null,
+  "contentType": null,
+  "bodyBytes": null,
+  "bodyLengthCheckNote": "读取完成后对内存中已读字节做的长度检查，不是流式内存强限制",
+  "bodyParsedAsJson": false,
+  "replyText": null,
+  "replyTrimmed": null,
+  "replyCharCount": null,
+  "finishReason": null,
+  "toolCallCount": null,
+  "reasoningContentPresent": null,
+  "topLevelError": null,
+  "topLevelStatus": null,
+  "baseRespStatusCode": null,
+  "baseRespErrorStatus": null,
+  "criteria": {},
+  "criteriaCount": 10,
+  "businessSuccess": false,
+  "outcome": "dry_run_only",
+  "error": null,
+  "configuredModelIds": [
+    "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "account:bigmodel-individual-coding-plan::GLM-5.3",
+    "account:bigmodel-start-plan::GLM-5.3-Flash"
+  ],
+  "configuredContainsTargetModel": true,
+  "effortOptionsForTarget": [
+    "low",
+    "high",
+    "max"
+  ],
+  "effortSupported": true,
+  "configBaseUrlObserved": "http://127.0.0.1:8791/v1",
+  "nonce": "zcc-nonce-36fa788851fd4539",
+  "expectedReply": "zcc-nonce-36fa788851fd4539 42",
+  "networkRequestsIssued": 0,
+  "payloadShape": {
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "stream": false,
+    "reasoning_effort": "low",
+    "hasTools": false,
+    "hasToolChoice": false,
+    "hasMaxTokens": false,
+    "messageCount": 1
+  },
+  "promptLengthChars": 63,
+  "finishedUtc": "2026-10-07T22:26:02.325Z"
+}

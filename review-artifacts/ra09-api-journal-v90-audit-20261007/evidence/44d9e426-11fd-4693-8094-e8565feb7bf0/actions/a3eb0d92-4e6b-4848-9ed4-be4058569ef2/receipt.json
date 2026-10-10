@@ -1,0 +1,43 @@
+{
+  "task": "business-v90-20261007",
+  "round": "44d9e426-11fd-4693-8094-e8565feb7bf0",
+  "project": "companion-journal",
+  "action": "a3eb0d92-4e6b-4848-9ed4-be4058569ef2",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\node_modules\\vitest\\vitest.mjs",
+    "run",
+    "G:\\zcode-project\\zcode-companion\\tests\\unit\\api-replay-budget-inflight.test.mjs",
+    "G:\\zcode-project\\zcode-companion\\tests\\unit\\desktop-proxy-manager.test.mjs",
+    "G:\\zcode-project\\zcode-companion\\tests\\unit\\desktop-key-redaction.test.mjs",
+    "G:\\zcode-project\\zcode-companion\\tests\\unit\\api-request-decode.test.mjs",
+    "G:\\zcode-project\\zcode-companion\\tests\\contract\\api-start-entry.test.mjs",
+    "G:\\zcode-project\\zcode-companion\\tests\\contract\\api-contract.test.mjs",
+    "--root",
+    "G:\\zcode-project\\zcode-companion",
+    "--reporter=dot"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-v90-audit-20261007\\evidence\\44d9e426-11fd-4693-8094-e8565feb7bf0",
+  "pid": 33240,
+  "startedUtc": "2026-10-07T06:22:22.833475+00:00",
+  "start_ns": 1791354142833487100,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T06:22:31.819832+00:00",
+  "end_ns": 1791354151819853300,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-v90-audit-20261007\\evidence\\44d9e426-11fd-4693-8094-e8565feb7bf0\\actions\\a3eb0d92-4e6b-4848-9ed4-be4058569ef2\\stdout",
+      "sha256": "c1dab721c4dd7c0da6013d8f3ec79198dabffc2c33e4c12971554ceb42fd4957",
+      "mtime_ns": 1791354151795199400
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-v90-audit-20261007\\evidence\\44d9e426-11fd-4693-8094-e8565feb7bf0\\actions\\a3eb0d92-4e6b-4848-9ed4-be4058569ef2\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791354142832956900
+    }
+  ]
+}

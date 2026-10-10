@@ -1,0 +1,27 @@
+929md_SHA256=13b3e59d3f43054c757db13b95174c75ae8e135200dee3be600664b656d1af5f
+SPEC_875=- 通过：secret canary无泄漏，正文默认不外带；journal不足拒新发而非丢unknown；官方秘密不曾进入采集管道。检测到泄漏立即FAIL，不把“导出后擦掉”当通过。
+SPEC_875_has_journal_clause= True
+
+=== PART A: 条款要求的三项机制是否存在 ===
+A1_journal_mentions_in_product_code=1
+   A1_hit apps\ui\src\data\snapshot.ts x1
+A1_snapshot_journal_value= True
+A1_NOT_CONNECTED_literal= True
+A2_journal_writer_apis=0
+A3_reject_when_journal_full_markers=0
+
+=== PART B: 真实存在但语义相邻的行为（非条款验收）===
+server_SHA256=66ebf1539c750a4110a1f65eddd743f69b75c8b1e5ef8a28f517001ed996857a
+chat_SHA256=effc6043435a668f176c9ad673053dc9677c506a82dff96bbd33c22a87c98f6b
+errors_SHA256=11a594e59cf547259dd41a906e1511f0335d977f6285144ba123e5b23d802d87
+contract_SHA256=62821b8c44409342ee8406eeedeb6cdbe190e716c1efe60ffdc2e3022e5f1107
+B1_MAX_IDEMPOTENCY_ENTRIES_line=209 const MAX_IDEMPOTENCY_ENTRIES = 512;
+B2_isEvictableReplay_line=815 const isEvictableReplay = (entry: StoredOperation): boolean => entry.state === 'done' && entry.replay !== null;
+B2_isEvictableReplay=True
+B3_stored_state_enum_has_unknown= False
+B3_stored_state_enum_line=201 state: 'in_flight' | 'done' | 'failed';
+B4_evict_breaks_when_no_candidate= True
+B5_commit_before_evict= True
+B6_auto_retry_mechanism_hits=0
+B7_chat_throws_upstream_outcome_unknown= True
+B8_errors_code_registered= True

@@ -1,0 +1,77 @@
+{
+  "schema": "zcc-live-canary-single/3",
+  "task": "ZCC-AUTH-20261008",
+  "requestId": "d36e960a-0392-4f94-8bcc-6062d11dcdfb",
+  "executed": true,
+  "startedUtc": "2026-10-07T22:10:21.351Z",
+  "target": {
+    "baseURL": "http://127.0.0.1:8791/v1",
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "reasoningEffort": "low",
+    "stream": true
+  },
+  "timing": {
+    "firstByteUtc": "2026-10-07T22:10:21.423Z",
+    "firstContentUtc": null,
+    "firstContentNote": "未逐 chunk 归因定位，保持 null；不以 firstByte 冒充",
+    "lastByteUtc": "2026-10-07T22:10:29.192Z",
+    "aborted": false,
+    "abortReason": null
+  },
+  "http": {
+    "status": 200,
+    "statusText": "OK"
+  },
+  "contentType": "text/event-stream; charset=utf-8",
+  "streamCompleted": true,
+  "overflow": false,
+  "analysis": {
+    "replyText": "zcc-nonce-2ea42ba59bf44838 42",
+    "replyTrimmed": "zcc-nonce-2ea42ba59bf44838 42",
+    "replyCharCount": 29,
+    "toolCallCount": 0,
+    "finishReason": "stop",
+    "sawExactDone": true,
+    "trailingAfterDone": "",
+    "sseErrorEvents": 0,
+    "sseErrorMessages": [],
+    "jsonParseErrors": 0,
+    "chunkCount": 4
+  },
+  "criteria": {
+    "http200": true,
+    "contentTypeSse": true,
+    "replyExactlyExpected": true,
+    "toolCallsZero": true,
+    "finishReasonStop": true,
+    "sawExactDone": true,
+    "nothingAfterDone": true,
+    "streamCompleted": true,
+    "noSseError": true,
+    "noJsonParseError": true,
+    "noOverflow": true,
+    "notAborted": true
+  },
+  "businessSuccess": true,
+  "outcome": "canary_business_success",
+  "error": null,
+  "clientTimeoutMs": 90000,
+  "clientTimeoutIsMeasurementOnly": true,
+  "configuredModelIds": [
+    "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "account:bigmodel-individual-coding-plan::GLM-5.3",
+    "account:bigmodel-start-plan::GLM-5.3-Flash"
+  ],
+  "configuredContainsTargetModel": true,
+  "effortOptionsForTarget": [
+    "low",
+    "high",
+    "max"
+  ],
+  "effortSupported": true,
+  "configBaseUrlObserved": "http://127.0.0.1:8791/v1",
+  "nonce": "zcc-nonce-2ea42ba59bf44838",
+  "expectedReply": "zcc-nonce-2ea42ba59bf44838 42",
+  "responseXzccStatus": "ready",
+  "finishedUtc": "2026-10-07T22:10:29.192Z"
+}

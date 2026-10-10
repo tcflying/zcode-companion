@@ -1,0 +1,31 @@
+RC=1
+--- RAW OUT (first 2500) ---
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  07:38:20
+   Duration  155ms (worker 95%, environment 5%)
+
+
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__zc51_ui_probe2.test.ts [ src/__zc51_ui_probe2.test.ts ]
+Error: Cannot find module '../pages/ModelsPage' imported from G:/zcode-project/zcode-companion/apps/ui/src/__zc51_ui_probe2.test.ts
+ ❯ src/__zc51_ui_probe2.test.ts:24:1
+     22| // @ts-expect-error react-dom v19 以子路径导出，types 可能未覆盖
+     23| import { renderToStaticMarkup } from 'react-dom/server';
+     24| import { ModelsPage } from '../pages/ModelsPage';
+       | ^
+     25| import {
+     26|   beginRefresh,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ERR_MODULE_NOT_FOUND' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+TEMP_REMOVED=True

@@ -1,0 +1,48 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+ ✓ src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M1 读入 2 条 → 切到写死固定：已读条目被保留并明确告知，不清空 229ms
+ × src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M2 录入一条手工条目 → 切到动态刷新 → 切回写死固定：手工条目与已读条目都在 79ms
+   → 找不到录入表单的显示名输入框
+ × src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M3 切换全程资格显示为未验证 / E0，绝不变成可发送 95ms
+   → 读入后 不应出现可发送: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' not to contain '可发送'
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  08:27:07
+   Duration  967ms (tests 47%, setup 37%, transform 11%, import 5%)
+
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M2 录入一条手工条目 → 切到动态刷新 → 切回写死固定：手工条目与已读条目都在
+Error: 找不到录入表单的显示名输入框
+ ❯ fillInput src/pages/__ra08_modeswitch.test.ts:135:21
+    133|     (i as HTMLInputElement).value === '' || (i as HTMLInputElement).pl…
+    134|   );
+    135|   if (!input) throw new Error('找不到录入表单的显示名输入框');
+       |                     ^
+    136|   await act(async () => {
+    137|     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputEle…
+ ❯ src/pages/__ra08_modeswitch.test.ts:175:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M3 切换全程资格显示为未验证 / E0，绝不变成可发送
+AssertionError: 读入后 不应出现可发送: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' not to contain '可发送'
+
+Expected: "可发送"
+Received: "模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死固定（手工录入）。两种模式都只影响列表来源，不影响发送门。来源模式 动态刷新额度 无可用额度证据等级 E0零 dispatch来源模式两种模式随时可切换，切换不会清空任何已输入内容：写死条目与上次读到的来源条目都保留，切回即恢复显示。条目可用性一律「未验证」dynamic · 动态刷新（手动点刷新重新读取来源）来源由本机读取，手动点「刷新来源」重新读一次。刷新只读取目录，不发送任何模型请求。当前生效manual · 写死固定（主上手工录入条目）由主上手工录入条目。录入内容不会被官方验证，也不会因此获得可发送资格。可切换提示刷新完成：首次读回：1 个条目（此前没有可对比的列表）。条目可用性仍为「未验证」。来源通道本机 companion API（读取模型目录）本地配置文件（读取模型目录）刷新来源（只读取，不发送）契约：/v1/zcc/catalog。UI04 起本通道有真实执行器：设置页显式开启「连接本机 API」后，只向本机回环（或同源反代）发起 GET 请求，只读取目录、不发任何模型请求；未开启时按未接线失败并显示原因。网络边界已开启「连接本机 API」：刷新会真实请求 http://127.0.0.1:8790/v1/zcc/catalog，只读取目录、不发送任何模型请求。回环守卫只放行 127.0.0.1 / localhost / [::1] 或同源；浏览器 CSP connect-src 'self' http://127.0.0.1:8790，其他来源一律被拒。最近一次刷新2026-10-07 08:27:08（本机时钟）最近一次成功2026-10-07 08:27:08（本机时钟）结果成功（点击刷新 1 次）来源 revisionrev-1当前列表条目1列表变化首次读回：1 个条目（此前没有可对比的列表）契约契约（协调者裁定，照此实现）：来源读取端点 /v1/zcc/catalog，返回 { revision: string, models: [{ modelId, displayName, provider, billingClass: 'subscription'|'promotion'|'metered_api'|'unknown', contextLength: number|null, reasoning: string[], capabilities: string[] }] }。外部 IDE 用的标准 /v1/models（id/object/created/owned_by）不是本来源，解析层会整体拒绝。字段缺失 / 类型错 / 非法枚举一律整体拒绝并进错误面板，不部分采纳、不静默降级。UI04 起：开启「连接本机 API」后真实 fetch 该端点（仅回环 / 同源，仍不发送任何模型请求）；未开启则按未接线失败。额度 / 桶读数三个来源必须分栏：单位不同、采集方不同、不能互相替代，也不能合并成一个“余额”。无可用额度本软件请求 token 统计无可用额度单位token来源本软件自身计数读数无可用额度仅统计由本软件发起的请求；当前请求数为 0（未接入读数）账号套餐权威桶无可用额度单位积分 / 余额（官方单位，未接入）来源官方账号侧读数读数无可用额度无可用额度；读数延迟与其他会话并行消费会污染前后差值活动优惠说明无可用额度单位—来源官方活动资格读数无可用额度无可用额度；活动时间落在窗口内不等于有资格额度额度现状：普通套餐与 Start Plan 当前都没有可用额度。界面不显示任何看起来像真实可用套餐的名称、余额或剩余量；所有条目的可用性一律显示「未验证」。E0未知：无有效资格/用量证据 —— 权益未确认，暂不可发送。在取得 E1 及以上资格与计费证据之前，发送门保持关闭；本产品界面上不存在任何可点击的发送入口（dispatch = 0）。模型 / 套餐目录目录 revision rev-1 · 账号 epoch unknown · 配置 revision unknown · 最近同步 2026-10-07 08:27:08（本机时钟） · 当前展示条目 1（来源模式：dynamic · 动态刷新（手动点刷新重新读取来源））搜索计费类别全部subscription · 订阅扣桶promotion · 活动优惠metered_api · 按量计费unknown · 未知（保守拒发）当前筛选：全部计费类别 · 来源模式 dynamic · 动态刷新（手动点刷新重新读取来源） · 搜索词「（空）」· 来源条目 1 条显示名providermodelId计费类别上下文长度token推理档位能力标签状态操作模型 m1来源读回来源读回（资格未验证）account:zai-start-planm1subscription · 订阅扣桶1000000low、hightext未验证无可用额度不可发送（E0）提示来源读取成功已读取 1 个条目。首次读回：1 个条目（此前没有可对比的列表）列结构与未接入时的显示这张表定义列的语义、类型、单位与取值域，是接通目录后可直接复用的字段契约。列类型 / 单位取值域未接入时显示显示名displayName官方目录提供的可读名称—providerprovider官方返回的精确提供方标识unknownmodelIdmodelId官方目录精确 id，不得猜测或拼接—计费类别billingClasssubscription | promotion | metered_api | unknownunknown上下文长度contextLength官方目录声明值未接入推理档位reasoning契约 string[]：官方目录声明的档位集合（可为空数组）未接入能力标签capabilities契约 string[]：官方目录声明的能力集合（可为空数组）未接入状态status未接入时统一 unknownunknown操作action仅 E1+ 且 subscription / promotion 通道可发送；metered_api 与 unknown 永不准入不可发送（E0）发送准入同一份政策同时约束界面、API 与原生适配器；界面只显示结论，不独立决定。subscriptionsubscription · 订阅扣桶需 E1 及以上资格证据，且窗口与配置检查通过可发送（仍需 E1+ 资格）promotionpromotion · 活动优惠属订阅通道（官方活动优惠，非按量计费）：需活动有效期证据独立成立，目录出现活动条目不等于允许立即发送可发送（仍需 E1+ 资格）metered_apimetered_api · 按量计费本产品不提供额外 API-key 计费通道，任何情况下不渲染为可点击发送不渲染为可发送unknownunknown · 未知（保守拒发）证据不足即拒发，不猜测 provider，不换通道补发不渲染为可发送UI 约束通道级准入口径（929 §2）：subscription 与 promotion 是合法订阅通道（promotion 为官方活动优惠，非按量计费）， metered_api 与 unknown 永不准入，任何状态下都不会出现可点击的发送控件。通道合法不等于当前可发送：当前额度无可用额度，证据等级 E0，发送门关闭——无论您选择动态刷新还是写死固定模式。"
+
+ ❯ assertE0 src/pages/__ra08_modeswitch.test.ts:204:41
+    202|       const t = txt(container);
+    203|       expect(t, `${label} 应含 E0`).toContain('E0');
+    204|       expect(t, `${label} 不应出现可发送`).not.toContain('可发送');
+       |                                         ^
+    205|     };
+    206|     assertE0('读入后');
+ ❯ src/pages/__ra08_modeswitch.test.ts:206:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

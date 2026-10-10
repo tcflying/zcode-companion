@@ -1,0 +1,26 @@
+probe_SHA256=3f86c5a4fb143bbbb3238e61c2abeec837fc15323a0af177ad41b894575b1571
+useAppState_SHA256=9a1d110ee5e47a4307ef604020551a8e6e24bc52ec8fc9867fa70a6416254be8
+logger_SHA256=0a957bdd2bcd2fb8af0f3eb0d849d336b8fa87e4bafff7bcb138a0c7c0a9ec86
+LogsPage_SHA256=c6cd6d7214b0b7368c68809fe39ae6d94ed216043a7cf024a363bbc4eeb86804
+--- 探针是否导入真实 hook / 真实页面 ---
+PROBE_IMPORTS_useAppState= True
+PROBE_IMPORTS_LogsPage= True
+PROBE_CALLS_useAppState_hook= True
+--- 探针是否复刻了产品实现（本轮要防的错）---
+PROBE_HAS_slice_200= False
+PROBE_HAS_slice_any= False
+PROBE_HAS_makeLogEntry_import= False
+PROBE_SETS_log_manual= False
+PROBE_SETS_clearLogs_manual= False
+--- 产品侧上限的真实出处（探针不实现它，只触发它）---
+APSTATE_log_slice_200= True
+APSTATE_log_uses_makeLogEntry= True
+APSTATE_clearLogs= True
+--- 替身边界：只有 desktop 被替身 ---
+PROBE_STUBS_desktop= True
+PROBE_STUBS_network= True
+PROBE_REFERENCES_mavis_note_no_ipc= True
+--- 页面侧未被改动 ---
+LOGS_HAS_200_literal= True
+LOGS_HAS_disabled_available= True
+LOGGER_redacts_message= True

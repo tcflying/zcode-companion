@@ -1,0 +1,19 @@
+{
+  "task": "zc51-audit",
+  "round": "e5908ac3-7e0c-4c33-a090-b185af166fb3",
+  "status": "success",
+  "projects": {
+    "contract": {
+      "actions": ["8916450c-003f-49d6-8fe4-b2a0d7605601"],
+      "explanation": "单writer/dirty 核查：HEAD=1558342a0aec04138135a7970aa0b72bc585a9fb，全仓 dirty_total=2 且两条均为本审计自己的产物（?? review-artifacts/audit-5e3bcd99-20261007/ 与 ?? review-artifacts/zc45-audit-20261007/），产品源码零 dirty，ZC-51 三文件 dirty=CLEAN，未抢活动 writer。ZC-51 原卡定位 zcode-dev/1005.md:2376-2389（F30），依赖 ZC-50，卡面写『失败/阻塞：无』。ZC-50 实际前提：本轮未找到 ZC-50 的实现提交或签收证据（8e3d91e 提交信息只提 ZC-51），故 ZC-50 依赖状态标记为未验证；ZC-51 的 delta 逻辑纯函数不依赖 ZC-50 的外部产物，故本次验证不受其阻塞。WIP diff 已核：8e3d91e 改 modelSource.ts 三处——RefreshState 增 delta 字段、describeDelta 把『previous===0』放宽为『previous===null』、completeRefresh 在 lastSuccessAt===null 时走 previous:null 分支而非 listDelta(state.entries,...)。三文件 sha256 已固定。",
+      "unverified": "ZC-50 的实现与签收证据本机未找到，依赖链完整性未验证；1005.md 卡面红/绿/负例/变异复选框仍为未勾选 [ ]；ZC-51 的 142 行 modelSource.test.ts 新增用例未逐条对应卡面编号（本轮改用独立私有探针覆盖卡面四组行为）。",
+      "nextstep": "最小私有验证项（只读）：读 modelSource.test.ts 中本次新增的 142 行用例，逐条标注其对应卡面哪一条红/绿/负例/变异，确认是否存在与私有探针重复或未覆盖的断言缺口。"
+    },
+    "delta": {
+      "actions": ["40d57632-d102-47ea-b463-95fb085b9a4c", "81165ffa-005a-4913-bc32-fdd37073eec3", "ebb83bf4-dad3-4f2f-a251-42bd80f069a9", "37eef751-bbad-4c9c-b7db-93c0a26951cb", "f66e45f2-7a5f-4243-8819-14f3ef2902e5", "5baa8391-405e-463c-9253-53320aac48d8"],
+      "explanation": "产品基线 src/data/modelSource.test.ts 实测 55 passed/55、RC=0、473ms，证实提交信息所称 test:ui 176/176 绿中的该文件部分属实。私有探针用**真实当前函数**（beginRefresh/completeRefresh/listDelta/describeDelta/createInitialSourceState）+ 假传输层，零真实模型/凭据/付费通道/服务，四组卡面行为全部实测通过（6/6，RC=0）：S1 首刷 2 行 previous=null/added=0/kept=0/current=2 且 describeDelta 不含『新增 2』（不假空态、不全报新增）；S2 相同 2 再刷 added0/removed0/kept2 且文案『与上次一致』；S3 2→1 得 added0/removed1(m2)/kept1，正是卡面要求的正解（旧症状为 1/0/0）；S4 空源失败保旧表且 revision 保持『未接入』不编造。变异检验成立：mutant 把 before 视为空表即复现旧症状 added=2/kept=0，而真实 completeRefresh 首刷走 previous:null 分支故不复现。**本轮三次失败全是我探针自身缺陷，不是产品缺陷**，已如实留证：81165ffa 与 ebb83bf4 因 ESM 下 require() 不存在报 MODULE_NOT_FOUND；f66e45f2 因假 ParsedSource 漏 revision 字段致 undefined（真实结构 modelSource.ts:571 revision 确在 RefreshState 上）；修正后 5baa8391 全绿。四次失败各用独立路径与独立 action，旧记录一律保留未覆盖。临时探针文件每次运行后即删，正式树零污染（TEMP_REMOVED=True）。",
+      "unverified": "本轮只验证数据层（modelSource.ts 的 RefreshState/delta 链路），**ModelsPage.tsx 的渲染接线未验证**——8e3d91e 同时改了 ModelsPage.tsx 20 行，那部分是否正确把 delta/revision 渲染到界面、是否仍有『2 条成功仍空态』的表层症状，本轮未测（需 jsdom 渲染测试或真实页面）。describeDelta 的文案分支未穷举（added>0 且 removed>0 等组合）。未发任何真实请求，未碰付费通道与凭据。",
+      "nextstep": "最小私有验证项（私有测试，不改正式实现）：写 jsdom 渲染测试挂载 ModelsPage，注入假 API 返回 2 条模型，断言页面不显示空态、首刷不显示『新增 2』、二次刷新显示『与上次一致』、2→1 显示 0/1/1，并核对 revision 区域显示『未接入』而非时间戳。这是 ZC-51 表层验收的最后一环。"
+    }
+  }
+}

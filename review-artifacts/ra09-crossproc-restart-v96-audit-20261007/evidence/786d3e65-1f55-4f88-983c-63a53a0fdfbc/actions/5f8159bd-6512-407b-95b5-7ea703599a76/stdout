@@ -1,0 +1,4 @@
+MUTANT_CONFIRMED M1-no-recover-inflight exit=1 tests="2 failed | 1 passed (3)" probe=G:/zcode-project/zcode-companion/review-artifacts/ra09-crossproc-restart-v96-audit-20261007/private/journal-crossproc.probe.test.mjs
+MUTANT_CONFIRMED M2-session-gate-shortcircuit exit=1 tests="2 failed | 1 passed (3)" probe=G:/zcode-project/zcode-companion/review-artifacts/ra09-crossproc-restart-v96-audit-20261007/private/journal-crossproc.probe.test.mjs
+MUTANT_CONFIRMED M3-restore-raw-session-log exit=1 tests="1 failed | 2 passed (3)" probe=G:/zcode-project/zcode-companion/review-artifacts/ra09-crossproc-restart-v96-audit-20261007/private/journal-crossproc.probe.test.mjs
+MUTATION_SUMMARY confirmed=3 failed=0 total=3

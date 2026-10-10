@@ -1,0 +1,79 @@
+{
+  "schema": "zcc-live-canary-nonstream/2",
+  "task": "ZCC-AUTH-20261008",
+  "requestId": "e13c6e30-cbd3-49c3-be8c-8b85549be9e1",
+  "executed": true,
+  "target": {
+    "baseURL": "http://127.0.0.1:8791/v1",
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "reasoningEffort": "low",
+    "stream": false
+  },
+  "timing": {
+    "requestStartedUtc": "2026-10-07T22:27:57.599Z",
+    "httpReceivedUtc": "2026-10-07T22:28:04.408Z",
+    "bodyFinishedUtc": "2026-10-07T22:28:04.409Z",
+    "requestEndedUtc": null,
+    "durationMs": 6809,
+    "aborted": false,
+    "abortReason": null
+  },
+  "clientTimeoutMs": 90000,
+  "clientTimeoutIsMeasurementOnly": true,
+  "http": {
+    "status": 200,
+    "statusText": "OK"
+  },
+  "contentType": "application/json; charset=utf-8",
+  "bodyBytes": 825,
+  "bodyLengthCheckNote": "读取完成后对内存中已读字节做的长度检查，不是流式内存强限制",
+  "bodyParsedAsJson": true,
+  "replyText": "zcc-nonce-6796e18586194e7e 42",
+  "replyTrimmed": "zcc-nonce-6796e18586194e7e 42",
+  "replyCharCount": 29,
+  "finishReason": "stop",
+  "toolCallCount": 0,
+  "reasoningContentPresent": false,
+  "topLevelError": null,
+  "topLevelStatus": {
+    "code": null,
+    "status": null
+  },
+  "baseRespStatusCode": null,
+  "baseRespErrorStatus": null,
+  "criteria": {
+    "http200": true,
+    "contentTypeExactJson": true,
+    "bodyIsJson": true,
+    "noServiceError": true,
+    "choicesPresent": true,
+    "replyExactlyExpected": true,
+    "replyWithinLengthLimit": true,
+    "toolCallsAbsent": true,
+    "finishReasonStop": true,
+    "notAborted": true
+  },
+  "criteriaCount": 10,
+  "businessSuccess": true,
+  "outcome": "canary_business_success",
+  "error": null,
+  "configuredModelIds": [
+    "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "account:bigmodel-individual-coding-plan::GLM-5.3",
+    "account:bigmodel-start-plan::GLM-5.3-Flash"
+  ],
+  "configuredContainsTargetModel": true,
+  "effortOptionsForTarget": [
+    "low",
+    "high",
+    "max"
+  ],
+  "effortSupported": true,
+  "configBaseUrlObserved": "http://127.0.0.1:8791/v1",
+  "nonce": "zcc-nonce-6796e18586194e7e",
+  "expectedReply": "zcc-nonce-6796e18586194e7e 42",
+  "responseXzccStatus": "ready",
+  "contentTypeBase": "application/json",
+  "bodyLengthWithinLimit": true,
+  "finishedUtc": "2026-10-07T22:28:04.409Z"
+}

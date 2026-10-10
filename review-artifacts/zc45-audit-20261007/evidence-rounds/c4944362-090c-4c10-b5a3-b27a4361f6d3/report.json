@@ -1,0 +1,19 @@
+{
+  "task": "zc45-audit",
+  "round": "c4944362-090c-4c10-b5a3-b27a4361f6d3",
+  "status": "success",
+  "projects": {
+    "contract": {
+      "actions": ["ca7ddeb9-d112-4bb2-afd6-b34fe68d97b4"],
+      "explanation": "ZC-45 原需求卡定位到 zcode-dev/1005.md:2261-2275（F26『读取失败混为缺桥，并可用默认草稿覆盖未知配置』），硬边界三条：保存要求已成功加载、区分缺桥/读取中/失败、失败保留最后有效值并标陈旧。实际实现逐条落地：useDesktopState.ts:127 四态 SettingsLoad；:196-221 settingsReadSeq 守卫且失败只改标签不动值(:216-219)；SettingsPage.tsx:49 settingsLoaded=loaded、:75-78 函数体硬门（注释原文『按钮的 disabled 可以被绕过，这里才是硬门』）、:34-42 草稿初值留空不预填 8790/official-host/low。三文件 git_dirty=CLEAN、HEAD=1558342a0aec04138135a7970aa0b72bc585a9fb，sha256 已固定。会话原文 msg seq3118/3119 已从本机 db.sqlite 只读取回，非模型自述。",
+      "unverified": "1005.md 卡面的红/绿/负例/变异四个复选框均为未勾选状态 [ ]；本轮未在产品仓库找到旧 before/after 回执与 fresh-eyes 独立 review 文件，原代理当时的 diff 证据缺失，未验证。ZC-45 负例(a) key 保护、(c) 保存后恢复 未逐条单独复跑（基线 40/40 含该文件全部用例，但未逐条对应卡面编号）。",
+      "nextstep": "最小私有验证项（只读）：读 useDesktopState.test.ts 中 settingsLoad 四态与 settingsReadSeq 相关现有用例，列出各自覆盖卡面哪一条红/绿/负例，产出卡面复选框与实际断言的逐条对照，确认哪几条仍无断言保护。"
+    },
+    "boundary": {
+      "actions": ["799e3ad7-8282-41a0-b230-15885cd8b2a3", "1b429302-f8c9-42a9-9a5b-9d3e2e52e9ef"],
+      "explanation": "先跑产品基线 src/app/useDesktopState.test.ts：40 passed/40、RC=0、525ms，证实 seq3118 声称的 40/40 属实。再跑私有边界探针（假 bridge、零真实请求/零付费通道/零凭据）5 用例：4 passed 1 failed。**实测抓到一个真缺陷**：createDesktopStream.settle() 在『两次读取都在册、期间无任何 push/dispose』时不拒旧回包。机制：inFlight 存发出时的 generation，settle 只比较 issuedAt !== generation（useDesktopState.ts:95），而 generation 仅由 push/dispose 推进（:88、:109）。故连续两次 beginRead 之间 generation 不变，先发的回包 issuedAt === generation → 判 accepted，晚回的旧值覆盖新值。探针断言 expected true to be false 即证此点，与卡面硬边界『绝不覆盖更新的状态』冲突。影响面：产品自身 settingsReadSeq 守卫(:207、:218) 用 seq !== current 独立兜住了 settings 这一条，故当前用户可见后果为零；缺陷位于 DesktopStream 裁决面本身，snapshot/logs 两条通道共用同一 settle 且各自 beginRead 存在同样窗口，属真实潜在缺陷。反证探针同时证明 generation 这一道承重：去掉它则 push 后旧回包必然覆盖（对照实现 accepted=true 且值被覆盖）。临时探针已删除，正式树未污染（TEMP_PROBE_REMOVED=True）。",
+      "unverified": "该缺陷在真实 React 挂载路径下的实际触发概率未测（探针测纯裁决面 createDesktopStream，未挂载 useDesktopState、未注入假 window.zccDesktop 走完整 hook）。snapshot/logs 在真实 bridge 时序下是否真会出现『两次 beginRead 之间无 push』的窗口未验证——本轮零真实请求、零服务触碰，属静态裁决面结论。",
+      "nextstep": "最小私有验证项（只读+私有测试）：挂载真实 useDesktopState、注入假 window.zccDesktop，构造 snapshot 连续两次 refresh（无 push 插入）后逆序回包，确认该窗口在真实 hook 路径是否可达；可达则产出可复现最小用例交给活动 writer，本轮不改正式实现。"
+    }
+  }
+}

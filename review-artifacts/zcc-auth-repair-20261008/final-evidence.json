@@ -1,0 +1,305 @@
+{
+  "schema": "zcc-auth-repair-final-evidence/3",
+  "task": "ZCC-AUTH-20261008",
+  "project": "zcc-auth",
+  "generatedUtc": "2026-10-07T22:15:55.725Z",
+  "updatedUtc": "2026-10-07T22:32:23.264Z",
+  "generatedUtcNote": "generatedUtc 是本文档初版生成时刻，updatedUtc 是本次更新的真实时钟；两者都不是任何执行时刻。执行时刻一律以各 receipt.startedUtc/endedUtc 为准。",
+  "overallConclusion": "路由已修复；流式与非流式各一次 Flash/low 真实生成均成功；GUI 未测；旧 evidence round 仍为 invalid。",
+  "overallVerdict": "ROUTE_FIXED_STREAM_AND_NONSTREAM_CANARY_PASS_GUI_UNKNOWN_EVIDENCE_PARTLY_INVALID",
+
+  "rootValidation": {
+    "stageRound": "71c2b6a0-c35f-4737-a3fc-d2e877fe6681",
+    "result": "accepted_success",
+    "exit": 0,
+    "evidenceValid": true,
+    "means": "仅证明该 round 记录内部一致：命令、真实退出码、UTC、日志、input/artifact 哈希彼此吻合",
+    "doesNotMean": "不等于产品验收通过，不等于 GUI 可用，不修复也不掩盖早期两个 round 的 invalid 判定",
+    "utcNotAvailable": true,
+    "utcNote": "主线程未提供该次 validate 的执行时刻，本文件不编造时间"
+  },
+
+  "conclusion": {
+    "routeFixed": true,
+    "singleCanaryPassed": true,
+    "guiVerified": false,
+    "residualTempCount": 2,
+    "residualTempRemovalBlocked": true,
+    "evidenceRoundsInvalid": true,
+    "oneLine": "baseURL 已从 8790 改到 8791；root 亲跑的流式与非流式各一次真实 canary（configured Flash、low 档、全新 nonce 单次）判据全部通过；GUI/Desktop 端到端与其他 effort 档仍未验证；旧 evidence round 仍为 validate exit=2 invalid。"
+  },
+
+  "nonstreamCanary": {
+    "round": "3b44cceb-0272-4733-929b-ed8e1a3a0696",
+    "action": "604ae829-162b-4537-9e49-8fbcb536330e",
+    "executedBy": "root（主线程亲跑）",
+    "pid": 47764,
+    "startedUtc": "2026-10-07T22:27:57.504410+00:00",
+    "endedUtc": "2026-10-07T22:28:04.452793+00:00",
+    "realExit": 0,
+    "timeout": false,
+    "interrupted": false,
+    "stderrBytes": 0,
+    "requestDurationMs": 6809,
+    "clientTimeoutMs": 90000,
+    "clientTimeoutIsMeasurementOnly": true,
+    "timeoutLimitReached": false,
+    "target": {
+      "baseURL": "http://127.0.0.1:8791/v1",
+      "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+      "reasoningEffort": "low",
+      "stream": false
+    },
+    "result": {
+      "outcome": "canary_business_success",
+      "businessSuccess": true,
+      "httpStatus": 200,
+      "contentType": "application/json; charset=utf-8",
+      "replyTrimmed": "zcc-nonce-6796e18586194e7e 42",
+      "replyMatchedExpectedNonceExactly": true,
+      "replyCharCount": 29,
+      "finishReason": "stop",
+      "toolCallCount": 0,
+      "reasoningContentPresent": false,
+      "topLevelError": null,
+      "baseRespStatusCode": null,
+      "baseRespErrorStatus": null,
+      "criteriaCount": 10,
+      "criteriaAllTrue": true
+    },
+    "stdoutSha256": "75139f5c9f2ab2f8e991b2641367f990879f7f786fe5e900bd2cf698fbcedaa1",
+    "frozenInputs": {
+      "live-canary-nonstream-v2.cjs": "76e1de6ff66f3f2168540763a3812040f1d86b7b0c9f57da7b63e7613b853adf"
+    },
+    "scope": "本段仅证明 nonstream（stream:false）在 low 档单次生成成功，与 stream 版的结论并列；不外推到其它档位或其它模型。",
+    "doesNotProve": [
+      "GUI / webui 可用",
+      "Desktop 端到端实际采纳该 provider 与模型",
+      "high / max 两档可用",
+      "其余 2 个 configured 模型可用",
+      "此前 root 官方 provider test 三档 10s timeout 的成因"
+    ],
+    "rootValidation": {
+      "result": "accepted_success",
+      "exit": 0,
+      "evidenceValid": true,
+      "utc": "UNKNOWN",
+      "utcNote": "本轮工具输出未提供该次 validate 的执行时刻，如实标未知，不编造",
+      "limit": "仅证明执行证据内部一致（命令、真实退出码、UTC、日志、input/artifact 哈希彼此吻合）；不等于产品验收通过，不等于 GUI 可用"
+    }
+  },
+
+  "liveCanary": {
+    "round": "71c2b6a0-c35f-4737-a3fc-d2e877fe6681",
+    "action": "6125e7c4-788c-4f50-bf23-fd7f4efc7898",
+    "executedBy": "root（主线程亲跑）",
+    "pid": 39412,
+    "startedUtc": "2026-10-07T22:10:21.288841Z",
+    "endedUtc": "2026-10-07T22:10:29.205628Z",
+    "realExit": 0,
+    "measuredDurationSeconds": 7.917,
+    "clientTimeoutMs": 90000,
+    "clientTimeoutIsMeasurementOnly": true,
+    "timeoutLimitReached": false,
+    "target": {
+      "baseURL": "http://127.0.0.1:8791/v1",
+      "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+      "reasoningEffort": "low",
+      "stream": true
+    },
+    "result": {
+      "outcome": "canary_business_success",
+      "businessSuccess": true,
+      "httpStatus": 200,
+      "contentType": "text/event-stream; charset=utf-8",
+      "streamCompleted": true,
+      "replyTrimmed": "zcc-nonce-2ea42ba59bf44838 42",
+      "replyMatchedExpectedNonceExactly": true,
+      "toolCallCount": 0,
+      "finishReason": "stop",
+      "sawExactDone": true,
+      "nothingAfterDone": true,
+      "sseErrorEvents": 0,
+      "jsonParseErrors": 0,
+      "overflow": false,
+      "aborted": false,
+      "criteriaAllTrue": [
+        "http200", "contentTypeSse", "replyExactlyExpected", "toolCallsZero",
+        "finishReasonStop", "sawExactDone", "nothingAfterDone", "streamCompleted",
+        "noSseError", "noJsonParseError", "noOverflow", "notAborted"
+      ]
+    },
+    "fixtureAction": "fdf42bad-32af-4679-822e-c79350228076",
+    "fixtureResult": "合成 SSE 解析 fixture total=10、failed=0（无网络、无真实凭据）",
+    "doesNotProve": [
+      "GUI / webui 可用",
+      "Desktop 端到端实际采纳该 provider 与模型",
+      "high / max 两档可用",
+      "其余 2 个 configured 模型可用",
+      "此前 root 官方 provider test 三档 10s timeout 的成因（本次未测，也未据此推断）"
+    ],
+    "stdoutSha256": "dbfd0f350afe509b61d5d894552f3ddc96c86c6ad23e2b26ec5189b24ad1f491",
+    "frozenInputs": {
+      "live-canary-single-v3.cjs": "d0a0296b2d10cb6225fa2954bcee4cf254549d163b792e71c82668ca0e224c14",
+      "sse-parse-v2.cjs": "13331ac9afea7a913d4ada80ee30a867604defd5d3d3406f92bdd033a8630546",
+      "sse-parse-fixture-v2.cjs": "e1d413b6f3dfa501c25798daa026f50b88ca94772784f4b0f31fb71aad03e263"
+    }
+  },
+
+  "repair": {
+    "changedLeaf": "custom_provider.zcc-companion.options.baseURL",
+    "valueBefore": "http://127.0.0.1:8790/v1",
+    "valueAfter": "http://127.0.0.1:8791/v1",
+    "configSha256Before": "13a33ef1248a28db041550cbcfb4df3c157c443a8cb9198a4a4c12071cde1c31",
+    "configSha256After": "1b66ad9747b7ec0f4fdfa2eedd8f0e668b796e5c0c7590a0502354f95654e876",
+    "allowedLeafChanged": true,
+    "otherBytesIdentical": true,
+    "atomic": {
+      "aclMatch": true,
+      "attributesMatch": true,
+      "casMatch": true,
+      "renamed": true,
+      "postAclMatch": true,
+      "postAttributesMatch": true,
+      "error": null,
+      "api": "[System.IO.File]::Replace(temp, config, [NullString]::Value, true)",
+      "backupFileCreated": false,
+      "fallbackUsed": false,
+      "tempConsumedByRename": true
+    },
+    "unchanged": [
+      "apiKey",
+      "models",
+      "thinking",
+      "effortOptions",
+      "enabled",
+      "默认模型 / session 绑定",
+      "任何服务进程或端口状态"
+    ],
+    "rootCauseOfEarlierWriteFailures": "PowerShell 把 $null 绑定成空串传给 [File]::Replace 的 backupName，抛 ArgumentException 'The path is empty.'；已用无 secret 合成 fixture 独立实证 [NullString]::Value 的行为：替换成功、temp 被消耗、目标 ACL 保持、不产生 backup。与 ACL、权限、API 可用性无关。",
+    "successfulAction": "852b3c93-493a-4d88-8dd8-b45e9f4b0a1a",
+    "successfulActionNote": "该 action 的 inputs 经单独核对与冻结 SHA 一致；但它所在 round 整体被 validate 判定 invalid，故不可单独当作可接受的通过证据。",
+    "successfulRepairScriptSha256": "e39fc33fc97fa1e677ece54dbda50167a46a3555ca57280a581c9abf6212552e",
+    "successfulHelperSha256": "3f2d11044b773406c36647f0db13aa336c555d84c2111d2521d8c331387013e5"
+  },
+
+  "modelSource": {
+    "statement": "configured 的 3 个 model ID 与 8791 认证目录一致，这是本 ZCC 当前的模型源。",
+    "catalogSource": "8791 authenticated GET /v1/models",
+    "httpStatus": 200,
+    "xZccStatus": "ready",
+    "catalogCount": 10,
+    "configuredModelIds": [
+      "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+      "account:bigmodel-individual-coding-plan::GLM-5.3",
+      "account:bigmodel-start-plan::GLM-5.3-Flash"
+    ],
+    "allConfiguredIdsInCatalog": true,
+    "effortOptionsPerModel": ["low", "high", "max"],
+    "correctedMisstatement": "此前版本写过『本 provider 理应是 MiniMax M3』——该说法没有任何证据支撑，属我方幻觉，已删除。不存在『应有模型源』这一未验命题。",
+    "configuredIdsProvenance": "真实 YAML 公开读取（yaml@2.9.1）由 explore 单独只读取得；不是 diag action 111fde5f 的产出——111fde5f 跑的是我手写的 v3-models parser，它失败（只解出 id=account），其结论不可用。",
+    "guiAdoptionUntested": "Desktop 是否实际采纳这些 ID 未测。"
+  },
+
+  "diagnosisOf8790": {
+    "conclusion": "同一把已配 key 在 8791 认证通过、在 8790 被拒；故障点是 8790 服务实例不认这把 key，不是 key 失效。",
+    "provenByAction": "330f6600-7d4f-4613-9c05-0908ac4f6a2d",
+    "keySource": "apps/desktop/lib/settings.cjs readMinimaxApiKey(), 精确路径 custom_provider.zcc-companion.options.apiKey；进程内使用，未输出/未哈希/未落盘/未入 argv",
+    "notProven": "8790 期望 key 的确切来源未知：Get-CimInstance 对 PID 6780 的 ExecutablePath 与 CommandLine 均返回空（权限不足），未绕行、未读服务侧 secret。"
+  },
+
+  "operationsMetadata": {
+    "action": "25071cea-a73c-49cd-8de8-5201ffb97b7b",
+    "round": "e6fa5005-db2f-49ca-a108-e598b0bfe93c",
+    "script": "runtime-operation-status-v2.cjs",
+    "scriptSha256": "42d440e2d7b259b4c08e08a3dace91c698f778940da29db7024c586fcda32e03",
+    "utc": "2026-10-07T21:48:39.413Z",
+    "exit": 0,
+    "verdict": "API_JOURNAL_FILE_ABSENT",
+    "journalPathProbed": "C:/Users/datoo/AppData/Roaming/ZCodeCompanion/api-operations-journal.json",
+    "journalExists": false,
+    "windowProbedUtc": ["2026-10-07T21:38:21.216956Z", "2026-10-07T21:39:30.000000Z"],
+    "operationTerminalStates": "UNKNOWN",
+    "currentInFlightCount": null,
+    "canaryRecommended": false,
+    "canaryReason": "API journal 文件在磁盘上不存在；operations 终态无从读取，不做任何推断。",
+    "correctionOfEarlierAttempt": "v1 查的是桌面侧 journal.json，并据此推断『Journal 未落盘』——该推断错误。桌面与 API 是同目录、不同文件名的两份独立 journal（journal-store.ts:148-160），桌面 journal.json 缺失不能推断 API journal 未落盘。v2 已查正确文件，结论是该文件本身不存在。",
+    "notPermanentBlocker": "记录缺失只说明本窗口的终态不可读，不构成『永远不能发起新的 nonce 测试』；是否发起新测试由 root 显式授权决定。",
+    "ancestryCorrectedByExplore": "explore 已确认：8791 为 PID 15808，父进程 43140；主线程当前可见的后代只有 GPU 26428、utility 59028、renderer 50100、API 15808，**无 official-appserver 子孙**。本文件此前把『8790 ancestry 待查』列为未验项属过时，已移除。",
+    "journalAbsenceNotCausal": "桌面 main 进程下没有 api-operations-journal.json，**只能说明该路径下无可读的 operation 状态**，不能由此推出 API 进程不写 journal。二者是不同进程、不同 release 的产物；此处不宣称任何未经证实的因果。"
+  },
+
+  "businessAcceptance": {
+    "priorThreeEffortRun": {
+      "status": "FAIL",
+      "runBy": "root（主线程亲跑）",
+      "action": "fe9dfbfc-531f-4dc3-8eb9-87a78136b6d0",
+      "startedUtc": "2026-10-07T21:38:21Z",
+      "endedUtc": "2026-10-07T21:38:55Z",
+      "processExit": 0,
+      "processExitMeaning": "命令本身正常退出；不等于业务通过",
+      "payloadSuccess": false,
+      "observedFailure": "success=false，low/high/max 三档均 timeout 10000ms",
+      "stillOpen": "该三档 10s timeout 的成因至今未定因；后续单次 canary 只覆盖 low 档且成功，不能反推当时三档超时的原因"
+    },
+    "overallUserGoal": "未完成 —— 端到端可用性与 GUI 仍未验证"
+  },
+
+  "evidenceIntegrity": {
+    "collectorVerdictByRoot": "两 round 均 validate exit=2 invalid，reason: log/input changed",
+    "interpretation": "证据完整性失败，既不是 accepted failure，也不表示业务恢复或成功。",
+    "inputChangedList": [
+      {
+        "round": "ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb",
+        "action": "9c1d0731-913c-4683-934b-f25350aaeb85",
+        "file": "runtime-diagnostic-v3-models.cjs",
+        "frozenSha256Prefix": "e34d8aeba3f6",
+        "reason": "该文件在此 action 冻结后又被修改（后续修 regex 写成 v2/v3 系列）",
+        "actionOutcomeAtThatTime": "exit=1（Node SyntaxError），本身即失败记录"
+      },
+      {
+        "round": "279b4dfd-12d3-4691-aa12-b60f796e1f04",
+        "action": "eb4cd36c-a0d8-4536-b7ac-3911891d74ab",
+        "file": "repair-route.cjs",
+        "frozenSha256Prefix": "8efad6bfe0cf",
+        "reason": "该文件在此 action 冻结后又被修改（后续改为 v2/v3/v4 系列）",
+        "actionOutcomeAtThatTime": "exit=3221226505（ReferenceError: out is not defined），本身即失败记录"
+      }
+    ],
+    "earlierClaimCorrected": "此前我称『其余 8 个冻结输入一致』不成立；实测两处漂移，分属两个 round，各自绑定的是一个**已失败的** action，因此不掩盖任何通过结论。",
+    "sealsOrReceiptsModified": false,
+    "oldFilesRestoredToWashClean": false,
+    "rawToolEmpiricalEvidence": "见各 round actions/*/stdout 与 receipt.json，原样保留",
+    "collectorInvalidVerdict": "见本节 collectorVerdictByRoot，与上面的原始实测并列，不合并、不互相替代"
+  },
+
+  "residualArtifacts": {
+    "removeItemWasBlocked": true,
+    "blockedBy": "本地权限门：Remove-Item 属不可逆删除，要求改用可恢复删除",
+    "notHandledThisRound": true,
+    "tempFiles": [
+      { "name": ".config.yaml.zcc-repair-36016-89fb0e13b40706e8.tmp", "bytes": 14976, "createdByAction": "17439b15-34cb-418b-93ce-b5e7533df503" },
+      { "name": ".config.yaml.zcc-repair-46292-dbaca2754713fd12.tmp", "bytes": 14976, "createdByAction": "4e6de70e-2d36-4fac-9341-2ec6862c3dd3" }
+    ],
+    "risk": "内容为修复后 config 的完整副本（两个文件实测 SHA 均为 1b66ad9747b7ec0f4fdfa2eedd8f0e668b796e5c0c7590a0502354f95654e876，与当前 config 一致），等价于密钥副本留在磁盘",
+    "requiresHumanOrAuthorizedRemoval": true
+  },
+
+  "notVerified": [
+    "GUI / webui 交互验收：无 UI 工具，未做任何 GUI 实测",
+    "Desktop 是否实际采纳该 provider 与模型、端到端聊天是否可用",
+    "high / max 两档 effort 是否可用",
+    "其余 2 个 configured 模型是否可用",
+    "此前 root 官方 provider test 三档全部 10s timeout 的成因（本次仅 low 档单次成功，未据此推断）",
+    "8790 期望 key 的来源与修复路径"
+  ],
+
+  "hygiene": {
+    "containsConfigContents": false,
+    "containsTempFileContents": false,
+    "containsApiKeyValueOrFragment": false,
+    "containsAnyKeyHash": false,
+    "containsFullSddl": false,
+    "verification": "诊断脚本内以进程内 includes 断言序列化结果不含当前 key（jsonContainsCurrentKey=false）"
+  }
+}

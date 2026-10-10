@@ -1,0 +1,4 @@
+Test Files  5 passed (5)
+Tests  176 passed (176)
+STAGE_GATE_SUB=test:ui
+STAGE_GATE_EXIT=0

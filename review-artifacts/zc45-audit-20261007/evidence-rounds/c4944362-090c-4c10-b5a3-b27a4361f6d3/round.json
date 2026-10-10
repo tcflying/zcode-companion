@@ -1,0 +1,10 @@
+{
+  "task": "zc45-audit",
+  "projects": [
+    "contract",
+    "boundary"
+  ],
+  "round": "c4944362-090c-4c10-b5a3-b27a4361f6d3",
+  "directory": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc45-audit-20261007\\evidence-rounds\\c4944362-090c-4c10-b5a3-b27a4361f6d3",
+  "createdUtc": "2026-10-06T23:11:50.609209+00:00"
+}

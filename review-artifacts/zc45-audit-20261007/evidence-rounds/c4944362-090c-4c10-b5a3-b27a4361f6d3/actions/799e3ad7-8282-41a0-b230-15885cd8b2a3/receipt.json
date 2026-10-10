@@ -1,0 +1,33 @@
+{
+  "task": "zc45-audit",
+  "round": "c4944362-090c-4c10-b5a3-b27a4361f6d3",
+  "project": "boundary",
+  "action": "799e3ad7-8282-41a0-b230-15885cd8b2a3",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc45-audit-20261007\\evidence-rounds\\c4944362-090c-4c10-b5a3-b27a4361f6d3",
+  "pid": 47316,
+  "startedUtc": "2026-10-06T23:12:26.623268+00:00",
+  "start_ns": 1791328346623279500,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-06T23:12:27.542894+00:00",
+  "end_ns": 1791328347542914000,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc45-audit-20261007\\evidence-rounds\\c4944362-090c-4c10-b5a3-b27a4361f6d3\\actions\\799e3ad7-8282-41a0-b230-15885cd8b2a3\\stdout",
+      "sha256": "b5e4504d2fd648432d089976ca492cae5b0145a3a8bbaec41cb773be73325420",
+      "mtime_ns": 1791328347534272300
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc45-audit-20261007\\evidence-rounds\\c4944362-090c-4c10-b5a3-b27a4361f6d3\\actions\\799e3ad7-8282-41a0-b230-15885cd8b2a3\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791328346623228800
+    }
+  ]
+}

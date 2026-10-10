@@ -1,0 +1,36 @@
+{
+  "task": "ra08-chatgate",
+  "round": "eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0",
+  "project": "chatgate",
+  "action": "961d1f88-34e3-4c87-bf81-1f87fee5c968",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\private\\run-probe.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0",
+  "pid": 65184,
+  "startedUtc": "2026-10-07T03:02:59.569589+00:00",
+  "start_ns": 1791342179569601400,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T03:03:01.550257+00:00",
+  "end_ns": 1791342181550270800,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\actions\\961d1f88-34e3-4c87-bf81-1f87fee5c968\\stdout",
+      "sha256": "458c555f52ed862eb4b53d8aa602228235b9ebb54f55eebfce386a002efc171b",
+      "mtime_ns": 1791342181508740100
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\actions\\961d1f88-34e3-4c87-bf81-1f87fee5c968\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791342179569417300
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "3b44cceb-0272-4733-929b-ed8e1a3a0696",
+  "status": "success",
+  "scope": "本 status=success **仅指本 round 单个 action 的证据本身成立**：一次 nonstream（stream:false）真实生成在 low 档成功返回。它不代表用户整体目标完成 —— GUI/Desktop 端到端未测，high/max 两档未测，之前 root 官方 provider test 的三档 10s timeout 至今未定因。",
+  "projects": {
+    "zcc-auth": {
+      "actions": [
+        "604ae829-162b-4537-9e49-8fbcb536330e"
+      ],
+      "explanation": "由 root 亲跑的一次 nonstream canary。PID 47764，UTC 2026-10-07T22:27:57.504410+00:00 → 22:28:04.452793+00:00，realExit=0，未 timeout、未 interrupted，stderr 为空。目标：baseURL http://127.0.0.1:8791/v1、model account:bigmodel-individual-coding-plan::GLM-5.3-Flash、reasoning_effort=low（字段依据 packages/api/src/chat.ts 已实现字段，闭集 low|high|max）、stream=false、无 tools / tool_choice / max_tokens、全新 nonce 单次请求、redirect:error。结果：HTTP 200，content-type 精确 application/json; charset=utf-8，request durationMs=6809，message.content 29 字符且 trim 后逐字等于 'zcc-nonce-6796e18586194e7e 42'，finish_reason='stop'，tool_calls 数 0，top-level error 为 null，base_resp 的 status_code 与 error_status 均为 null，reasoning_content 不存在（仅记录，未用作正文），10 条判据全部为 true，businessSuccess=true。",
+      "diagnosis": "本 round 达成的是『配置路由修复后，8791 对单个 configured Flash 模型在 low 档的非流式真实生成同样成功』。它没有、也无法证明：GUI/Desktop 可用、high/max 档可用、其余 2 个 configured 模型可用，以及此前 root 官方 provider test 三档 10s timeout 的成因 —— 本次只是 low 档单次成功，不据此外推任何其它档位或那次超时的原因。",
+      "unverified": "GUI / webui 实测未做（当前缺电脑操控工具，需用户在同 chat @computer 支持）；Desktop 端到端聊天未测；high / max 两档未测；其余 2 个 configured 模型未测；此前三档 10s timeout 未定因。",
+      "nextstep": "无需新的测试授权。下一步是 GUI / Desktop 端到端验收，已授权继续；当前唯一障碍是本会话缺电脑操控工具，需用户在同 chat @computer 支持，或由用户手动在既有测试会话选择同 configured Flash + low 发一条唯一纯文本。不新建业务会话、不改本轮模型绑定、不强制重启、不自动重放旧请求。high/max 暂不新测，留存未验。"
+    }
+  }
+}

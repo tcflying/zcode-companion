@@ -1,0 +1,4 @@
+RC=0
+ Test Files  1 passed (1)
+      Tests  55 passed (55)
+   Duration  473ms (transform 47%, tests 40%, import 12%, worker 1%)

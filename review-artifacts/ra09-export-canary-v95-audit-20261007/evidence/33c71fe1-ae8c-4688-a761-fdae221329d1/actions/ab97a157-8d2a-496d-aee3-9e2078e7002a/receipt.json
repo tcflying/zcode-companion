@@ -1,0 +1,36 @@
+{
+  "task": "business-v95b-20261007",
+  "round": "33c71fe1-ae8c-4688-a761-fdae221329d1",
+  "project": "companion-export-canary",
+  "action": "ab97a157-8d2a-496d-aee3-9e2078e7002a",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\node_modules\\typescript\\bin\\tsc",
+    "--noEmit",
+    "-p",
+    "G:\\zcode-project\\zcode-companion\\tsconfig.json"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1",
+  "pid": 47520,
+  "startedUtc": "2026-10-07T07:00:56.396447+00:00",
+  "start_ns": 1791356456396472900,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T07:00:56.590969+00:00",
+  "end_ns": 1791356456590985800,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\actions\\ab97a157-8d2a-496d-aee3-9e2078e7002a\\stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791356456396545200
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\actions\\ab97a157-8d2a-496d-aee3-9e2078e7002a\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791356456396545200
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+SHA256=78acdb7a2266a3dca4f36543bf7cab0b0cfe57cc888f01abc815269a39642e43
+HAS_manual_key= True
+HAS_source_key= True
+HAS_activeEntries_ternary= True
+HAS_merged_domains= False
+HAS_delta_only_source= True
+HAS_remove_filter_manual_only= True
+HAS_remove_touches_refresh= False

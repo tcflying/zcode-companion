@@ -1,0 +1,40 @@
+RC=1
+--- OUT ---
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  no tests
+      Tests  no tests
+     Errors  1 error
+   Start at  07:46:22
+   Duration  111ms
+
+
+ MISSING DEPENDENCY  Cannot find dependency 'vitest-environment-happy-dom-adapter'
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files G:/zcode-project/zcode-companion/apps/ui/src/__zc51_compat4.test.ts.
+ ❯ ../../node_modules/vitest/dist/chunks/index.C-uw7tH9.js:11466:94
+ ❯ processTicksAndRejections ../../node:internal/process/task_queues:104:5
+ ❯ Pool.schedule ../../node_modules/vitest/dist/chunks/index.C-uw7tH9.js:11466:5
+
+Caused by: Error: Failed to load url G:/zcode-project/zcode-companion/apps/ui/happy-dom-adapter (resolved id: G:/zcode-project/zcode-companion/apps/ui/happy-dom-adapter). Does the file exist?
+ ❯ reviveInvokeError ../../node_modules/vite/dist/node/module-runner.js:542:14
+ ❯ Object.invoke ../../node_modules/vite/dist/node/module-runner.js:558:33
+ ❯ processTicksAndRejections ../../node:internal/process/task_queues:104:5
+ ❯ ModuleRunner.getModuleInformation ../../node_modules/vite/dist/node/module-runner.js:1212:7
+ ❯ ModuleRunner.import ../../node_modules/vite/dist/node/module-runner.js:1133:23
+ ❯ loadEnvironment ../../node_modules/vitest/dist/chunks/init.IsjtLXKe.js:71:62
+ ❯ Object.setupBaseEnvironment [as setup] ../../node_modules/vitest/dist/chunks/base.5tQXSzMP.js:158:34
+ ❯ process.onMessage ../../node_modules/vitest/dist/chunks/init.IsjtLXKe.js:289:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+TEMP_REMOVED=True

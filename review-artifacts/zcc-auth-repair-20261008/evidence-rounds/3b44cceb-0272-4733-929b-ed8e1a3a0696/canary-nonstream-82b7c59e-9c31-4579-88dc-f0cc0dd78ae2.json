@@ -1,0 +1,61 @@
+{
+  "schema": "zcc-live-canary-nonstream/1",
+  "task": "ZCC-AUTH-20261008",
+  "requestId": "82b7c59e-9c31-4579-88dc-f0cc0dd78ae2",
+  "executed": false,
+  "target": {
+    "baseURL": "http://127.0.0.1:8791/v1",
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "reasoningEffort": "low",
+    "stream": false
+  },
+  "timing": {
+    "requestStartedUtc": null,
+    "httpReceivedUtc": null,
+    "bodyFinishedUtc": null,
+    "durationMs": null,
+    "aborted": false,
+    "abortReason": null
+  },
+  "clientTimeoutMs": 90000,
+  "clientTimeoutIsMeasurementOnly": true,
+  "http": null,
+  "contentType": null,
+  "bodyBytes": null,
+  "bodyParsedAsJson": false,
+  "replyText": null,
+  "replyTrimmed": null,
+  "finishReason": null,
+  "toolCallCount": null,
+  "criteria": {},
+  "businessSuccess": false,
+  "outcome": "dry_run_only",
+  "error": null,
+  "configuredModelIds": [
+    "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "account:bigmodel-individual-coding-plan::GLM-5.3",
+    "account:bigmodel-start-plan::GLM-5.3-Flash"
+  ],
+  "configuredContainsTargetModel": true,
+  "effortOptionsForTarget": [
+    "low",
+    "high",
+    "max"
+  ],
+  "effortSupported": true,
+  "configBaseUrlObserved": "http://127.0.0.1:8791/v1",
+  "nonce": "zcc-nonce-3360e072817b42c9",
+  "expectedReply": "zcc-nonce-3360e072817b42c9 42",
+  "networkRequestsIssued": 0,
+  "payloadShape": {
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "stream": false,
+    "reasoning_effort": "low",
+    "hasTools": false,
+    "hasToolChoice": false,
+    "hasMaxTokens": false,
+    "messageCount": 1
+  },
+  "promptLengthChars": 63,
+  "finishedUtc": "2026-10-07T22:22:24.545Z"
+}

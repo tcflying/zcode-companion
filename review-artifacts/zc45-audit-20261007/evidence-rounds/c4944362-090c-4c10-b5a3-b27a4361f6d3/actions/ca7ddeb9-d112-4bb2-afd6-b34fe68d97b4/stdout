@@ -1,0 +1,13 @@
+HEAD=1558342a0aec04138135a7970aa0b72bc585a9fb
+apps/ui/src/app/useDesktopState.ts
+  sha256=5767d17fd1cdf82db212d48b9d760f8cce8f7589fcc0d9429a48b32794af3ab9
+  git_dirty=CLEAN
+apps/ui/src/app/useDesktopState.test.ts
+  sha256=4cad5895185d1668fe00ec06493e2d1eec62fb43690efae3324ddbbde0e7c066
+  git_dirty=CLEAN
+apps/ui/src/pages/SettingsPage.tsx
+  sha256=acc7b08612e39dd1d5fc1e75799151d70bf2e2a33696c5414f9038b9eb94816a
+  git_dirty=CLEAN
+HEAD_BLOB apps/ui/src/app/useDesktopState.ts = a6586892b62bfcd5ed12577323895e877831754e
+HEAD_BLOB apps/ui/src/app/useDesktopState.test.ts = 439e7b375b4bea7212183e33420be6e269128e47
+HEAD_BLOB apps/ui/src/pages/SettingsPage.tsx = 0fd8b3fb7c2403bddfe6ea992a38cfcc9eceaed5

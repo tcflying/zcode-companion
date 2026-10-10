@@ -1,0 +1,16 @@
+STRAY_PROBE_FILES_IN_FORMAL_SRC=0
+CHILD_BUNDLE_BYTES=138050
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion
+
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  15:20:16
+   Duration  843ms (tests 91%, transform 5%, import 4%)
+
+VITEST_EXIT=0
+CLASS=all_passed
+TESTS_SUMMARY=3 passed (3)
+PASS_LINES=3
+FAIL_LINES=0

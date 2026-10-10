@@ -1,0 +1,15 @@
+STRAY_PROBE_FILES_IN_FORMAL_SRC=0
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion
+
+
+ Test Files  1 passed (1)
+      Tests  38 passed (38)
+   Start at  14:44:38
+   Duration  579ms (tests 65%, transform 25%, import 9%, worker 1%)
+
+VITEST_EXIT=0
+CLASS=all_passed
+TESTS_SUMMARY=38 passed (38)
+PASS_LINES=38
+FAIL_LINES=0

@@ -1,0 +1,31 @@
+{
+  "decision": "RA-08 chat page E0 send gate passed under happy-dom private mount",
+  "passed_tests_count": 5,
+  "total_tests_count": 5,
+  "vitest_exit": 0,
+  "classification": "all_passed",
+  "sealed_action": "961d1f88-34e3-4c87-bf81-1f87fee5c968",
+  "sealed_pid": 65184,
+  "sealed_exit": 0,
+  "sealed_started_utc": "2026-10-07T03:02:59.569589+00:00",
+  "sealed_ended_utc": "2026-10-07T03:03:01.550257+00:00",
+  "chatpage_sha256": "a09b9d89fe67fd2c644edfa56039ada1f18f839a7a9bc63faf7d1f61b7639db4",
+  "snapshot_sha256": "3f4600a22e90963ee224e17ba0e62d8a51cfa888520a390f073e621906b4cfb8",
+  "coverage": [
+    "G1 empty-draft positive control: value='' draft length 0, send button disabled, 4 channels zero",
+    "G2 long Chinese draft + real Enter (keydown/keypress/keyup): draft intact, 5 turns unchanged, no bubble leakage, gate still disabled",
+    "G3 malicious HTML/Markdown draft: no real script/iframe elements, __pwned undefined, double Enter sends nothing",
+    "G4 clear draft: exact before/after values (len>0 -> '' -> 0), repeat clear idempotent, zero dispatch",
+    "G5 disabled buttons cannot trigger send: direct .click() on disabled send/cancel plus Enter produce no turns and zero dispatch"
+  ],
+  "dispatch_channels_counted": [
+    "fetch",
+    "XMLHttpRequest",
+    "WebSocket",
+    "ipc"
+  ],
+  "ra08_overall": "NOT_SIGNED",
+  "real_browser": false,
+  "mock_network": true,
+  "markdown_sanitization_verified": false
+}

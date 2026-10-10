@@ -1,0 +1,14 @@
+RUN_UTC=2026-10-07T00:27:45.851490+00:00
+PID=44884
+PROBE_SHA256=1059dfea25667829a02c6878e449d41ba47132a6b8cf16697be2c2e69580edbf
+VITEST_EXIT=1
+✓ src/pages/__ra08_modeswitch2.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M1 读入 2 条 → 切到写死固定：已读条目被保留并明确告知，不清空 207ms
+× src/pages/__ra08_modeswitch2.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M2 录入一条手工条目 → 切到动态刷新 → 切回写死固定：手工条目与已读条目都在 106ms
+× src/pages/__ra08_modeswitch2.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M3 切换全程资格显示为未验证 / E0，绝不变成可发送 200ms
+SUMMARY: Test Files  1 failed (1)
+SUMMARY: Tests  2 failed | 1 passed (3)
+SUMMARY: Duration  1.04s (tests 55%, setup 30%, transform 11%, import 4%)
+SUMMARY: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+DETAIL: Error: 找不到按钮「录入这条」。现有：录入条目 | 不可发送（E0） | 不可发送（E0） | 不可发送（E0）
+DETAIL: AssertionError: 切到写死后 行应标未验证: expected '占位行未接入（无真实条目）unknown—unknown未接入未接入未接入…' to contain '未验证'
+TEMP_LEFT=True

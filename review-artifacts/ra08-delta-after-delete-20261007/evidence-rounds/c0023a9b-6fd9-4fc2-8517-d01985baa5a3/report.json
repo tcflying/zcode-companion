@@ -1,0 +1,13 @@
+{
+  "task": "ra08-delta-delete",
+  "round": "c0023a9b-6fd9-4fc2-8517-d01985baa5a3",
+  "status": "success",
+  "projects": {
+    "delta": {
+      "actions": ["ea12ae1c-2fa3-48e3-957a-315bd9cce78a"],
+      "explanation": "删除手工条目后刷新源列表，delta 摘要是否误把手工删除算作『源模型消失』——私有真实挂载正控+负控 **2/2 全绿、VITEST_EXIT=0，一次通过无返工**。回执 ea12ae1c：门禁 exit=0／PID=15212／startedUtc=2026-10-07T01:16:31.291046+00:00／endedUtc=01:16:33.517650／PROBE_SHA256=5f2395a41989607fb2e2bf8489a300ee92b17103859f7dfa897e1353a0124862／Tests 2 passed (2)、Duration 1.78s。**负控 NEG1**：来源 2 条 → 切写死录入手工 ccc → 删除 ccc（页面显示『已录入 0 条』）→ 切回动态并**再点一次刷新** → 目录 ID 逐条仍为 ['src-a','src-b']、摘要为『**与上次一致**』且**不含『消失 1』也不含『新增 1』**；fetchCount=2 证明 delta 是刷新时**重新算出**的而非陈旧值，且两次请求 URL 均含 /v1/zcc/catalog、不含任何 chat/completions|send|dispatch 形态调用。**正控 POS1**：同样带上手工条目（但**不删**），来源目录由 2 条真的变 1 条 → 摘要如实报『**消失 1 / 保持 1 / 新增 0**』，且手工条目仍在。正控的意义：只验负控时『delta 恒为空/恒为零』的实现也能通过，证明不了它在真消失时仍如实报告；正控把这条区分钉住。静态对照（不作结论依据）：modelSource.ts:658-660 `listDelta(state.entries, parsed.entries)` 只比 refresh.entries，manualEntries 不参与，故负控在代码层应当成立——本轮用真实挂载实测确认。真实点击路径：刷新按钮 ModelsPage:780「刷新来源（只读取，不发送）」→ handleRefresh:204；删除按钮 :705 → removeManualEntry；模式切换 radio :295-303 → handleSwitch:194；录入 :427 → handleAdd。零返工原因：沿用了上一轮已验证的三项基础设施（happy-dom 经 setupFiles 注入且官方 environment:'node' 不改、modelId 读 cells[2] 而非文本正则、按钮文案按源码实测核对）。清理走 mavis-trash，临时探针已移除；`git status` 仅剩本会话 9 个 review-artifacts 审计目录，**正式源码零改动**，未抢活动 writer。",
+      "unverified": "**mock 边界（如实标）**：happy-dom 非真浏览器（无真实布局/样式/CSS，视觉呈现未验）；fetch 全为替身，**无真实 8790 服务、无回环守卫、无真实上游目录**，catalog 为合成数据（revision rev-1/rev-2 与 modelId src-a/src-b 均自造）；**不真实模型请求、不真实账户调用**；delta 的『消失』只针对来源列表，手工侧不参与——这正是本轮要确认的边界，但『真实上游返回恰好与手工 modelId 同名』这一冲突场景未测（合成数据刻意用了不同前缀 src-/man-）；删除后**连续多次**刷新（>2 次）未验；切换模式期间不刷新、只靠内存 delta 的情形未验；未重复上一轮那 4 条绿，未重复首刷/重复刷新基线之外的其它回归。",
+      "nextstep": "最小私有验证项（不改正式实现）：(a) **同名冲突场景**——手工条目 modelId 与来源条目**完全相同**（如都是 src-a），删除手工条目后刷新，断言 delta 仍按来源列表计算、不会因同名前缀误判；这条能覆盖当前合成数据用不同前缀而留下的盲区。(b) 读 switchMode:734-744 的 keptParts 拼装，补断言双模式都有内容时提示文案的逐字内容（此前只断言含『已切换到』）。"
+    }
+  }
+}

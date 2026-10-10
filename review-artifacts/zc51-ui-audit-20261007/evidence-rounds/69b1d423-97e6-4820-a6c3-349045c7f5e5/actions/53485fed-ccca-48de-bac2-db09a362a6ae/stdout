@@ -1,0 +1,14 @@
+RC=1
+ ✓ src/__zc51_ui_probe4.test.ts > ZC-51/F30 表层：真实组件渲染 + 真实数据函数 > S1 首刷 2 行：delta 为 previous=null/added=0/kept=0，页面不伪报「新增 2」 3ms
+ ✓ src/__zc51_ui_probe4.test.ts > ZC-51/F30 表层：真实组件渲染 + 真实数据函数 > S2 相同 2 行再刷：0/0/2，页面显示「与上次一致」 1ms
+ ✓ src/__zc51_ui_probe4.test.ts > ZC-51/F30 表层：真实组件渲染 + 真实数据函数 > S3 2→1：0/1/1（卡面正解；旧症状为 新增1/消失0/保持0） 1ms
+ ✓ src/__zc51_ui_probe4.test.ts > ZC-51/F30 表层：真实组件渲染 + 真实数据函数 > S4 失败保旧表：空源失败后旧 2 行仍在，且失败原因可见 1ms
+ ✓ src/__zc51_ui_probe4.test.ts > ZC-51/F30 表层：真实组件渲染 + 真实数据函数 > S5 无 epoch：成功读回后 revision 仍取动态字段，页面标题层未接项应为 unknown 14ms
+ ✓ src/__zc51_ui_probe4.test.ts > ZC-51/F30 表层：真实组件渲染 + 真实数据函数 > S6 真实组件首屏渲染不抛错，且含模型目录区与刷新入口 7ms
+ × src/__zc51_ui_probe4.test.ts > ZC-51/F30 负控：基准换回空表必须让文案退化 > 旧实现 listDelta([], entries) 会让「相同2行再刷」文案退化为「新增2」 5ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Duration  284ms (transform 56%, import 23%, tests 19%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected '与上次相比：新增 2（m1、m2），消失 0，保持 0 个，0 → 2' to contain '首次读回'
+TEMP_REMOVED=True

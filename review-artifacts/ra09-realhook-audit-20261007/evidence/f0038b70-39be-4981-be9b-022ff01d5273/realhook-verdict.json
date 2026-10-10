@@ -1,0 +1,47 @@
+{
+  "decision": "RA-09 real useAppState hook wiring: 200 cap is produced by the product hook itself",
+  "passed_tests_count": 2,
+  "total_tests_count": 2,
+  "vitest_exit": 0,
+  "classification": "all_passed",
+  "sealed_action": "365ebc8b-1c7e-49da-9fed-1f2f56307a84",
+  "sealed_pid": 632,
+  "sealed_exit": 0,
+  "sealed_started_utc": "2026-10-07T04:04:50.836926+00:00",
+  "sealed_ended_utc": "2026-10-07T04:04:52.501606+00:00",
+  "apps_ui_src_stray_files": "0",
+  "probe_sha256": "3f86c5a4fb143bbbb3238e61c2abeec837fc15323a0af177ad41b894575b1571",
+  "useappstate_sha256": "9a1d110ee5e47a4307ef604020551a8e6e24bc52ec8fc9867fa70a6416254be8",
+  "logspage_sha256": "c6cd6d7214b0b7368c68809fe39ae6d94ed216043a7cf024a363bbc4eeb86804",
+  "logger_sha256": "0a957bdd2bcd2fb8af0f3eb0d849d336b8fafff7bcb138a0c7c0a9ec86",
+  "coverage": [
+    "L4R real hook: boot logs from useAppState.ts:50-61 prove it is the real hook, not an empty stub; real log() called 250 times; state.logs capped at exactly 200 by useAppState.ts:40 slice itself; earliest canary entry evicted; canary absent from state JSON and DOM; UI shows 200/200; 200 DOM rows; zero network",
+    "L4R2 real clearLogs(): empties to 0, empty-state panel shown, repeated clear idempotent, zero network"
+  ],
+  "probe_reimplements_product_logic": false,
+  "probe_has_slice_calls": false,
+  "probe_imports_makeLogEntry": false,
+  "probe_assigns_log_or_clearlogs": false,
+  "stubbed_dependencies": [
+    "DesktopState (external Electron main, intentionally not started)",
+    "fetch",
+    "XMLHttpRequest",
+    "WebSocket"
+  ],
+  "not_stubbed": [
+    "useAppState",
+    "LogsPage",
+    "makeLogEntry",
+    "redact"
+  ],
+  "observed_network_channels": [
+    "fetch",
+    "XMLHttpRequest",
+    "WebSocket"
+  ],
+  "ipc_status": "NOT_INSTRUMENTED_STATIC_ONLY",
+  "real_desktop_channel_tested": false,
+  "real_browser": false,
+  "journal_eviction_tested": false,
+  "ra09_overall": "NOT_SIGNED"
+}

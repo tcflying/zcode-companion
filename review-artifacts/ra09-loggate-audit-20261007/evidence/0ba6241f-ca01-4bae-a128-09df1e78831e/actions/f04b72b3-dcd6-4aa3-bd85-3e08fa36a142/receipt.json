@@ -1,0 +1,51 @@
+{
+  "task": "ra09-loggate",
+  "round": "0ba6241f-ca01-4bae-a128-09df1e78831e",
+  "project": "loggate",
+  "action": "f04b72b3-dcd6-4aa3-bd85-3e08fa36a142",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\private\\summarize.py",
+    "loggate-verdict.json",
+    "5e6daa70-f642-431e-85bf-513f2f2d7743",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e",
+  "pid": 34772,
+  "startedUtc": "2026-10-07T03:55:38.661633+00:00",
+  "start_ns": 1791345338661648100,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T03:55:38.700011+00:00",
+  "end_ns": 1791345338700028500,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e\\loggate-verdict.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e\\loggate-verdict.json",
+        "sha256": "97858f5512d239d7483a4bcdc01a1c59896a40d43d845177638eb83b846f012a",
+        "mtime_ns": 1791345338694367100
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e\\actions\\f04b72b3-dcd6-4aa3-bd85-3e08fa36a142\\stdout",
+      "sha256": "6c4d8749189a775a3b8b321a1c4248cae75d7d539992b00527b3249b6ed11f2a",
+      "mtime_ns": 1791345338694367100
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e\\actions\\f04b72b3-dcd6-4aa3-bd85-3e08fa36a142\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791345338660940800
+    }
+  ]
+}

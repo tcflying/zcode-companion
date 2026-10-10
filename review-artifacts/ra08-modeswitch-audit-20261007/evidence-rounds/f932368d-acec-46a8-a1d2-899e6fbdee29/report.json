@@ -1,0 +1,13 @@
+{
+  "task": "ra08-modeswitch",
+  "round": "f932368d-acec-46a8-a1d2-899e6fbdee29",
+  "status": "success",
+  "projects": {
+    "modeswitch": {
+      "actions": ["b0505254-a9b4-452c-98d7-09eb8ee93f74", "a1b5e84a-3d3f-4a5c-b08e-cb8ab9c59e73", "f9f39d0c-7c7b-4cb2-9eb5-fee8e1cb96b7", "f4fe015b-f008-4f58-9a6a-0cfef4c564c3"],
+      "explanation": "RA-08 模式切换流程私有真实挂载点击验收，**3/3 全绿、VITEST_EXIT=0**。定案 action f4fe015b：门禁 exit=0／PID=15880／startedUtc=2026-10-07T00:28:55.289465+00:00／endedUtc=00:28:57.046669／PROBE_SHA256=eab6cea19bf26f9ee4b924fcd194f54df94a431adde9960bd19917d05736ef99／vitest 摘要 Tests 3 passed (3)、Duration 1.37s。**原要求出处已核**：929.md:864 RA-08『全页面、设置与可用性（R1）』，其 :869 证据要求『**不以 hook 组件夹具替代**』——故本探针用 react-dom/client createRoot 真实挂载未改一字节的 ModelsPage，**真实点击** radio（ModelsPage:295-303 type=radio → onChange → handleSwitch，:194）与『录入条目』按钮（:427 type=button → handleAdd），并用 HTMLInputElement 原生 setter + input 事件真实填写，无 hook 注入、无 SSR 替代、无真实模型 dispatch。测到的三组：**M1** 读入 2 条后切到写死固定——提示含『已切换到』、目录 revision 未回退为 unknown、**fetchCount 未变（切换零来源请求）**；**M2** 录入手工条目→切动态→切回写死——『已录入 1 条』与该条目行在目录表中都在、全程 fetchCount 不变；**M3** 资格全程——读入后/切到写死后/录入后，页面含 E0 与证据等级、目录表每行均标『不可发送』与『未验证』，并含页面自述『零 dispatch』。DOM 环境沿用已验证方案（happy-dom 20.11.6 只读复用 bbweb-2 node_modules + setupFiles 注入，官方 environment:'node' 未改，未安装依赖）。三次失败全为探针自身缺陷且已留证未覆盖：b0505254（M2 输入框启发式定位漏匹配 → 改用产品自带 data-field=\"displayName\"(:348)；M3 用『整页不含可发送』粗判，撞上页面否定式文案『不可发送（E0）』『不会获得可发送资格』→ 改为对目录表每行断言）；a1b5e84a（按钮真实文案是『**录入条目**』非『录入这条』→ 修正；M3 对写死模式的空态占位行误用『未验证』断言 → 改为断言『来源条目 0 条』）；f9f39d0c（**关键产品事实**：显示名与 modelId 均必填（标签带 *），只填显示名被校验拒绝、页面如实显示『已录入 0 条』——这是正确行为不是缺陷；补 modelId 后录入成功）。清理走 mavis-trash 可恢复删除，4 个临时探针全部移除，`git status -- apps/ui` 为空（正式树零污染）。**未重跑首刷/重复刷新绿基线**（上一轮 zc51-dom-audit 3ee93329 已验 5/5），本轮只测此前未覆盖的模式切换流程。",
+      "unverified": "happy-dom 非真浏览器：无真实布局/样式/CSS，视觉呈现未验；无真实 HTTP（fetch 全替身），回环守卫与真实 8790 服务未参与；仅验证 ModesPage 单页的来源模式区，未覆盖 RA-08 要求的其余页面（总览/聊天/请求记录/API关闭页/设置诊断）、多尺寸与缩放、Tab 焦点、恶意 Markdown；RA-08 通过条件里的『保存三态并重开核读回』属设置页范围，本轮未测（属设置页保存而非模式切换）；dispatch=0 的证据是页面自身文案与 fetchCount 计数，未从发送门代码路径独立取证。",
+      "nextstep": "最小私有验证项（不改正式实现，不重复绿基线）：(a) 补 ModesPage 的『删除写死条目』按钮点击路径——:253 声明删除只发警告『删除只影响记录、不影响来源与准入判断』，需验证删除后『已录入 N 条』计数与目录表同步且动态侧已读条目不受影响；(b) 补『切换时两模式都有内容』的 preserved=true 提示分支（switchMode:740-743 的 keptParts 多段文案，当前只验了两模式其一为空的情形）。两条均沿用本轮已验证的挂载通道，不需新环境。"
+    }
+  }
+}

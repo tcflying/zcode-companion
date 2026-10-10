@@ -1,0 +1,13 @@
+{
+  "task": "ra08-delete",
+  "round": "e029dec3-c20a-409a-8595-4b3addb0de8d",
+  "status": "success",
+  "projects": {
+    "deletion": {
+      "actions": ["82b350e0-9748-4bb4-a9cc-cea2f76de870", "3f1ca495-6260-4275-8450-e72a15733e81", "a3526f3f-27fa-43a1-b98b-c6a1e92a20c2"],
+      "explanation": "删除手工条目 + 双模式均有内容时往返切换，私有真实挂载点击 **4/4 全绿、VITEST_EXIT=0**。定案 a3526f3f：门禁 exit=0／PID=41032／startedUtc=2026-10-07T00:53:14.535864+00:00／endedUtc=00:53:17.703716／PROBE_SHA256=bf6292f3318961a2f0690a8c0311f4a3936ec43684895071709391d754c5bf9c／Tests 4 passed (4)、Duration 2.74s。**针对主上指出的两点证明力不足做了加强**：(1) 上一轮 M1 只断言『目录 revision 未回退』不足以证明来源保留 ⇒ 本轮 D1 改为**逐条核对来源 modelId 仍在目录表**：录入手工 alpha/beta 后删 alpha，切回动态刷新后 visibleIds 恰为 ['src-a','src-b']、行数 2；(2) 上一轮 M3 靠文案不证明发送门零 dispatch ⇒ 本轮把 dispatch 证据改为可计数：D2/S2 断言 fetchCount 在删除/三次往返切换全程**恒定**，且 fetchedUrls 逐条记录、断言不含任何 /chat/completions|send|dispatch 形态的调用（仅目录 /v1/zcc/catalog）。**D2** 删除后：目标行消失、其余手工行与计数『已录入 1 条』不受影响、删除提示为实测原文『已删除 1 条手工录入条目。删除只影响本机内存中的写死列表』、E0/不可发送/零 dispatch 仍在、fetchCount 不变。**S1** 来源 2 条 + 手工 2 条，切到写死再切回动态得 ['src-a','src-b']、切回写死得 ['man-alpha','man-beta']，两侧 ID 逐条都在，且写死模式下不出现来源 ID。真实点击路径：删除按钮 ModelsPage:705 `handleRemove(e.key)` → modelSource.ts:773 `removeManualEntry` 仅 filter manualEntries（不碰 refresh.entries）；模式切换 radio :295-303 → handleSwitch:194；录入 :427 → handleAdd。四列顺序依据 snapshot.ts:234 MODEL_COLUMNS（显示名/provider/modelId/…）。三次失败全为探针自身缺陷且已留证：82b350e0 与 3f1ca495 均为 visibleIds 抽取失败——行文本里 modelId 与中文/英文**直接粘连**（实测『…未由官方验证unknownman-alphaunknown…』），按空白切分与 (src|man)- 前缀正则都取不出（node 实测 SIMPLE 正则得到 'man-alphaunknown'、src 侧得到 ['src-a','src-asubscription']）；a3526f3f 前改为**读 DOM 单元格 cells[2]**（依 MODEL_COLUMNS 列序）后全绿。另 82b350e0 另有一处文案断言错：删除提示真实原文是『删除只影响本机内存中的写死列表』，不是我写的『只影响记录/不影响来源与准入判断』（后者是按钮 title，非提示正文）→ 按实测原文更正。清理走 mavis-trash，4 个临时探针全部移除，`git status` 仅剩本会话 8 个 review-artifacts 审计目录（正式源码零改动）。",
+      "unverified": "**dispatch 证据的准确边界（如实标）**：本轮的『零 dispatch』是**从网络侧计数**得出的（无任何发送端点请求 + fetchCount 恒定 + 页面自述零 dispatch），**不是**从发送门代码路径独立取证——即没有直接断言 send/dispatch 函数未被调用，也没有真实后端确认。happy-dom 非真浏览器：无真实布局/样式/CSS；fetch 全替身，无真实 8790 服务与回环守卫参与；不真实模型/账户请求。删除只验了**手工条目**，未验删除与来源条目同名/同 key 的冲突场景（key 生成规则未读）；未验删除后刷新动态模式再切回的完整三轮；S1 只验了两模式**都有内容**时的往返，未验模式切换时 notice 的 keptParts 多段文案逐字内容（只断言含『已切换到』）。",
+      "nextstep": "最小私有验证项（不改正式实现，不重复首刷/重复刷新绿基线）：(a) 删除后**再点刷新**动态模式，验证来源条目不受删除影响且 delta 摘要不把删除算进『消失』（当前 delta 只比较 refresh.entries，手工条目不参与，需确认这条边界）；(b) 读 switchMode:734-744 的 keptParts 拼装，补断言其多段文案逐字内容（两模式都有内容时提示应同时点名两侧保留量）。"
+    }
+  }
+}

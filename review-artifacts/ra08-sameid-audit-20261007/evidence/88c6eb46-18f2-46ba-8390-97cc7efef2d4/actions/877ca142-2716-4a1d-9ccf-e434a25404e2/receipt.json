@@ -1,0 +1,35 @@
+{
+  "task": "ra08-sameid",
+  "round": "88c6eb46-18f2-46ba-8390-97cc7efef2d4",
+  "project": "sameid",
+  "action": "877ca142-2716-4a1d-9ccf-e434a25404e2",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "-c",
+    "import hashlib,sys\np=r'apps\\ui\\src\\data\\modelSource.ts'\ns=open(p,encoding='utf-8').read()\nprint('SHA256='+hashlib.sha256(open(p,'rb').read()).hexdigest())\nprint('HAS_manual_key=', 'manual:m' in s)\nprint('HAS_source_key=', 'key: source:' in s)\nprint('HAS_activeEntries_ternary=', \"state.mode === 'manual' ? state.manualEntries : state.refresh.entries\" in s)\nprint('HAS_delta_only_source=', 'listDelta(state.entries, parsed.entries)' in s)\nprint('HAS_remove_filter_manual_only=', 'manualEntries: state.manualEntries.filter((e) => e.key !== key)' in s)\nprint('HAS_merged_domains=', 'manualEntries.concat' in s or '[...state.refresh.entries, ...state.manualEntries]' in s)"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4",
+  "pid": 57820,
+  "startedUtc": "2026-10-07T01:37:03.941184+00:00",
+  "start_ns": 1791337023941194300,
+  "exit": 1,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T01:37:03.992796+00:00",
+  "end_ns": 1791337023992810000,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4\\actions\\877ca142-2716-4a1d-9ccf-e434a25404e2\\stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791337023940408400
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence\\88c6eb46-18f2-46ba-8390-97cc7efef2d4\\actions\\877ca142-2716-4a1d-9ccf-e434a25404e2\\stderr",
+      "sha256": "204564eccbd0ba78e3c86ac6cf468b76ea3cdd4d1a56d33a8756292b95dfbb5c",
+      "mtime_ns": 1791337023985078400
+    }
+  ]
+}

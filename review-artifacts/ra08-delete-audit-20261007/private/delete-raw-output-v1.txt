@@ -1,0 +1,81 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+ × src/pages/__ra08_delete.test.ts > RA-08 删除手工条目：只影响目标记录 > D1 删掉目标手工条目，来源条目逐条仍在（不靠 revision 证明） 466ms
+   → expected [] to deeply equal [ 'man-alpha', 'man-beta' ]
+ × src/pages/__ra08_delete.test.ts > RA-08 删除手工条目：只影响目标记录 > D2 删除只影响记录、不改变准入判断：删除后 E0 与零 dispatch 仍成立 387ms
+   → expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '只影响记录'
+ × src/pages/__ra08_delete.test.ts > RA-08 双模式均有内容时往返切换 > S1 来源 2 条 + 手工 2 条：切到写死→切回动态，两侧 ID 逐条都在 510ms
+   → expected [ …(2) ] to deeply equal [ 'src-a', 'src-b' ]
+ ✓ src/pages/__ra08_delete.test.ts > RA-08 双模式均有内容时往返切换 > S2 往返切换全程 dispatch 为零：无任何非目录请求 527ms
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  08:51:24
+   Duration  2.54s (tests 78%, setup 15%, transform 5%, import 2%)
+
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__ra08_delete.test.ts > RA-08 删除手工条目：只影响目标记录 > D1 删掉目标手工条目，来源条目逐条仍在（不靠 revision 证明）
+AssertionError: expected [] to deeply equal [ 'man-alpha', 'man-beta' ]
+
+- Expected
++ Received
+
+- [
+-   "man-alpha",
+-   "man-beta",
+- ]
++ []
+
+ ❯ src/pages/__ra08_delete.test.ts:187:42
+    185|     await addManual(container, '手工甲', 'man-alpha');
+    186|     await addManual(container, '手工乙', 'man-beta');
+    187|     expect(visibleIds(container).sort()).toEqual(['man-alpha', 'man-be…
+       |                                          ^
+    188|
+    189|     // 记录来源侧的 ID（本轮不能靠 revision 兜底，要留实际 ID 清单）
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/pages/__ra08_delete.test.ts > RA-08 删除手工条目：只影响目标记录 > D2 删除只影响记录、不改变准入判断：删除后 E0 与零 dispatch 仍成立
+AssertionError: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '只影响记录'
+
+Expected: "只影响记录"
+Received: "模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死固定（手工录入）。两种模式都只影响列表来源，不影响发送门。来源模式 写死固定额度 无可用额度证据等级 E0零 dispatch来源模式两种模式随时可切换，切换不会清空任何已输入内容：写死条目与上次读到的来源条目都保留，切回即恢复显示。条目可用性一律「未验证」dynamic · 动态刷新（手动点刷新重新读取来源）来源由本机读取，手动点「刷新来源」重新读一次。刷新只读取目录，不发送任何模型请求。可切换manual · 写死固定（主上手工录入条目）由主上手工录入条目。录入内容不会被官方验证，也不会因此获得可发送资格。当前生效提示已删除 1 条手工录入条目。删除只影响本机内存中的写死列表。手工录入一条模型手工录入 · 未由官方验证显示名 *providermodelId *计费类别subscription · 订阅扣桶promotion · 活动优惠metered_api · 按量计费unknown · 未知（保守拒发）上下文长度（token）推理档位能力标签（逗号分隔）备注（选填）录入条目已录入 0 条 · 全部标记「手工录入 · 未由官方验证」· 全部 「未验证」额度 / 桶读数三个来源必须分栏：单位不同、采集方不同、不能互相替代，也不能合并成一个“余额”。无可用额度本软件请求 token 统计无可用额度单位token来源本软件自身计数读数无可用额度仅统计由本软件发起的请求；当前请求数为 0（未接入读数）账号套餐权威桶无可用额度单位积分 / 余额（官方单位，未接入）来源官方账号侧读数读数无可用额度无可用额度；读数延迟与其他会话并行消费会污染前后差值活动优惠说明无可用额度单位—来源官方活动资格读数无可用额度无可用额度；活动时间落在窗口内不等于有资格额度额度现状：普通套餐与 Start Plan 当前都没有可用额度。界面不显示任何看起来像真实可用套餐的名称、余额或剩余量；所有条目的可用性一律显示「未验证」。E0未知：无有效资格/用量证据 —— 权益未确认，暂不可发送。在取得 E1 及以上资格与计费证据之前，发送门保持关闭；本产品界面上不存在任何可点击的发送入口（dispatch = 0）。模型 / 套餐目录目录 revision rev-1 · 账号 epoch unknown · 配置 revision unknown · 最近同步 2026-10-07 08:51:25（本机时钟） · 当前展示条目 0（来源模式：manual · 写死固定（主上手工录入条目））搜索计费类别全部subscription · 订阅扣桶promotion · 活动优惠metered_api · 按量计费unknown · 未知（保守拒发）当前筛选：全部计费类别 · 来源模式 manual · 写死固定（主上手工录入条目） · 搜索词「（空）」· 来源条目 0 条（全部为手工录入 · 未由官方验证）显示名providermodelId计费类别上下文长度token推理档位能力标签状态操作占位行未接入（无真实条目）unknown—unknown未接入未接入未接入unknown不可发送（E0）占位行未接入（无真实条目）unknown—unknown未接入未接入未接入unknown不可发送（E0）占位行未接入（无真实条目）unknown—unknown未接入未接入未接入unknown不可发送（E0）空状态写死列表为空：0 条手工录入条目手工录入的条目只存在本机内存中，刷新页面即消失。本产品不校验、不背书写死条目的真实性：显示名、provider、 modelId、计费类别、上下文长度、推理档位与能力标签都由您填，界面一律把可用性标为「未验证」， 并且永远不会因此出现可点击的发送控件。当前额度：无可用额度。计费类别为 subscription / promotion 的写死条目只是通道级合法， 仍需 E1 及以上资格证据才可能发送；metered_api 与 unknown 永不准入。列结构与未接入时的显示这张表定义列的语义、类型、单位与取值域，是接通目录后可直接复用的字段契约。列类型 / 单位取值域未接入时显示显示名displayName官方目录提供的可读名称—providerprovider官方返回的精确提供方标识unknownmodelIdmodelId官方目录精确 id，不得猜测或拼接—计费类别billingClasssubscription | promotion | metered_api | unknownunknown上下文长度contextLength官方目录声明值未接入推理档位reasoning契约 string[]：官方目录声明的档位集合（可为空数组）未接入能力标签capabilities契约 string[]：官方目录声明的能力集合（可为空数组）未接入状态status未接入时统一 unknownunknown操作action仅 E1+ 且 subscription / promotion 通道可发送；metered_api 与 unknown 永不准入不可发送（E0）发送准入同一份政策同时约束界面、API 与原生适配器；界面只显示结论，不独立决定。subscriptionsubscription · 订阅扣桶需 E1 及以上资格证据，且窗口与配置检查通过可发送（仍需 E1+ 资格）promotionpromotion · 活动优惠属订阅通道（官方活动优惠，非按量计费）：需活动有效期证据独立成立，目录出现活动条目不等于允许立即发送可发送（仍需 E1+ 资格）metered_apimetered_api · 按量计费本产品不提供额外 API-key 计费通道，任何情况下不渲染为可点击发送不渲染为可发送unknownunknown · 未知（保守拒发）证据不足即拒发，不猜测 provider，不换通道补发不渲染为可发送UI 约束通道级准入口径（929 §2）：subscription 与 promotion 是合法订阅通道（promotion 为官方活动优惠，非按量计费）， metered_api 与 unknown 永不准入，任何状态下都不会出现可点击的发送控件。通道合法不等于当前可发送：当前额度无可用额度，证据等级 E0，发送门关闭——无论您选择动态刷新还是写死固定模式。"
+
+ ❯ src/pages/__ra08_delete.test.ts:232:15
+    230|     expect(t).toContain('已录入 0 条');
+    231|     // 删除提示必须说明「不影响来源与准入判断」（ModelsPage:253）
+    232|     expect(t).toContain('只影响记录');
+       |               ^
+    233|     expect(t).toContain('不影响来源与准入判断');
+    234|     // 准入判断未被改动：E0 / 不可发送 / 零 dispatch 仍在
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/pages/__ra08_delete.test.ts > RA-08 双模式均有内容时往返切换 > S1 来源 2 条 + 手工 2 条：切到写死→切回动态，两侧 ID 逐条都在
+AssertionError: expected [ …(2) ] to deeply equal [ 'src-a', 'src-b' ]
+
+- Expected
++ Received
+
+  [
+-   "src-a",
+-   "src-b",
++   "src-a来源读回来源读回（资格未验证）account:zai-start-plansrc-asubscription",
++   "src-b来源读回来源读回（资格未验证）account:zai-start-plansrc-bsubscription",
+  ]
+
+ ❯ src/pages/__ra08_delete.test.ts:260:27
+    258|     await clickRadio(container, '动态刷新');
+    259|     const dynIds = visibleIds(container);
+    260|     expect(dynIds.sort()).toEqual(['src-a', 'src-b']);
+       |                           ^
+    261|     // 切换提示此时应说明两种模式都有内容（switchMode:740-743 的 keptParts 分支）
+    262|     expect(txt(container)).toContain('已切换到');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

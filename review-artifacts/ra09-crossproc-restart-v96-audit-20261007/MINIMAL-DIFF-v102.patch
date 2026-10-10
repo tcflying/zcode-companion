@@ -1,0 +1,196 @@
+# 本轮最小 diff —— RA-09 日志导出「原型链字段名崩溃」修复
+# 任务 business-v102-20261007 / round 0e17f3c0-9432-4edd-aa61-c3d5b1a903db
+# validate: accepted_success / evidence_valid=true / exit 0
+# 变更文件（均**未跟踪**，git diff 对其无输出）：
+#   M(未跟踪) apps/desktop/lib/log-export.cjs
+#   M(未跟踪) apps/desktop/lib/__tests__/log-export.test.mjs
+#   M(未跟踪) review-artifacts/.../private/mutate-export.mjs            （E1 锚点更新 + 新增 F1/F2）
+#   A(新)    review-artifacts/.../private/crash-repro-and-stream-audit.mjs
+#   A(新)    review-artifacts/.../private/make-report-v102.py
+#   A(新)    review-artifacts/.../private/make-minimal-diff-v102.py
+# 未做 git 写操作（未 add / 未 commit / 未 push），HEAD 仍 1558342a0aec04138135a7970aa0b72bc585a9fb
+#
+# ── 前置态字节的诚实交代 ────────────────────────────────────────────────
+# 父审记录的本文件修复前 sha256 : 3e87bdd6e0281617dc7035998fbc9898d32482bb7f45c8f9a541056a8c6b8eb2
+# 本文件修复后 sha256          : 4b020064d9ae2575902e0463c7381f1e6c2074625ae0ff192f1c71caa5db6ba4
+# 我尝试拿「修复前整文件字节」两条路，**都失败**，所以不产出声称字节精确的文件级 diff：
+#   1) 用本轮 Edit 的 old_string 反向套回重构 -> da78580460dfc0a922da45c904faeaa9d4221d0cccd77960c94da918c4393bf2  ≠ 记录值
+#   2) 从 v101 的 MINIMAL-DIFF.patch 取该文件全量原文（394 行、无尾换行），
+#      四种换行变体逐一比对 -> deb3439f… / ef3bf387… / 9094f0c6… / ee6021bc…  **全部 ≠** 记录值
+# ⇒ 下面第 1 段的 before 文本来自本会话 Edit 操作的**逐字记录**，**未经文件级哈希验证**；
+#   after 文本则是从磁盘现读切片，**必然**与当前文件一致。
+#
+# ── 语义说明 ────────────────────────────────────────────────────────────
+# 旧：`grammar === undefined` —— 对**直接索引**的结果判空。
+#     但 EXPORT_FIELD_ALLOWLIST 是普通对象字面量，`['constructor']` 取到 `Object` 函数、
+#     `['toString']` 取到函数、`['__proto__']` 取到原型对象，**都不是 undefined**，穿过检查后
+#     `grammar.test(...)` 抛 `grammar.test is not a function`（父审 08:34:17 UTC，PID 5260 exit 1）。
+# 新：先用 `Object.prototype.hasOwnProperty.call` 把**取值本身**关进三元，非自有 ⇒ undefined ⇒ 丢弃，
+#     再由 `=== undefined` 收窄类型。
+#     运行时语义与「hasOwnProperty 判否即丢弃」**完全相同**。
+#     **刻意不写成** `if (!hasOwnProperty(...)) continue;`：该写法在 checkJs 下不做类型收窄，
+#     typecheck:desktop 实测报 TS18048 `'grammar' is possibly 'undefined'`，而本仓禁用 `!`/`@ts-ignore`/放宽 tsconfig。
+
+# ═══════════════════════════════════════════════════════════════════════
+# 1/2  源码侧（apps/desktop/lib/log-export.cjs）—— 唯一改动点
+# ═══════════════════════════════════════════════════════════════════════
+--- a/apps/desktop/lib/log-export.cjs  (修复前，仅判定块，before 未做字节验证)
++++ b/apps/desktop/lib/log-export.cjs  (修复后)
+@@ -1,0 +2,13 @@
++    // 必须判**自有属性**，不能判 `=== undefined`。
++    // `EXPORT_FIELD_ALLOWLIST` 是普通对象字面量，原型链上挂着 Object.prototype，
++    // 于是 `['constructor']` 取到 `Object` 这个**函数**、`['toString']` 取到函数、
++    // `['__proto__']` 取到原型对象——它们**都不是 undefined**，会穿过下面那道检查，
++    // 紧接着 `grammar.test(...)` 抛 `grammar.test is not a function`
++    // （父审 08:34:17 UTC 实跑：`event=done constructor=x`，PID 5260，exit 1）。
++    //
++    // 先用 `hasOwnProperty` 把**取值**本身关进三元里，再由 `=== undefined` 收窄类型：
++    // 这样运行时语义与直接 `hasOwnProperty` 判否**完全相同**（非自有 ⇒ 取到 undefined ⇒ 丢弃），
++    // 而 `checkJs` 也能把 `grammar` 收窄成 `RegExp`，不需要 `!` 也不用 `@ts-ignore`。
++    const grammar = Object.prototype.hasOwnProperty.call(EXPORT_FIELD_ALLOWLIST, key)
++      ? EXPORT_FIELD_ALLOWLIST[key]
++      : undefined;
+@@ -6,2 +19 @@
+-    const grammar = EXPORT_FIELD_ALLOWLIST[key];
+-    const redacted = redactValue(rawValue, secrets);+    const redacted = redactValue(rawValue, secrets);
+
+# ═══════════════════════════════════════════════════════════════════════
+# 2/2  测试侧（apps/desktop/lib/__tests__/log-export.test.mjs）
+# ═══════════════════════════════════════════════════════════════════════
+
+# --- require 解构里多一个 EXPORT_FIELD_ALLOWLIST（供「承重性对照」用例直接取旧判定的取值）---
+--- before
+const {
+  DEFAULT_MAX_BYTES,
+  MIN_MAX_BYTES,
+  HARD_MAX_BYTES,
+  ALLOWLISTED_FIELDS,--- after
+const {
+  DEFAULT_MAX_BYTES,
+  MIN_MAX_BYTES,
+  HARD_MAX_BYTES,
+  EXPORT_FIELD_ALLOWLIST,
+  ALLOWLISTED_FIELDS,
+
+# --- 文件末尾追加以下 6 条用例（现读自磁盘，逐字）---
+/* 原型链字段名回归（父审 08:34:17 UTC 实跑崩溃）                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `Object.prototype` 上的字段名。它们全部**不是** `undefined`，
+ * 所以旧判定 `EXPORT_FIELD_ALLOWLIST[key] === undefined` 会把它们放行，
+ * 紧接着 `grammar.test(...)` 抛 `grammar.test is not a function`。
+ */
+const PROTOTYPE_KEYS = [
+  'constructor',
+  'toString',
+  'valueOf',
+  'hasOwnProperty',
+  'isPrototypeOf',
+  'propertyIsEnumerable',
+  'toLocaleString',
+  '__proto__'
+];
+
+test('回归钉死：父审崩溃输入 `event=done constructor=x` 不再抛，且按「非白名单」丢弃计数', () => {
+  // 真实崩溃：主线程 08:34:17 UTC 实跑正式 log-export.cjs，
+  // `event=done constructor=x` ⇒ TypeError: grammar.test is not a function，
+  // PID 5260，exit 1（回执 0ba6c18e）。
+  const out = selectAllowlistedFields('event=done constructor=x', []);
+  assert.deepEqual(out.kept, [{ key: 'event', value: 'done' }], '只有 event 该留下');
+  assert.equal(out.droppedFields, 1, 'constructor 必须计入「非白名单字段」');
+  assert.equal(out.droppedInvalid, 0, 'constructor 不得被算成「白名单但取值非法」');
+});
+
+test('原型链上的字段名一个都不能被当成白名单字段，且全部计入丢弃计数', () => {
+  const text = `event=done ${PROTOTYPE_KEYS.map((k) => `${k}=${CANARY_BODY}`).join(' ')}`;
+  const out = selectAllowlistedFields(text, []);
+  assert.deepEqual(out.kept, [{ key: 'event', value: 'done' }], '只有 event 该留下');
+  assert.equal(out.droppedFields, PROTOTYPE_KEYS.length, `应有 ${PROTOTYPE_KEYS.length} 个被丢弃计数`);
+  assert.equal(out.droppedInvalid, 0);
+  assert.equal(
+    out.kept.some((f) => f.value.includes(CANARY_BODY)),
+    false,
+    '原型链取值不得进结果'
+  );
+});
+
+test('承重性对照：旧判定对这些 key 全部放行 —— 所以 hasOwnProperty 不是恒真的装饰', () => {
+  // 这条是**可分辨性**证明，不是注释。若它不成立，就无法说「旧代码崩、新代码不崩」
+  // 是这次判定带来的，而不是别的原因。
+  for (const key of ['constructor', 'toString', '__proto__']) {
+    const legacyHit = EXPORT_FIELD_ALLOWLIST[key]; // 旧代码走的正是这条路
+    assert.notEqual(legacyHit, undefined, `${key} 在原型链上取得到值 ⇒ 旧判定 === undefined 会放行`);
+    assert.notEqual(legacyHit instanceof RegExp, true, `${key} 取到的不是 RegExp，调用 .test 必崩`);
+    assert.equal(Object.prototype.hasOwnProperty.call(EXPORT_FIELD_ALLOWLIST, key), false, `${key} 不是自有属性`);
+  }
+  assert.equal(EXPORT_FIELD_ALLOWLIST.event instanceof RegExp, true, '正控：自有属性确实是 RegExp');
+});
+
+test('未知字段（既不在白名单也不在原型链上）同样计入丢弃计数', () => {
+  const out = selectAllowlistedFields(`event=done totally_unknown_field=${CANARY_BODY} zzz=1`, []);
+  assert.deepEqual(out.kept, [{ key: 'event', value: 'done' }]);
+  assert.equal(out.droppedFields, 2);
+  assert.equal(out.droppedInvalid, 0);
+});
+
+test('正控：已知合法字段 0 丢弃 0 脱敏，原样留在导出里', () => {
+  const text = `event=completion operation=${OP_ID} status=200 session_key=${HEX64} state=done in_flight=false port=8791`;
+  const built = buildLogExport({ lines: [line(text)], secrets: [], now: FIXED_NOW });
+  assert.equal(built.ok, true);
+  assert.equal(built.droppedFields, 0);
+  assert.equal(built.droppedInvalid, 0);
+  assert.equal(built.redactedLines, 0, '合法取值不该被脱敏规则误伤');
+  for (const frag of [
+    'event=completion',
+    `operation=${OP_ID}`,
+    'status=200',
+    `session_key=${HEX64}`,
+    'state=done',
+    'in_flight=false',
+    'port=8791'
+  ]) {
+    assert.ok(built.text.includes(frag), `正控字段 ${frag} 必须留在导出里`);
+  }
+});
+
+test('真实驱动回归：带原型链字段名的行，preview / save / cancel 三条路径都走通', async () => {
+  const dir = privateTmp('proto-driver');
+  const lines = [
+    line(`event=done constructor=${CANARY_BODY} toString=x __proto__=y event=completion operation=${OP_ID}`)
+  ];
+  const { run, writes } = makeExporter({
+    dir,
+    lines,
+    saveAs: async () => ({ canceled: false, filePath: path.join(dir, 'export.log') })
+  });
+
+  const preview = await run({ mode: 'preview' });
+  assert.equal(preview.ok, true, 'preview 不得因原型链字段而崩');
+  assert.equal(preview.preview.includes(CANARY_BODY), false, 'preview 不得回吐原型链取值');
+  assert.deepEqual(writes, [], 'preview 不写盘');
+
+  const saved = await run({ mode: 'save' });
+  assert.equal(saved.ok, true, 'save 不得因原型链字段而崩');
+  assert.equal(writes.length, 1);
+  const onDisk = fs.readFileSync(path.join(dir, 'export.log'), 'utf8');
+  assert.equal(onDisk.includes(CANARY_BODY), false, '落盘文件不得含原型链取值');
+  assert.ok(onDisk.includes(`operation=${OP_ID}`), '落盘文件必须保留合法字段');
+  assert.equal(
+    crypto.createHash('sha256').update(onDisk, 'utf8').digest('hex'),
+    saved.sha256,
+    '落盘内容的 hash 必须等于回执里的 sha256'
+  );
+
+  const canceled = await createLogExporter({
+    getLines: () => lines,
+    getSecrets: () => [],
+    saveAs: async () => ({ canceled: true }),
+    writeFile: () => {
+      throw new Error('取消路径不得写盘');
+    },
+    now: FIXED_NOW
+  })({ mode: 'save' });
+  assert.equal(canceled.ok, false);
+  assert.equal(canceled.code, 'CANCELLED', '取消必须回 CANCELLED，不是别的错误');
+});

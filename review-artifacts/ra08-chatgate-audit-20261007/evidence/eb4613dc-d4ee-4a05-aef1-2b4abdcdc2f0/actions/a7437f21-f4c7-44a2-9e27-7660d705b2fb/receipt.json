@@ -1,0 +1,51 @@
+{
+  "task": "ra08-chatgate",
+  "round": "eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0",
+  "project": "chatgate",
+  "action": "a7437f21-f4c7-44a2-9e27-7660d705b2fb",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\private\\summarize.py",
+    "chatgate-verdict.json",
+    "961d1f88-34e3-4c87-bf81-1f87fee5c968",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0",
+  "pid": 26884,
+  "startedUtc": "2026-10-07T03:04:28.106486+00:00",
+  "start_ns": 1791342268106504100,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T03:04:28.143839+00:00",
+  "end_ns": 1791342268143852100,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\chatgate-verdict.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\chatgate-verdict.json",
+        "sha256": "1ee58bc44ac165fc1c0c7656646076ee9fe60b0f1c0e29a3f3df64bb63289c9e",
+        "mtime_ns": 1791342268138692600
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\actions\\a7437f21-f4c7-44a2-9e27-7660d705b2fb\\stdout",
+      "sha256": "5369f602b9634ca5281e334031d50024170344c55a626cf422572c1468904920",
+      "mtime_ns": 1791342268138692600
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\actions\\a7437f21-f4c7-44a2-9e27-7660d705b2fb\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791342268106692900
+    }
+  ]
+}

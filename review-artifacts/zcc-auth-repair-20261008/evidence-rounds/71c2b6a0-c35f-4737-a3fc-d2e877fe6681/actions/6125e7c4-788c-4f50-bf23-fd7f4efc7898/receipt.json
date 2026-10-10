@@ -1,0 +1,45 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "71c2b6a0-c35f-4737-a3fc-d2e877fe6681",
+  "project": "zcc-auth",
+  "action": "6125e7c4-788c-4f50-bf23-fd7f4efc7898",
+  "argv": [
+    "C:/Program Files/nodejs/node.exe",
+    "G:/zcode-project/zcode-companion/review-artifacts/zcc-auth-repair-20261008/live-canary-single-v3.cjs",
+    "--execute"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\71c2b6a0-c35f-4737-a3fc-d2e877fe6681",
+  "pid": 39412,
+  "startedUtc": "2026-10-07T22:10:21.288841+00:00",
+  "start_ns": 1791411021288854800,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\live-canary-single-v3.cjs",
+      "sha256": "d0a0296b2d10cb6225fa2954bcee4cf254549d163b792e71c82668ca0e224c14",
+      "mtime_ns": 1791410853080866200
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\sse-parse-v2.cjs",
+      "sha256": "13331ac9afea7a913d4ada80ee30a867604defd5d3d3406f92bdd033a8630546",
+      "mtime_ns": 1791410664638621400
+    }
+  ],
+  "endedUtc": "2026-10-07T22:10:29.205628+00:00",
+  "end_ns": 1791411029205642900,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\71c2b6a0-c35f-4737-a3fc-d2e877fe6681\\actions\\6125e7c4-788c-4f50-bf23-fd7f4efc7898\\stdout",
+      "sha256": "dbfd0f350afe509b61d5d894552f3ddc96c86c6ad23e2b26ec5189b24ad1f491",
+      "mtime_ns": 1791411029194263700
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\71c2b6a0-c35f-4737-a3fc-d2e877fe6681\\actions\\6125e7c4-788c-4f50-bf23-fd7f4efc7898\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791411021288683000
+    }
+  ]
+}

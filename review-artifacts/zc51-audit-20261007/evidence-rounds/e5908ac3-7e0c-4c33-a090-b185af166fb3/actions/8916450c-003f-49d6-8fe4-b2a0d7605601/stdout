@@ -1,0 +1,10 @@
+HEAD=1558342a0aec04138135a7970aa0b72bc585a9fb
+apps/ui/src/data/modelSource.ts
+  sha256=78acdb7a2266a3dca4f36543bf7cab0b0cfe57cc888f01abc815269a39642e43
+  dirty=CLEAN
+apps/ui/src/pages/ModelsPage.tsx
+  sha256=b04524fe6b7ce99093701760ce2f1971534e763949974c15a7a2ac2007f38cce
+  dirty=CLEAN
+apps/ui/src/data/modelSource.test.ts
+  sha256=afda42f1fec5cdac95c468504f8dc645fb915880ac9c06d02da659a32a8b6f2f
+  dirty=CLEAN

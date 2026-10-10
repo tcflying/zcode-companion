@@ -1,0 +1,18 @@
+{
+  "task": "business-v93-20261007",
+  "round": "c4a7e492-f54d-4074-9536-ac26c543b990",
+  "status": "success",
+  "projects": {
+    "companion-journal": {
+      "actions": [
+        "2753a9ad-f052-42d8-b469-e4c1dfcf9b6e",
+        "f437a0f4-db1a-46f7-8e8d-ef4fcb22e87b",
+        "4fb03fda-2d48-4a29-ba0c-f89c6db35107"
+      ],
+      "explanation": "A1 全仓 typecheck：pid=41796 exit=0 startUTC=2026-10-07T06:34:30.456603+00:00 endUTC=2026-10-07T06:34:30.635692+00:00 timeout=False。tsc --noEmit 零错误（stdout 为空即无诊断），确认 auth.ts 新增 resolveSessionIdentity 与 journal-store 新增 sessionKey 的类型自洽。\nA2 集成红绿（本轮主证据）：pid=64864 exit=0 startUTC=2026-10-07T06:34:30.729522+00:00 endUTC=2026-10-07T06:34:32.121409+00:00 timeout=False。真实 createApiServer + 真实 HTTP 打到 127.0.0.1 临时端口 + 假外部 driver + os.tmpdir() 临时 data；34 条用例全绿（stdout: Tests 34 passed (34)、CLASS=all_passed、STRAY_PROBE_FILES_IN_FORMAL_SRC=0）。其中 T12 是本轮新增的会话级闸门 5 条：T12a 同会话换新幂等键+换输入仍拒且 driverCalls 不增（连拒三次）；T12b 跨重建（同目录重开）后换新键仍拒、驱动器零调用；T12c 全部 done 的正常会话换新键照常 200 发送（防误伤）；T12d 另一会话不受影响、driverCalls 由 1 涨到 2（证明是会话级闸门而非全局冻结）；T12e 缺 x-zcc-* 头时 resolveSessionIdentity 返回 null 且不与 identity 形态算出不同的键。\nA3 既有回归：pid=18916 exit=0 startUTC=2026-10-07T06:34:32.237391+00:00 endUTC=2026-10-07T06:34:41.178057+00:00 timeout=False。7 个既有测试文件 250 条用例全绿（Test Files 7 passed (7)、Tests 250 passed (250)），含 auth 重相关的 official-host-contract 与 api-contract，以及 F02 重放预算淘汰 api-replay-budget-inflight。\n变异验证（非 gate action，单独记录）：把 server.ts 中 resolveSessionIdentity(...) 短路为 null 后重跑探针，T12a/T12b 立刻变红且红因为「expected 200 to be 502」——即同会话换新键真的投递了出去，正是父审指出的缺口；T12c/T12d/T12e 保持绿（它们是对照，本就不该对闸门敏感）。随后按 sha256 校验还原，server.ts 恢复一致。",
+      "unverified": "本轮**未**启动真实 desktop 冷启动：默认路径链（main settingsFile → dirname → spawn-spec → proxy-manager ZCC_JOURNAL_DIR → start-api → createApiServer）是**源码接线**成立，非实机验证（父审 v92 明令不启 8791、不探无关进程）。\n跨重启「原样重放 2xx 正文」仍未实现（需持久化正文，与「journal 不存正文」冲突）；本轮保证的是不重复投递。\n会话闸门只挡 `unknown`，**不挡 `in_flight`**：条款的会话锁定针对「已发出但结果不可知」；把在途也算进去会冻住同一会话的正常并发，同一键的并发重复另有 idempotency_in_progress 兜底。此为有意取舍。\n客户端**不发** x-zcc-client-id / x-zcc-session-id 时，会话闸门不做判定（resolveSessionIdentity 返回 null，缺身份不假造）。这是已知覆盖缺口：只带 Idempotency-Key 的客户端拿不到会话级保护。未测其危害面。\n全量既有套件未在本轮签收：official-tap-fidelity 要求 8791 无监听，该端口由主上正在运行的 ZCodeCompanion.exe 占用；未 kill 该进程、未改端口。本轮改动直接触及的 7 个文件已单独实跑 250/250 绿。\nRA-09 :875 的「secret canary 无泄漏」「官方秘密不曾进入采集管道」，以及 :876 要求的扫描规则/退出码/脱敏导出 hash/IPC 文件访问审计/实际预览交互，本轮全部未测。不得据本轮结论宣称 RA-09 通过。",
+      "nextstep": "把含未跟踪 journal-store.ts 的完整 diff 与 929.md:347/853/916/875 逐条映射交父审签收。",
+      "diagnosis": ""
+    }
+  }
+}

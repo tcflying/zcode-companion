@@ -1,0 +1,50 @@
+{
+  "task": "ra09-journal-impl",
+  "round": "3fa0162a-093f-4363-b2b7-9f87f3bce0bb",
+  "project": "impl",
+  "action": "05337c6c-1f7c-404f-af7f-559a64a1f9ac",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\private\\summarize-impl.py",
+    "journal-impl-verdict.json",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-impl-audit-20261007\\evidence\\3fa0162a-093f-4363-b2b7-9f87f3bce0bb"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-impl-audit-20261007\\evidence\\3fa0162a-093f-4363-b2b7-9f87f3bce0bb",
+  "pid": 26020,
+  "startedUtc": "2026-10-07T05:22:53.423148+00:00",
+  "start_ns": 1791350573423161400,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T05:22:53.459752+00:00",
+  "end_ns": 1791350573459765600,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-impl-audit-20261007\\evidence\\3fa0162a-093f-4363-b2b7-9f87f3bce0bb\\journal-impl-verdict.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-impl-audit-20261007\\evidence\\3fa0162a-093f-4363-b2b7-9f87f3bce0bb\\journal-impl-verdict.json",
+        "sha256": "f68a79024a4fe39aa9c17491a7bdf48b027ff85942c0b49b1690fc06c58f1ed3",
+        "mtime_ns": 1791350573453466300
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-impl-audit-20261007\\evidence\\3fa0162a-093f-4363-b2b7-9f87f3bce0bb\\actions\\05337c6c-1f7c-404f-af7f-559a64a1f9ac\\stdout",
+      "sha256": "d4182a805f01bcc4909b82592432921883bd545d6f431322e37bbe6631c90089",
+      "mtime_ns": 1791350573453466300
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-impl-audit-20261007\\evidence\\3fa0162a-093f-4363-b2b7-9f87f3bce0bb\\actions\\05337c6c-1f7c-404f-af7f-559a64a1f9ac\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791350573422468500
+    }
+  ]
+}

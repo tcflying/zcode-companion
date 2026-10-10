@@ -1,0 +1,44 @@
+{
+  "task": "business-v93-20261007",
+  "round": "c4a7e492-f54d-4074-9536-ac26c543b990",
+  "project": "companion-journal",
+  "action": "4fb03fda-2d48-4a29-ba0c-f89c6db35107",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\node_modules\\vitest\\vitest.mjs",
+    "run",
+    "G:/zcode-project/zcode-companion/tests/unit/api-replay-budget-inflight.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/unit/desktop-proxy-manager.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/unit/desktop-key-redaction.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/unit/api-request-decode.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/contract/api-contract.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/contract/api-start-entry.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/contract/official-host-contract.test.mjs",
+    "--root",
+    "G:/zcode-project/zcode-companion",
+    "--reporter=dot"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-sessiongate-v93-audit-20261007\\evidence\\c4a7e492-f54d-4074-9536-ac26c543b990",
+  "pid": 18916,
+  "startedUtc": "2026-10-07T06:34:32.237391+00:00",
+  "start_ns": 1791354872237406100,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T06:34:41.178057+00:00",
+  "end_ns": 1791354881178070100,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-sessiongate-v93-audit-20261007\\evidence\\c4a7e492-f54d-4074-9536-ac26c543b990\\actions\\4fb03fda-2d48-4a29-ba0c-f89c6db35107\\stdout",
+      "sha256": "1fd75bc95443c4b384abc8dcf5619d266faac3e0936f12961771217d77b034f0",
+      "mtime_ns": 1791354881156914200
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-sessiongate-v93-audit-20261007\\evidence\\c4a7e492-f54d-4074-9536-ac26c543b990\\actions\\4fb03fda-2d48-4a29-ba0c-f89c6db35107\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791354872237282000
+    }
+  ]
+}

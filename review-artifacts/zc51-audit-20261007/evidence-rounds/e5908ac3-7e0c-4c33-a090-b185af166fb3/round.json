@@ -1,0 +1,10 @@
+{
+  "task": "zc51-audit",
+  "projects": [
+    "contract",
+    "delta"
+  ],
+  "round": "e5908ac3-7e0c-4c33-a090-b185af166fb3",
+  "directory": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-audit-20261007\\evidence-rounds\\e5908ac3-7e0c-4c33-a090-b185af166fb3",
+  "createdUtc": "2026-10-06T23:19:16.486989+00:00"
+}

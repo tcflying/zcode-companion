@@ -1,0 +1,33 @@
+{
+  "task": "business-v97-20261007",
+  "round": "eedfb710-40a8-4f38-bdba-f6f715ba3c32",
+  "project": "companion-log-export",
+  "action": "0b33f6dd-6e14-40d6-a4e6-09fffaf20200",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\private\\check-desktop-types.mjs"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\eedfb710-40a8-4f38-bdba-f6f715ba3c32",
+  "pid": 53312,
+  "startedUtc": "2026-10-07T08:00:56.807241+00:00",
+  "start_ns": 1791360056807254100,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T08:00:57.065454+00:00",
+  "end_ns": 1791360057065470500,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\eedfb710-40a8-4f38-bdba-f6f715ba3c32\\actions\\0b33f6dd-6e14-40d6-a4e6-09fffaf20200\\stdout",
+      "sha256": "da332c340ac011937a0f25ca2628677f6a63b9ac822665d3213d2c57c5e63293",
+      "mtime_ns": 1791360057058226100
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\eedfb710-40a8-4f38-bdba-f6f715ba3c32\\actions\\0b33f6dd-6e14-40d6-a4e6-09fffaf20200\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791360056806731700
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+RC=1
+--- OUT ---
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  07:49:26
+   Duration  447ms (setup 94%, transform 5%, worker 1%)
+
+
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__zc51_dom_probe.test.ts [ src/pages/__zc51_dom_probe.test.ts ]
+Error: Cannot find module './pages/ModelsPage' imported from G:/zcode-project/zcode-companion/apps/ui/src/pages/__zc51_dom_probe.test.ts
+ ❯ src/pages/__zc51_dom_probe.test.ts:21:1
+     19| import { createElement, act } from 'react';
+     20| import { createRoot, type Root } from 'react-dom/client';
+     21| import { ModelsPage } from './pages/ModelsPage';
+       | ^
+     22|
+     23| /* ---------------- fake API：只替 fetch，零真实网络 ---------------- */
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ERR_MODULE_NOT_FOUND' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+TEMP_REMOVED=True

@@ -1,0 +1,34 @@
+{
+  "task": "business-v102-20261007",
+  "round": "0e17f3c0-9432-4edd-aa61-c3d5b1a903db",
+  "project": "companion-log-export-v2",
+  "action": "b7a6e642-a70c-4378-95ca-58090e281380",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\private\\run-stage-gate.mjs",
+    "typecheck:desktop"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\0e17f3c0-9432-4edd-aa61-c3d5b1a903db",
+  "pid": 56304,
+  "startedUtc": "2026-10-07T08:53:52.037372+00:00",
+  "start_ns": 1791363232037386500,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T08:53:52.249979+00:00",
+  "end_ns": 1791363232249991600,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\0e17f3c0-9432-4edd-aa61-c3d5b1a903db\\actions\\b7a6e642-a70c-4378-95ca-58090e281380\\stdout",
+      "sha256": "d51c534e30c8b5519724e15d4e1f71fcc171d8adeb2d6ad156c60ee23c917720",
+      "mtime_ns": 1791363232244478400
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\0e17f3c0-9432-4edd-aa61-c3d5b1a903db\\actions\\b7a6e642-a70c-4378-95ca-58090e281380\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791363232037131400
+    }
+  ]
+}

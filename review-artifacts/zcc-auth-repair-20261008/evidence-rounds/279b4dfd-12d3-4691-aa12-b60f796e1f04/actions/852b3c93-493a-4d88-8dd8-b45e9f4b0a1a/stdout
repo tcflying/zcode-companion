@@ -1,0 +1,95 @@
+{
+  "schema": "zcc-repair-route/1",
+  "task": "ZCC-AUTH-20261008",
+  "stage": "repair",
+  "configPath": "C:/Users/datoo/.minimax/config.yaml",
+  "beforeSha256": "13a33ef1248a28db041550cbcfb4df3c157c443a8cb9198a4a4c12071cde1c31",
+  "beforeBytes": 14976,
+  "modelGuard": {
+    "yamlParserSource": "@deepseek-ai/dsh/node_modules/yaml (require only, unmodified)",
+    "configuredIds": [
+      "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+      "account:bigmodel-individual-coding-plan::GLM-5.3",
+      "account:bigmodel-start-plan::GLM-5.3-Flash"
+    ],
+    "configuredCount": 3,
+    "effortOptions": [
+      {
+        "id": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+        "effortOptions": 3,
+        "effortOptionsValues": [
+          "low",
+          "high",
+          "max"
+        ]
+      },
+      {
+        "id": "account:bigmodel-individual-coding-plan::GLM-5.3",
+        "effortOptions": 3,
+        "effortOptionsValues": [
+          "low",
+          "high",
+          "max"
+        ]
+      },
+      {
+        "id": "account:bigmodel-start-plan::GLM-5.3-Flash",
+        "effortOptions": 3,
+        "effortOptionsValues": [
+          "low",
+          "high",
+          "max"
+        ]
+      }
+    ],
+    "catalogReference": "v2 action 330f6600-7d4f-4613-9c05-0908ac4f6a2d",
+    "catalogSize": 10,
+    "guardCount": 3,
+    "allConfiguredIdsInCatalog": true,
+    "missingFromCatalog": [],
+    "networkRequestsIssued": 0
+  },
+  "currentBaseURLBefore": "http://127.0.0.1:8790/v1",
+  "onlyLeafChangedVerifiedBeforeWrite": true,
+  "tmpPathIsSameDirAsConfig": true,
+  "tmpPathInsideReviewArtifacts": false,
+  "atomic": {
+    "aclMatch": true,
+    "attributesMatch": true,
+    "casMatch": true,
+    "renamed": true,
+    "postAclMatch": true,
+    "postAttributesMatch": true,
+    "error": null
+  },
+  "tmpConsumedByRename": true,
+  "afterSha256": "1b66ad9747b7ec0f4fdfa2eedd8f0e668b796e5c0c7590a0502354f95654e876",
+  "afterBytes": 14976,
+  "otherBytesIdentical": true,
+  "allowedLeafChanged": true,
+  "currentBaseURL": "http://127.0.0.1:8791/v1",
+  "verdict": "REPAIR_APPLIED_VERIFIED",
+  "postWriteConfirm8791": {
+    "attempted": true,
+    "http": {
+      "status": 200,
+      "ok": true
+    },
+    "xStatus": "ready",
+    "modelIds": [
+      "account:zai-individual-coding-plan::GLM-5.3",
+      "account:zai-individual-coding-plan::GLM-5.3-Flash",
+      "account:zai-start-plan::GLM-5.3-Flash",
+      "account:zai-start-plan::GLM-5.2",
+      "account:zai-start-plan::GLM-5-Turbo",
+      "account:bigmodel-individual-coding-plan::GLM-5.3",
+      "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+      "account:bigmodel-start-plan::GLM-5.3-Flash",
+      "account:bigmodel-start-plan::GLM-5.2",
+      "account:bigmodel-start-plan::GLM-5-Turbo"
+    ],
+    "timerCleared": true
+  },
+  "jsonContainsCurrentKey": false,
+  "jsonHygieneCheckedByAssertion": true
+}

@@ -1,0 +1,36 @@
+{
+  "task": "ra09-realhook",
+  "round": "f0038b70-39be-4981-be9b-022ff01d5273",
+  "project": "realhook",
+  "action": "365ebc8b-1c7e-49da-9fed-1f2f56307a84",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\private\\run-probe.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273",
+  "pid": 632,
+  "startedUtc": "2026-10-07T04:04:50.836926+00:00",
+  "start_ns": 1791345890836937300,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T04:04:52.501606+00:00",
+  "end_ns": 1791345892501622100,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\actions\\365ebc8b-1c7e-49da-9fed-1f2f56307a84\\stdout",
+      "sha256": "42480f7accdb6c6034cdff389bb0756ff09b71bcadde8bfcffc1a7eaa834d7c8",
+      "mtime_ns": 1791345892459884600
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\actions\\365ebc8b-1c7e-49da-9fed-1f2f56307a84\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791345890836987400
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "decision": "RA-09 clause 875 journal requirement IMPLEMENTED and verified via private temp data",
+  "clause_source": "G:/zcode-project/zcode-dev/929.md line 875",
+  "tests_passed": 5,
+  "tests_failed": 0,
+  "tests_total": 5,
+  "test_exit": 0,
+  "test_pid": 65476,
+  "test_started_utc": "2026-10-07T05:22:07.536277+00:00",
+  "test_ended_utc": "2026-10-07T05:22:07.672127+00:00",
+  "syntax_check_exit": 0,
+  "syntax_check_action": "e84e8767-31d7-4163-8ecc-f7d725f17744",
+  "wiring_action": "3fdf77d8-cccd-4e8c-95b7-69df8761a883",
+  "wiring_exit": 0,
+  "wiring_pid": 65860,
+  "wired_into_real_entrypoint": {
+    "main_requires_journal": true,
+    "main_creates_instance": true,
+    "instance_dir_is_real_userdata": true,
+    "loads_on_startup": true,
+    "ipc_handler_list": true,
+    "ipc_handler_append": true,
+    "ipc_handler_cancel": true,
+    "reject_reason_exposed": true,
+    "append_result_passthrough": true
+  },
+  "persistence_matches_settings_pattern": {
+    "atomic_tmp_rename": true,
+    "mode_0600": true,
+    "settings_same_pattern": true
+  },
+  "semantics": {
+    "unknown_never_evicted": true,
+    "in_flight_never_evicted": true,
+    "self_eviction_guard": true,
+    "write_failure_reported": true,
+    "unknown_requires_outcome": true
+  },
+  "test_isolation": {
+    "uses_os_tmpdir": true,
+    "cleans_up": true,
+    "no_real_userdata": true,
+    "assert_cases": 5,
+    "uses_node_test": true
+  },
+  "file_sha256": {
+    "main_cjs": "8f1abc22967e6188eac5029e4ee6b0f101e29e9fd53c5d4c597144857f486c47",
+    "journal_cjs": "386b1bf5fb72de9ef24fe8323382905b0aeefe58161e02acf08b34fe6b2c59b4",
+    "journal_test_mjs": "907ce5987cfe83600b084cca301a15a2514be0989020ecc13bb02ab3acb1e629",
+    "settings_cjs_unchanged": "c34b6bcca2a70b327202cc2e6b2d0c6aba0c803860f3aa55a3891382a7d98c17"
+  },
+  "journal_clause_implemented": true,
+  "host_started": false,
+  "ipc_called_at_runtime": false,
+  "real_inference_called": false,
+  "real_credentials_used": false,
+  "real_userdata_touched": false,
+  "git_modified": false,
+  "memory_written": false,
+  "ra09_overall": "NOT_SIGNED",
+  "remaining_ra09": [
+    "clause 875 first half: secret canary no-leak on export / collection pipeline",
+    "key ACL and OS-level encrypted storage",
+    "background auto-upload path"
+  ]
+}

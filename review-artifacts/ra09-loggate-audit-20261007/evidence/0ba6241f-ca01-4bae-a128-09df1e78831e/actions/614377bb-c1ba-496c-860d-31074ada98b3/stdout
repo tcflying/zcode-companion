@@ -1,0 +1,24 @@
+LogsPage_SHA256=c6cd6d7214b0b7368c68809fe39ae6d94ed216043a7cf024a363bbc4eeb86804
+logger_SHA256=0a957bdd2bcd2fb8af0f3eb0d849d336b8fa87e4bafff7bcb138a0c7c0a9ec86
+useAppState_SHA256=9a1d110ee5e47a4307ef604020551a8e6e24bc52ec8fc9867fa70a6416254be8
+redact_SHA256=31beadca0bf54ced822c1741ccd48d29692fb9323bcd4df2aded6e5557ce12a9
+--- 日志页代码区（已剔除说明文案）---
+LOGS_CODE_HAS_fetch= False
+LOGS_CODE_HAS_XMLHttpRequest= False
+LOGS_CODE_HAS_WebSocket= False
+LOGS_CODE_HAS_ipcRenderer= False
+--- 写前脱敏硬编码（唯一日志写入口）---
+makeLogEntry_redacts_message= True
+makeLogEntry_redacts_source= True
+makeLogEntry_is_only_writer= True
+--- 200 条上限（在 useAppState.log 内，不在页面）---
+app_slice_200= True
+app_log_uses_makeLogEntry= True
+--- 页面显示与桌面边界 ---
+page_shows_200_literal= True
+page_pull_disabled_by_available= True
+page_selfcheck_logs_raw_canary= True
+--- 脱敏规则常量 ---
+redact_REDACTED= True
+redact_bearer_rule= True
+redact_prefixed_key= True

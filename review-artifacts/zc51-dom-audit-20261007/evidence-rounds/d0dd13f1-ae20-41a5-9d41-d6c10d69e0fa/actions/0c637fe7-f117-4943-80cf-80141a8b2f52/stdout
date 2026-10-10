@@ -1,0 +1,51 @@
+RC=1
+--- OUT ---
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  no tests
+      Tests  no tests
+     Errors  1 error
+   Start at  07:45:26
+   Duration  180ms
+
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: [vitest-pool]: Failed to start forks worker for test files G:/zcode-project/zcode-companion/apps/ui/src/__zc51_compat2.test.ts.
+ ❯ ../../node_modules/vitest/dist/chunks/index.C-uw7tH9.js:11466:94
+ ❯ processTicksAndRejections ../../node:internal/process/task_queues:104:5
+ ❯ Pool.schedule ../../node_modules/vitest/dist/chunks/index.C-uw7tH9.js:11466:5
+
+Caused by: RolldownError: Parse failure: Parse failed with 1 error:
+Unexpected token
+16: const require2 = createRequire('file:///G:/mmx-project/bbweb-2/frontend/package.json');
+17: const happyDom = require2('happy-dom') as {
+18:   Window: new (options?: unknown) => Record<string, unknown> & { close?: () => void };
+            ^
+19:   GlobalRegistrator?: { register: (win: unknown) => void; unregister: () => void };
+20: };
+At file: /@fs/G:/zcode-project/zcode-companion/review-artifacts/zc51-dom-audit-20261007/private/happy-dom-env.mjs:18:8
+  File: /@fs/G:/zcode-project/zcode-companion/review-artifacts/zc51-dom-audit-20261007/private/happy-dom-env.mjs:18:8
+  16 |  const require2 = createRequire('file:///G:/mmx-project/bbweb-2/frontend/package.json');
+  17 |  const happyDom = require2('happy-dom') as {
+  18 |    Window: new (options?: unknown) => Record<string, unknown> & { close?: () => void };
+     |          ^
+  19 |    GlobalRegistrator?: { register: (win: unknown) => void; unregister: () => void };
+  20 |  };
+ ❯ error ../../node_modules/rolldown/dist/shared/logs-D6uA606S.mjs:166:24
+ ❯ normalizeParseError ../../node_modules/rolldown/dist/parse-ast-index.mjs:25:9
+ ❯ wrap ../../node_modules/rolldown/dist/parse-ast-index.mjs:5:39
+ ❯ parseAstAsync ../../node_modules/rolldown/dist/parse-ast-index.mjs:54:9
+ ❯ ssrTransformScript ../../node_modules/vite/dist/node/chunks/node.js:16392:9
+ ❯ loadAndTransform ../../node_modules/vite/dist/node/chunks/node.js:20032:64
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+TEMP_REMOVED=True

@@ -1,0 +1,63 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+ × src/pages/__ra08_delete2.test.ts > RA-08 删除手工条目：只影响目标记录 > D1 删掉目标手工条目，来源条目逐条仍在（不靠 revision 证明） 440ms
+   → expected [] to deeply equal [ 'man-alpha', 'man-beta' ]
+ ✓ src/pages/__ra08_delete2.test.ts > RA-08 删除手工条目：只影响目标记录 > D2 删除只影响记录、不改变准入判断：删除后 E0 与零 dispatch 仍成立 371ms
+ × src/pages/__ra08_delete2.test.ts > RA-08 双模式均有内容时往返切换 > S1 来源 2 条 + 手工 2 条：切到写死→切回动态，两侧 ID 逐条都在 491ms
+   → expected [] to deeply equal [ 'src-a', 'src-b' ]
+ ✓ src/pages/__ra08_delete2.test.ts > RA-08 双模式均有内容时往返切换 > S2 往返切换全程 dispatch 为零：无任何非目录请求 532ms
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed (4)
+   Start at  08:52:20
+   Duration  2.44s (tests 80%, setup 13%, transform 4%, import 2%)
+
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__ra08_delete2.test.ts > RA-08 删除手工条目：只影响目标记录 > D1 删掉目标手工条目，来源条目逐条仍在（不靠 revision 证明）
+AssertionError: expected [] to deeply equal [ 'man-alpha', 'man-beta' ]
+
+- Expected
++ Received
+
+- [
+-   "man-alpha",
+-   "man-beta",
+- ]
++ []
+
+ ❯ src/pages/__ra08_delete2.test.ts:196:42
+    194|     await addManual(container, '手工甲', 'man-alpha');
+    195|     await addManual(container, '手工乙', 'man-beta');
+    196|     expect(visibleIds(container).sort()).toEqual(['man-alpha', 'man-be…
+       |                                          ^
+    197|
+    198|     // 记录来源侧的 ID（本轮不能靠 revision 兜底，要留实际 ID 清单）
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/pages/__ra08_delete2.test.ts > RA-08 双模式均有内容时往返切换 > S1 来源 2 条 + 手工 2 条：切到写死→切回动态，两侧 ID 逐条都在
+AssertionError: expected [] to deeply equal [ 'src-a', 'src-b' ]
+
+- Expected
++ Received
+
+- [
+-   "src-a",
+-   "src-b",
+- ]
++ []
+
+ ❯ src/pages/__ra08_delete2.test.ts:270:27
+    268|     await clickRadio(container, '动态刷新');
+    269|     const dynIds = visibleIds(container);
+    270|     expect(dynIds.sort()).toEqual(['src-a', 'src-b']);
+       |                           ^
+    271|     // 切换提示此时应说明两种模式都有内容（switchMode:740-743 的 keptParts 分支）
+    272|     expect(txt(container)).toContain('已切换到');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

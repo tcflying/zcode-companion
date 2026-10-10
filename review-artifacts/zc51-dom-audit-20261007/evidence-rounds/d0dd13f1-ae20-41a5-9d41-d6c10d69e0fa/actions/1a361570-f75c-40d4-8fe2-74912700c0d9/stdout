@@ -1,0 +1,18 @@
+RC=0
+--- OUT ---
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+ ✓ src/__zc51_compatC.test.ts > happy-dom + React 19 + vitest5 兼容性 > DOM 全局存在（document/window/HTMLElement） 1ms
+ ✓ src/__zc51_compatC.test.ts > happy-dom + React 19 + vitest5 兼容性 > react-dom/client 可 createRoot 并 act 触发真实重渲染 13ms
+ ✓ src/__zc51_compatC.test.ts > happy-dom + React 19 + vitest5 兼容性 > 支持 async act（await Promise 链）—— 刷新链路需要 2ms
+ ✓ src/__zc51_compatC.test.ts > happy-dom + React 19 + vitest5 兼容性 > 支持 window.location（ModelsPage:68 readFixtureScenario 需要） 0ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  07:49:06
+   Duration  440ms (setup 77%, import 9%, transform 8%, tests 5%, worker 1%)
+
+
+
+TEMP_REMOVED=True

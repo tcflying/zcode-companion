@@ -1,0 +1,31 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "e6fa5005-db2f-49ca-a108-e598b0bfe93c",
+  "status": "blocked",
+  "projects": {
+    "zcc-auth": {
+      "actions": [
+        "25071cea-a73c-49cd-8de8-5201ffb97b7b"
+      ],
+      "explanation": "operations metadata 单stage 只读回读。关联前置 round：诊断 ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb、修复 279b4dfd-12d3-4691-aa12-b60f796e1f04。脚本 runtime-operation-status-v2.cjs（SHA 42d440e2…，冻结 --input，一次 run 未再改），UTC 2026-10-07T21:48:39.413Z，exit 0。只读 C:/Users/datoo/AppData/Roaming/ZCodeCompanion/api-operations-journal.json 这一个已确认路径，未探索其他 userData 候选、未扫 home。结果：该文件在磁盘上不存在（journalExists=false），因此 root 官方 provider test 窗口 21:38:21→21:39:30 内的三次生成 operation 的 operationId/state/outcome 均无法读取，currentInFlightCount 为 null 而非 0。据此 canaryRecommended=false，未做任何推断。更正前一轮错误：v1 查的是桌面侧 journal.json 并据此推断『Journal 未落盘』，该推断错误 —— 桌面与 API 是同目录、不同文件名的两份独立 journal（journal-store.ts:148-160），桌面 journal.json 缺失不能推断 API journal 未落盘。",
+      "diagnosis": "本 stage 的目标是回读三次生成的 operations 终态与 inFlight 计数，读取来源缺失导致目标条件未满足。",
+      "blockers": [
+        {
+          "condition": "磁盘上存在 companion 自有的 api-operations-journal.json，且其中含 root 官方 provider test 窗口 21:38:21→21:39:30 内三条终态记录，currentInFlightCount 为 0",
+          "gap": "该文件在磁盘上不存在，无法读取任何 operations 终态；inFlight 计数为 null（无数据），不是 0",
+          "action": "25071cea-a73c-49cd-8de8-5201ffb97b7b",
+          "observed": false,
+          "required": true,
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\e6fa5005-db2f-49ca-a108-e598b0bfe93c\\actions\\25071cea-a73c-49cd-8de8-5201ffb97b7b\\stdout",
+            "sha256": "2ac5171b3f4e17f1c578cac284432775e2dbe1cc98ebe69107a0812a6ff43a57",
+            "pointer": ["journalExists"]
+          }
+        }
+      ],
+      "scopeLimit": "记录缺失只说明本窗口终态不可读，**不构成『永远不能发起新的 nonce 测试』的永久阻塞**；是否发起新测试由 root 显式授权决定。",
+      "unverified": "8790 的实际 ancestry 与 packaged journal 精确路径已交 explore 核实；Desktop 是否实际采纳 configured model ID 未测；无 GUI/webui 实测。",
+      "nextstep": "等 explore 回传 8790 ancestry 与 packaged journal 路径后再定；本代理不再新增探查动作，也不发起任何模型请求。"
+    }
+  }
+}

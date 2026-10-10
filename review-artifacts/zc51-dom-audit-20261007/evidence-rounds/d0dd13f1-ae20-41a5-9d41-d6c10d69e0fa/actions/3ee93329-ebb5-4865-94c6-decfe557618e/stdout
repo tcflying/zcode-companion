@@ -1,0 +1,10 @@
+RC=0
+ ✓ src/pages/__zc51_dom_final.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S1 首刷 2 行：表格出现两行、摘要说「首次读回」而非「新增 2」、notice 非空 159ms
+ ✓ src/pages/__zc51_dom_final.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S2 相同 2 行再刷：摘要变「与上次一致」，仍不出现「新增 2」 216ms
+ ✓ src/pages/__zc51_dom_final.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S3 2→1：页面摘要出现 0 新增 / 1 消失 / 1 保持 235ms
+ ✓ src/pages/__zc51_dom_final.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S4 失败保留旧表：第二次读空源失败后，表格仍保留上一次的 2 行 220ms
+ ✓ src/pages/__zc51_dom_final.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S5 未接 epoch：标题里账号/配置 revision 为 unknown，首刷前目录 revision 亦为 unknown 125ms
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Duration  1.51s (tests 68%, setup 22%, transform 7%, import 3%)
+TEMP_REMOVED=True

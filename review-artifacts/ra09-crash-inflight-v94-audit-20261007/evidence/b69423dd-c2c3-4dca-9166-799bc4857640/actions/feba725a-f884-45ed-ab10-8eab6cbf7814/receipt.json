@@ -1,0 +1,35 @@
+{
+  "task": "business-v94-20261007",
+  "round": "b69423dd-c2c3-4dca-9166-799bc4857640",
+  "project": "companion-journal",
+  "action": "feba725a-f884-45ed-ab10-8eab6cbf7814",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-api-journal-audit-20261007\\private\\run-probe.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640",
+  "pid": 30016,
+  "startedUtc": "2026-10-07T06:44:37.727085+00:00",
+  "start_ns": 1791355477727096000,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T06:44:39.121504+00:00",
+  "end_ns": 1791355479121519300,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640\\actions\\feba725a-f884-45ed-ab10-8eab6cbf7814\\stdout",
+      "sha256": "555ef3f3daf0b2d99d3505621a8de6759136af161f0c6cfde2929c993a658209",
+      "mtime_ns": 1791355479073383500
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640\\actions\\feba725a-f884-45ed-ab10-8eab6cbf7814\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791355477726304600
+    }
+  ]
+}

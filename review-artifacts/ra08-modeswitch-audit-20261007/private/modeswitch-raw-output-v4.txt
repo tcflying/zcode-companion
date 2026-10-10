@@ -1,0 +1,13 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+ ✓ src/pages/__ra08_modeswitch4.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M1 读入 2 条 → 切到写死固定：已读条目被保留并明确告知，不清空 207ms
+ ✓ src/pages/__ra08_modeswitch4.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M2 录入一条手工条目 → 切到动态刷新 → 切回写死固定：手工条目与已读条目都在 329ms
+ ✓ src/pages/__ra08_modeswitch4.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M3 切换全程资格显示为未验证 / E0，绝不变成可发送 311ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+   Start at  08:28:55
+   Duration  1.37s (tests 68%, setup 22%, transform 7%, import 3%)
+
+

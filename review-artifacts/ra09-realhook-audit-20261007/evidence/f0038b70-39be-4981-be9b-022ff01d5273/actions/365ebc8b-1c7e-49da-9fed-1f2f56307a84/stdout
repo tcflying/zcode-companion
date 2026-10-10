@@ -1,0 +1,12 @@
+STRAY_FILES_IN_APPS_UI_SRC=0
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion
+
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  12:04:51
+   Duration  971ms (tests 49%, setup 34%, transform 13%, import 5%)
+
+VITEST_EXIT=0
+CLASS=all_passed

@@ -1,0 +1,48 @@
+{
+  "task": "business-v96-20261007",
+  "round": "786d3e65-1f55-4f88-983c-63a53a0fdfbc",
+  "project": "companion-crossproc-restart",
+  "action": "6914829f-3098-4fca-99aa-07d60d60e367",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\private\\scan-export-entry.py",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc\\export-scan-v96.json"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc",
+  "pid": 61944,
+  "startedUtc": "2026-10-07T07:18:16.245656+00:00",
+  "start_ns": 1791357496245670800,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T07:18:16.921819+00:00",
+  "end_ns": 1791357496921834200,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc\\export-scan-v96.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc\\export-scan-v96.json",
+        "sha256": "5bfe81d48cbef0430363d5e97909f8792186167fc7924ef6fb92680532eb9bbe",
+        "mtime_ns": 1791357496914383400
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc\\actions\\6914829f-3098-4fca-99aa-07d60d60e367\\stdout",
+      "sha256": "5d986149ccea9febde5f65f6f283f9a5b0b677ed61a69f3746e654c2ef58d3cc",
+      "mtime_ns": 1791357496915385800
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc\\actions\\6914829f-3098-4fca-99aa-07d60d60e367\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791357496245056500
+    }
+  ]
+}

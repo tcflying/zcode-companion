@@ -1,0 +1,1119 @@
+# v101 最小 diff（只读生成，未做任何 git 写操作）
+# 已跟踪文件的改动：
+warning: in the working copy of 'apps/ui/src/data/desktopBridge.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'apps/ui/src/pages/LogsPage.tsx', LF will be replaced by CRLF the next time Git touches it
+diff --git a/apps/desktop/lib/log-ring.cjs b/apps/desktop/lib/log-ring.cjs
+index c4c897e..3d097ed 100644
+--- a/apps/desktop/lib/log-ring.cjs
++++ b/apps/desktop/lib/log-ring.cjs
+@@ -125,6 +125,18 @@ function createLogRing(options) {
+       const limit = typeof n === 'number' && n > 0 ? Math.min(Math.trunc(n), buffer.length) : buffer.length;
+       return buffer.slice(buffer.length - limit).map((e) => ({ ...e }));
+     },
++    /**
++     * 褰撳墠鐧昏鐨勬満瀵嗕覆**鍓湰**銆?+     *
++     * 瀛樺湪鐨勭悊鐢憋細鑴辨晱鏃ュ織瀵煎嚭锛坄lib/log-export.cjs`锛夎鍦ㄥ鍑鸿竟鐣?*鍐嶈劚鏁忎竴娆?*锛?+     * 鑰屽畠蹇呴』鐢?*鐜噷鍚屼竴浠?*鏈哄瘑闆嗐€傝瀵煎嚭渚у幓鐚溿€岀櫥璁扮殑鏄摢鍑犱覆銆嶅氨鏄瀹冩湁鏈轰細婕忋€?+     * 杩斿洖鍓湰鑰屼笉鏄唴閮ㄦ暟缁勶細璋冪敤鏂规嬁鍒扮殑鍓湰鍐嶆帓搴忎篃姹℃煋涓嶅埌鐜唴鐘舵€併€?+     *
++     * @returns {string[]}
++     */
++    secrets() {
++      return secrets.slice();
++    },
+     clear() {
+       buffer = [];
+       partial.clear();
+diff --git a/apps/desktop/main.cjs b/apps/desktop/main.cjs
+index e02d1be..ea560d7 100644
+--- a/apps/desktop/main.cjs
++++ b/apps/desktop/main.cjs
+@@ -20,7 +20,7 @@
+ 
+ 'use strict';
+ 
+-const { app, BrowserWindow, Tray, Menu, protocol, net, ipcMain, nativeImage } = require('electron');
++const { app, BrowserWindow, Tray, Menu, protocol, net, ipcMain, nativeImage, dialog } = require('electron');
+ const { spawn } = require('node:child_process');
+ const fs = require('node:fs');
+ const os = require('node:os');
+@@ -28,6 +28,7 @@ const path = require('node:path');
+ 
+ const { resolveRuntimePaths } = require('./lib/runtime-paths.cjs');
+ const { createLogRing } = require('./lib/log-ring.cjs');
++const { createLogExporter } = require('./lib/log-export.cjs');
+ const { createProxyManager } = require('./lib/proxy-manager.cjs');
+ const { buildSpawnSpec: buildSpecForRuntime } = require('./lib/spawn-spec.cjs');
+ const {
+@@ -45,6 +46,7 @@ const {
+   publicSettings,
+   normalizeSettings
+ } = require('./lib/settings.cjs');
++const { createJournal, journalFilePath } = require('./lib/journal.cjs');
+ const { assessSpawnStep } = require('./lib/verify-contract.cjs');
+ 
+ /**
+@@ -100,6 +102,17 @@ const UI_DIST = runtime.uiDist;
+ 
+ const settingsFile = settingsFilePath(app.getPath('userData'));
+ const loaded = loadSettings(settingsFile);
++
++/**
++ * 鎿嶄綔 journal锛?29.md:875銆宩ournal涓嶈冻鎷掓柊鍙戣€岄潪涓nknown銆嶏級銆?+ * 涓?settings.json 鍚屾牴锛歚app.getPath('userData')/journal.json`銆?+ * 瀹归噺涓嶈冻鏃?`append` 杩斿洖 `{ ok:false, reason:'journal_capacity_exceeded' }`锛?+ * 璋冪敤鏂规嵁姝?*鎷掔粷杩欐鏂板彂**锛岃€屼笉鏄鏃ф潯鐩闈欓粯涓㈡帀銆?+ */
++const journalDir = path.dirname(settingsFile);
++const journal = createJournal({ dir: journalDir });
++journal.load(journalDir);
++const journalFile = journalFilePath(journalDir);
+ /**
+  * 涓夌杩愯褰㈡€佺殑鍑嵁绾緥鍚勪笉鐩稿悓锛?  *  - `product`锛氶鍚紩瀵煎厑璁镐粠 `~/.minimax/config.yaml` 璇诲洖**鏈骇鍝佽嚜宸遍偅鎶?* key銆?@@ -123,6 +136,37 @@ let settings = seeded.settings;
+ const logRing = createLogRing({ capacity: 600 });
+ if (settings.apiKey) logRing.addSecret(settings.apiKey);
+ 
++/* --- 鑴辨晱鏃ュ織瀵煎嚭锛圧A-09锛?-- */
++
++/** 瀵煎嚭鍙栫幆閲屾渶杩戝灏戣銆備笌鐜閲忓悓閲忕骇锛氬鍑虹殑瀵硅薄灏辨槸銆岃繖涓€浠芥湰鍦扮紦鍐层€嶃€?*/
++const EXPORT_TAIL_LINES = 600;
++
++/**
++ * 瀵煎嚭鎵ц鍣細璇箟鍏ㄥ湪 `lib/log-export.cjs`锛岃繖閲屽彧鎶婁笁鏍蜂緷璧栨敞杩涘幓
++ * 锛堝彇琛屻€佸彇鏈哄瘑銆侀€夌洰鏍囧苟钀界洏锛夈€傘€岄噸澶嶅姩浣滀笉閲嶅鍐欑洏銆嶇殑鍦ㄩ€旀爣蹇?+ * 鐢辨ā鍧楀唴閮ㄦ寔鏈夛紝涓昏繘绋嬩笉鍐嶈嚜宸辩淮鎶ょ浜屼唤鐘舵€併€?+ */
++const exportLogs = createLogExporter({
++  getLines: () => logRing.tail(EXPORT_TAIL_LINES),
++  // 鐢?*鐜噷鍚屼竴浠?*鏈哄瘑闆嗭紝鑰屼笉鏄湪杩欓噷鍙︾寽涓€鎶?key銆?+  getSecrets: () => logRing.secrets(),
++  saveAs: async ({ generatedAt }) => {
++    const saveOptions = {
++      title: '淇濆瓨鑴辨晱鏃ュ織瀵煎嚭',
++      defaultPath: `zcc-logs-${generatedAt.replace(/[:.]/g, '-')}.txt`,
++      filters: [{ name: '鏂囨湰鏃ュ織', extensions: ['txt', 'log'] }]
++    };
++    // 绐楀彛鍙兘宸茬粡鍏充簡锛氬璇濇娌℃湁鐖剁獥鍙ｆ椂鐓ф牱鑳藉脊锛屾墍浠ユ寜绐楀彛鏄惁鍙敤鍒嗘敮銆?+    const window = /** @type {BrowserWindow | null} */ (mainWindow);
++    return window !== null && !window.isDestroyed()
++      ? dialog.showSaveDialog(window, saveOptions)
++      : dialog.showSaveDialog(saveOptions);
++  },
++  writeFile: (filePath, text) => {
++    fs.writeFileSync(filePath, text, 'utf8');
++  }
++});
++
+ /** @type {BrowserWindow | null} */
+ let mainWindow = null;
+ /** @type {Tray | null} */
+@@ -172,6 +216,10 @@ function buildSpawnSpec() {
+     settings,
+     node: nodeCommand(),
+     parentEnv: process.env,
++    // 929.md:875锛歫ournal 钀藉埌涓?settings **鍚屼竴涓洰褰?*銆?+    // 杩欐槸銆屼粠鏃㈡湁閰嶇疆璺緞鎺ャ€嶇殑瀛楅潰鍚箟鈥斺€斿瓙杩涚▼涓嶉渶瑕佺敤鎴峰彟璁句换浣曞紑鍏筹紝
++    // 瀹冩嬁鍒扮殑灏辨槸涓昏繘绋嬫棭灏卞湪鐢ㄧ殑閭ｄ釜鐩綍锛堜笂闈?journalDir 宸叉槸瀹冿級銆?+    journalDir,
+     shutdownGraceMs: SHUTDOWN_GRACE_MS
+   });
+ }
+@@ -340,6 +388,20 @@ function pushToRenderer() {
+ function registerIpc() {
+   ipcMain.handle('zcc:desktop:state', () => snapshotPayload());
+   ipcMain.handle('zcc:desktop:log', (_event, limit) => logRing.tail(typeof limit === 'number' ? limit : 200));
++  // journal 鍙鍐?*缁撴瀯鍖栨搷浣滆褰?*锛坥perationId / state / outcome / 鏃堕棿锛夛紝
++  // 涓嶅惈浠讳綍鍑嵁銆乼oken銆侀偖绠辨垨浼氳瘽鏍囪瘑銆傚閲忎笉瓒虫椂濡傚疄杩斿洖鎷掔粷鍘熷洜锛岃娓叉煋灞?+  // 鑳芥樉绀恒€屾湰娆℃柊鍙戣鎷掋€嶈€屼笉鏄亣瑁呮垚鍔熴€?+  ipcMain.handle('zcc:journal:list', () => ({
++    entries: journal.list(),
++    problems: journal.listProblems(),
++    file: journalFile,
++    capacity: journal.capacity(),
++    size: journal.size()
++  }));
++  ipcMain.handle('zcc:journal:append', (_event, input) => journal.append(input ?? {}));
++  ipcMain.handle('zcc:journal:cancel', (_event, operationId, reason) =>
++    journal.cancel(String(operationId ?? ''), reason)
++  );
+   ipcMain.handle('zcc:desktop:settings:get', () => ({
+     settings: publicSettings(settings),
+     settingsFile,
+@@ -363,6 +425,20 @@ function registerIpc() {
+   ipcMain.handle('zcc:desktop:start', () => manager.start());
+   ipcMain.handle('zcc:desktop:stop', () => manager.stop());
+   ipcMain.handle('zcc:desktop:restart', () => manager.restart());
++
++  /**
++   * 鑴辨晱鏃ュ織瀵煎嚭锛圧A-09 `929.md:386/445/554/876`锛夈€?+   *
++   * 涓夋潯璇箟鏄埢鎰忓垎寮€鐨勶紝鎶ュ憡閲屽繀椤婚€愭潯瀵瑰緱涓婏細
++   *  1. **闈炴硶杈撳叆濡傚疄鎷掔粷**锛歚planLogExport` 鍏堝垽锛岃繑鍥炲叿浣撶爜锛屼笉闈欓粯鍏滃簳鎴愭垚鍔熴€?+   *  2. **鍙栨秷淇濆瓨涓嶆槸閿欒**锛氱敤鎴峰湪绯荤粺瀵硅瘽妗嗛噷鐐瑰彇娑?鈬?`CANCELLED`锛屼笉鍐欎换浣曟枃浠躲€?+   *  3. **閲嶅鍔ㄤ綔涓嶉噸澶嶅啓鐩?*锛氫繚瀛樿繘琛屼腑鍐嶆潵涓€娆?鈬?`EXPORT_IN_PROGRESS`锛?+   *     鑰屼笉鏄脊绗簩涓璇濇鎴栧啓涓ゆ銆?+   *
++   * `preview` 妯″紡**鍙涓嶈惤鐩?*锛歚:445` 瑕佹眰銆屽鍑烘湁棰勮銆嶏紝棰勮蹇呴』鍏堜簬浠讳綍鍐欏叆銆?+   * 鑴辨晱涓庡瓧鑺備笂闄愰兘鍦?`lib/log-export.cjs` 鐨勭函鍑芥暟閲屽仛锛岄偅閲屾病鏈?fs銆佹病鏈夌綉缁滐紝鍙瀹屾暣鍗曟祴銆?+   */
++  ipcMain.handle('zcc:desktop:logs:export', (_event, input) => exportLogs(input));
+ }
+ 
+ /* -------------------------------------------------------------------------- */
+diff --git a/apps/desktop/preload.cjs b/apps/desktop/preload.cjs
+index 9a3e55d..c8a2664 100644
+--- a/apps/desktop/preload.cjs
++++ b/apps/desktop/preload.cjs
+@@ -3,7 +3,7 @@
+  *
+  * 纭竟鐣岋細
+  *  1. **涓嶆毚闇?`ipcRenderer` 鏈綋銆佷笉鏆撮湶 `require`/`fs`/浠讳綍鍙啓閫氶亾銆?* 鐣岄潰鑳藉仛鐨?- *     姣忎竴浠朵簨閮芥槸涓嬮潰杩欎節涓叿鍚嶆柟娉曪紝涓昏繘绋嬩晶鍙︽湁闂泦鏍￠獙銆?+ *     姣忎竴浠朵簨閮芥槸涓嬮潰杩欏崄涓叿鍚嶆柟娉曪紝涓昏繘绋嬩晶鍙︽湁闂泦鏍￠獙銆?  *  2. **鍑嵁涓嶈繃妗ャ€?* `getSettings` 杩斿洖鐨勬槸鎺╃爜 + `zcc-fp:*` 鎸囩汗锛屾槑鏂?key 姘歌繙
+  *     涓嶅嚭鐜板湪浠讳綍璺ㄨ繘绋嬬殑杩斿洖鍊奸噷锛堝绾﹁ `apps/desktop/lib/settings.cjs`锛夈€?  *  3. **璁㈤槄鍙洖蹇収涓庢棩蹇楀熬**锛屼袱鑰呴兘涓嶅惈鍑嵁銆?@@ -48,7 +48,13 @@ const bridge = {
+    * 淇濆瓨璁剧疆銆俙apiKey` 鐣欑┖鎴栫瓑浜庢帺鐮佽〃绀恒€屼笉鏀广€嶏紝鎹?key 鎵嶆彁浜ゆ柊鍊笺€?    * 杩斿洖浣撳悓鏍峰彧鍚帺鐮佷笌鎸囩汗銆?    */
+-  saveSettings: (/** @type {unknown} */ next) => ipcRenderer.invoke('zcc:desktop:settings:save', next)
++  saveSettings: (/** @type {unknown} */ next) => ipcRenderer.invoke('zcc:desktop:settings:save', next),
++  /**
++   * 鑴辨晱鏃ュ織瀵煎嚭锛圧A-09锛夈€俙mode: 'preview'` **鍙涓嶈惤鐩?*锛岃繑鍥炲墠鑻ュ共瀛楃涓庡瓧鑺傛暟/hash锛?+   * `mode: 'save'` 寮圭郴缁熶繚瀛樺璇濇鐢辩敤鎴烽€夋湰鍦扮洰鏍囷紝鐢ㄦ埛鍙栨秷鍒欏洖 `CANCELLED`銆?+   * 鐣岄潰鎷夸笉鍒颁换浣曟湭鑴辨晱鏂囨湰锛屼篃鎷夸笉鍒板彲鍐欒矾寰勪互澶栫殑鍙ユ焺銆?+   */
++  exportLogs: (/** @type {unknown} */ input) => ipcRenderer.invoke('zcc:desktop:logs:export', input)
+ };
+ 
+ contextBridge.exposeInMainWorld('zccDesktop', Object.freeze(bridge));
+diff --git a/apps/ui/src/data/desktopBridge.ts b/apps/ui/src/data/desktopBridge.ts
+index 9208b28..e257c9a 100644
+--- a/apps/ui/src/data/desktopBridge.ts
++++ b/apps/ui/src/data/desktopBridge.ts
+@@ -74,6 +74,43 @@ export interface SaveSettingsResult {
+   settings?: PublicSettings;
+ }
+ 
++/**
++ * 瀵煎嚭缁撴灉鐨勭粺璁￠潰锛坄:876` 瑕佺殑銆岃劚鏁忓鍑?hash銆嶅氨鏄?`sha256`锛夈€?+ * 鏃犺 `preview` 杩樻槸 `save` 閮藉甫杩欎唤缁熻锛岀晫闈㈡嵁姝ゆ樉绀哄瓧鑺傛暟涓庢埅鏂彁绀恒€?+ */
++export interface LogExportSummary {
++  bytes: number;
++  sha256: string;
++  totalLines: number;
++  includedLines: number;
++  droppedLines: number;
++  truncated: boolean;
++  redactedLines: number;
++  /** 闈炵櫧鍚嶅崟瀛楁琚涪寮冪殑鏉℃暟锛堣鏁版槸浜鸿兘鐪嬪埌鐨勫敮涓€銆屾湁涓滆タ琚繃婊や簡銆嶄俊鍙凤級銆?*/
++  droppedFields: number;
++  /** 鐧藉悕鍗曞瓧娈典絾鍙栧€间笉鍚堟枃娉曘€佽涓㈠純鐨勬潯鏁般€?*/
++  droppedInvalid: number;
++  maxBytes: number;
++  generatedAt: string;
++}
++
++export interface LogExportResult extends LogExportSummary {
++  ok: boolean;
++  mode?: 'preview' | 'save';
++  /** 浠?`preview` 杩斿洖锛氬墠鑻ュ共瀛楃锛屼笉鏄暣绡囥€?*/
++  preview?: string;
++  /** 浠?`save` 鎴愬姛杩斿洖锛氱敤鎴疯嚜宸遍€夊畾鐨勬湰鍦拌矾寰勩€?*/
++  path?: string;
++  /** 澶辫触鐮侊細`INVALID_INPUT` / `EXPORT_IN_PROGRESS` / `CANCELLED` / `SAVE_FAILED`銆?*/
++  code?: string;
++  reason?: string;
++}
++
++export interface LogExportInput {
++  mode: 'preview' | 'save';
++  maxBytes?: number;
++}
++
+ interface DesktopBridge {
+   desktop: boolean;
+   getSnapshot(): Promise<ProxySnapshot>;
+@@ -89,6 +126,7 @@ interface DesktopBridge {
+     driver?: string;
+     reasoning?: string;
+   }): Promise<SaveSettingsResult>;
++  exportLogs(input: LogExportInput): Promise<LogExportResult>;
+ }
+ 
+ declare global {
+@@ -186,3 +224,13 @@ export async function saveSettings(next: {
+   if (bridge === null) return { ok: false, reason: UNAVAILABLE_REASON };
+   return bridge.saveSettings(next);
+ }
++
++/**
++ * 鑴辨晱鏃ュ織瀵煎嚭銆傛闈㈠３缂哄腑鏃?*涓嶅亣瑁呮垚鍔?*鈥斺€斿洖 `DESKTOP_UNAVAILABLE`锛?+ * 鐣岄潰鎹鏄剧ず銆屽綋鍓嶇幆澧冧笉鏀寔瀵煎嚭銆嶏紝鑰屼笉鏄脊涓€涓┖棰勮銆?+ */
++export async function exportLogs(input: LogExportInput): Promise<LogExportResult | { ok: false; code: string; reason: string }> {
++  const bridge = desktopBridge();
++  if (bridge === null) return { ok: false, code: 'DESKTOP_UNAVAILABLE', reason: UNAVAILABLE_REASON };
++  return bridge.exportLogs(input);
++}
+diff --git a/apps/ui/src/pages/LogsPage.tsx b/apps/ui/src/pages/LogsPage.tsx
+index 119a143..791a64e 100644
+--- a/apps/ui/src/pages/LogsPage.tsx
++++ b/apps/ui/src/pages/LogsPage.tsx
+@@ -4,6 +4,7 @@ import { StatePanel } from '../components/StatePanel';
+ import { LOG_LEVELS, LOG_LEVEL_LABEL, type LogLevel } from '../lib/logger';
+ import { formatStamp } from '../lib/format';
+ import { STREAM_LABEL } from '../data/desktopLabels';
++import { exportLogs, type LogExportResult } from '../data/desktopBridge';
+ import type { AppState } from '../app/useAppState';
+ import type { DesktopState } from '../app/useDesktopState';
+ 
+@@ -18,6 +19,32 @@ export function LogsPage({ state, desktop }: { state: AppState; desktop: Desktop
+   const [level, setLevel] = useState<'all' | LogLevel>('all');
+   const [source, setSource] = useState('');
+   const [filterMode, setFilterMode] = useState<'all' | 'info' | 'problem'>('all');
++  // 瀵煎嚭锛圧A-09锛夈€俻review 鍙涓嶈惤鐩橈紱save 鐢辩敤鎴峰湪绯荤粺瀵硅瘽妗嗛噷閫夋湰鍦扮洰鏍囥€?+  // 绋嬪簭**涓嶄細**鑷姩涓婁紶浠讳綍鏂囦欢锛岃繖閲屼篃涓嶆彁渚涗换浣曚笂浼犲叆鍙ｃ€?+  const [exporting, setExporting] = useState(false);
++  const [exportResult, setExportResult] = useState<LogExportResult | null>(null);
++  const [exportError, setExportError] = useState<string | null>(null);
++
++  const runExport = async (mode: 'preview' | 'save') => {
++    setExporting(true);
++    setExportError(null);
++    try {
++      const result = await exportLogs({ mode });
++      if (result.ok) {
++        setExportResult(result);
++        return;
++      }
++      // 鍙栨秷鏄?*姝ｅ父缁撳眬**锛屼笉褰撲綔閿欒寮圭粰鐢ㄦ埛锛涘叾浠栧け璐ョ爜濡傚疄鏄剧ず銆?+      setExportResult(null);
++      if (result.code === 'CANCELLED') {
++        setExportError(null);
++        return;
++      }
++      setExportError(`${result.code}锛?{result.reason}`);
++    } finally {
++      setExporting(false);
++    }
++  };
+ 
+   const sources = useMemo(() => {
+     const set = new Set<string>();
+@@ -245,6 +272,78 @@ export function LogsPage({ state, desktop }: { state: AppState; desktop: Desktop
+           <span className="mono"> node node_modules/vitest/vitest.mjs run --config apps/ui/vitest.config.ts</span>銆?         </p>
+       </Section>
++
++      <Section
++        title="鑴辨晱瀵煎嚭"
++        description="鎶婁笂闈㈣繖浠芥湰鍦版棩蹇楃紦鍐插鍑烘垚涓€浠借劚鏁忔枃鏈€傚厛棰勮鍐嶄繚瀛橈紱淇濆瓨浣嶇疆鐢变綘鍦ㄧ郴缁熷璇濇閲岃嚜閫夛紝鏈▼搴忎笉浼氳嚜鍔ㄤ笂浼犲埌浠讳綍鍦版柟銆傚鍑烘椂鍦ㄥ啓鍏ュ墠鍐嶈劚鏁忎竴娆★紙宸茬櫥璁版満瀵嗕覆 + 鍑嵁褰㈢姸锛夛紝骞跺彈瀛楄妭涓婇檺绾︽潫銆?
++        actions={
++          <div className="toolbar">
++            <button type="button" className="btn" onClick={() => void runExport('preview')} disabled={!desktop.available || exporting}>
++              鐢熸垚棰勮
++            </button>
++            <button type="button" className="btn" onClick={() => void runExport('save')} disabled={!desktop.available || exporting}>
++              淇濆瓨鍒扳€?+            </button>
++            {exporting ? <span className="toolbar__label">瀵煎嚭涓€?/span> : null}
++          </div>
++        }
++      >
++        {!desktop.available ? (
++          <StatePanel tone="info" title="妗岄潰澹虫湭鎺ュ叆锛屽綋鍓嶇幆澧冧笉鏀寔瀵煎嚭">
++            瀵煎嚭闇€瑕佹闈富杩涚▼鍙備笌锛堣劚鏁忎笌瀛楄妭涓婇檺閮藉湪涓昏繘绋嬩晶鎵ц锛夈€傛祻瑙堝櫒閲屾墦寮€鏃舵湰鍔熻兘鏄惧紡涓嶅彲鐢紝涓嶅仛浠讳綍鍋囪鎴愬姛鐨勯檷绾с€?+          </StatePanel>
++        ) : (
++          <>
++            {exportError !== null ? (
++              <StatePanel tone="error" title="瀵煎嚭鏈畬鎴?>
++                {exportError}
++              </StatePanel>
++            ) : null}
++            {exportResult !== null ? (
++              <>
++                <ul className="rule-list rule-list--tight">
++                  <li className="rule">
++                    <span className="rule__class">瀛楄妭</span>
++                    <span className="rule__text mono">{exportResult.bytes} B锛堜笂闄?{exportResult.maxBytes} B锛?/span>
++                  </li>
++                  <li className="rule">
++                    <span className="rule__class">SHA-256</span>
++                    <span className="rule__text mono">{exportResult.sha256}</span>
++                  </li>
++                  <li className="rule">
++                    <span className="rule__class">琛?/span>
++                    <span className="rule__text mono">
++                      鍏?{exportResult.totalLines} 路 瀵煎嚭 {exportResult.includedLines} 路 涓㈠純 {exportResult.droppedLines}
++                      {exportResult.truncated ? '锛堝洜瀛楄妭涓婇檺鎴柇锛屾枃浠跺唴宸茬暀鏍囪琛岋級' : ''}
++                    </span>
++                  </li>
++                  <li className="rule">
++                    <span className="rule__class">鐧藉悕鍗?/span>
++                    <span className="rule__text mono">
++                      闈炵櫧鍚嶅崟瀛楁涓㈠純 {exportResult.droppedFields} 路 鍙栧€间笉鍚堟枃娉曚涪寮?{exportResult.droppedInvalid} 路 鑴辨晱 {exportResult.redactedLines} 琛?+                    </span>
++                  </li>
++                  {exportResult.path !== undefined ? (
++                    <li className="rule">
++                      <span className="rule__class">宸蹭繚瀛?/span>
++                      <span className="rule__text mono">{exportResult.path}</span>
++                    </li>
++                  ) : null}
++                </ul>
++                {exportResult.preview !== undefined ? (
++                  <div className="table-wrap" role="region" aria-label="瀵煎嚭棰勮" tabIndex={0}>
++                    <pre className="log-msg">{exportResult.preview}</pre>
++                  </div>
++                ) : null}
++              </>
++            ) : (
++              <StatePanel tone="empty" title="灏氭湭鐢熸垚瀵煎嚭">
++                鐐广€岀敓鎴愰瑙堛€嶅厛鐪嬪唴瀹逛笌缁熻锛岀‘璁ゆ棤璇啀銆屼繚瀛樺埌鈥︺€嶃€?+              </StatePanel>
++            )}
++          </>
++        )}
++      </Section>
+     </div>
+   );
+ }
+
+# 新增未跟踪文件（--no-index 取全量）：
+warning: in the working copy of 'apps/desktop/lib/log-export.cjs', LF will be replaced by CRLF the next time Git touches it
+diff --git a/apps/desktop/lib/log-export.cjs b/apps/desktop/lib/log-export.cjs
+new file mode 100644
+index 0000000..6fa10be
+--- /dev/null
++++ b/apps/desktop/lib/log-export.cjs
+@@ -0,0 +1,420 @@
++'use strict';
++
++/**
++ * 鑴辨晱鏃ュ織瀵煎嚭锛圧A-09锛宍929.md:386/445/554/876`锛夈€?+ *
++ * 闇€姹傚師鏂囷細
++ *  - `:386` 璁剧疆/璇婃柇鍚?*鑴辨晱瀵煎嚭**
++ *  - `:445` **瀵煎嚭鏈夐瑙?鑴辨晱/鏈湴鐩爣锛屼笉鑷姩涓婁紶 GitHub/浜戠**
++ *  - `:554` **瀵煎嚭棰勮銆佸瓧鑺備笂闄?*
++ *  - `:876` 璇佹嵁鍚?*鑴辨晱瀵煎嚭 hash**
++ *
++ * ## 璁捐鏍稿績锛?*鏄惧紡瀛楁鐧藉悕鍗?*锛屼笉鏄€屽浠绘剰鍘熸枃鍋氳劚鏁忋€?+ *
++ * 涓婁竴鐗堟妸鏃ュ織琛?*鍘熸枃**鑴辨晱鍚庡啓杩涘鍑恒€傞偅鏄笉澶熺殑锛氳劚鏁忓彧鑳借瘑鍒€岄暱寰楀儚鍑嵁銆嶇殑涓滆タ锛?+ * 涓€鏃﹀皢鏉ユ煇琛屾棩蹇楁妸鐢ㄦ埛姝ｆ枃鎷艰繘鑷敱鏂囨湰锛屾鏂囧氨浼?*鍘熸牱閫氳繃**鑴辨晱銆?+ * 鎵€浠ヨ繖涓€鐗堟敼鎴?*鍙鍑虹櫧鍚嶅崟閲岀殑瀛楁**锛屼笖姣忎釜瀛楁杩樻湁**鍙栧€兼枃娉?*锛?+ *  - 瀛楁鍚嶄笉鍦ㄧ櫧鍚嶅崟 鈬?**涓㈠純**锛堝苟璁℃暟锛夛紱
++ *  - 鍙栧€间笉绗﹀悎璇ュ瓧娈垫枃娉?鈬?**涓㈠純**锛堜笉鏄浛鎹紝鏇挎崲绛変簬鎶婂師鏂囩暀鍦ㄦ枃浠堕噷锛夛紱
++ *  - 鏃ュ織琛岄噷鐨?*鑷敱鏂囨湰**锛堟鏂囧氨浣忓湪杩欓噷锛?*鏍规湰涓嶈繘瀵煎嚭鏍煎紡**銆?+ *  鑴辨晱浠嶄繚鐣欙紝浣嗛檷绾т负**绗簩閬?*闃茬嚎锛岃€屼笉鏄敮涓€闃茬嚎銆?+ *
++ * ## 鑳藉姏杈圭晫锛堜笉鍋囪瑙ｅ喅锛?+ *
++ * 涓€涓?canary 鑻ヨ濉炶繘**鐧藉悕鍗曞瓧娈?*涓?*鎭板ソ绗﹀悎璇ュ瓧娈垫枃娉?*锛堜緥濡傛贩鍦?`event=` 閲岋級锛?+ * 鏈ā鍧楄涓嶅嚭鏉ャ€傝繖鏄凡鐭ヨ竟鐣岋紝鍐欏湪娴嬭瘯閲屽瀹為拤浣忥紝涓嶉潬鐚溿€?+ *
++ * ## 鍒嗗眰
++ *
++ * 鏈枃浠?*涓嶇**鏂囦欢绯荤粺銆佷笉寮瑰璇濇銆佷笉鍙戠綉缁滐紝鎵€浠ヨ兘琚畬鏁村崟娴嬶紱
++ * 钀界洏涓庛€屾湰鍦扮洰鏍囬€夋嫨銆嶇敱 `createLogExporter` 鐨勬敞鍏ヤ緷璧栧畬鎴愶紝
++ * 浜庢槸**鍙栨秷 / 鍦ㄩ€?/ 鍐欏け璐?*涓夋潯璇箟涔熻兘琚湡瀹為┍鍔紝鑰屼笉鏄彧闈犱唬鐮佸璇汇€?+ */
++
++const crypto = require('node:crypto');
++
++const REDACTED = '[REDACTED]';
++const OMITTED = '[OMITTED]';
++
++const DEFAULT_MAX_BYTES = 256 * 1024;
++const MIN_MAX_BYTES = 1024;
++const HARD_MAX_BYTES = 8 * 1024 * 1024;
++/** 棰勮鍙洖鍓?N 涓瓧绗︼細棰勮鏈韩涓嶈鍙樻垚涓€娆℃棤鎰忕殑鍏ㄩ噺澶栧甫銆?*/
++const DEFAULT_PREVIEW_CHARS = 4096;
++
++/* -------------------------------------------------------------------------- */
++/* 瀛楁鐧藉悕鍗曚笌鍙栧€兼枃娉?                                                       */
++/* -------------------------------------------------------------------------- */
++
++/**
++ * 鐧藉悕鍗曪細`瀛楁鍚?-> 鍙栧€兼枃娉昤銆?+ *
++ * 姣忔潯鏂囨硶閮?*鍒绘剰鏀剁揣**锛氬畞鍙妸鍚堟硶鍊艰鍒や负涓㈠純锛堥偅鍙槸灏戜竴琛岃瘉鎹€佷笖璁℃暟鍙锛夛紝
++ * 涔熶笉鑳借涓€涓鏂囩墖娈垫贩杩涙潵銆?+ */
++/** @type {Record<string, RegExp>} */
++const EXPORT_FIELD_ALLOWLIST = {
++  event: /^[a-z][a-z0-9_]*$/,
++  operation: /^chatcmpl-[0-9a-fA-F-]{36}$/,
++  pending_operation: /^chatcmpl-[0-9a-fA-F-]{36}$/,
++  key: /^zcc-fp:[0-9a-f]{12}$/,
++  session_key: /^[0-9a-f]{64}$/,
++  status: /^(\d{3}|[a-z][a-z0-9_]*)$/,
++  code: /^[A-Za-z][A-Za-z0-9_]{0,63}$/,
++  state: /^[a-z][a-z0-9_]*$/,
++  kind: /^[a-z][a-z0-9_]*$/,
++  new_key: /^[a-z][a-z0-9_]*$/,
++  idempotency: /^[a-z][a-z0-9_]*$/,
++  fixture: /^(true|false)$/,
++  stream: /^(true|false|sse)$/,
++  bytes: /^\d{1,12}$/,
++  frames: /^\d{1,12}$/,
++  ms: /^\d{1,12}$/,
++  in_flight: /^(true|false)$/,
++  timed_out: /^(true|false)$/,
++  port: /^\d{1,5}$/,
++  limit: /^\d{1,12}$/,
++  grace_ms: /^\d{1,12}$/,
++  method: /^[A-Z]{3,10}$/,
++  address: /^127\.0\.0\.1$/,
++  driver: /^[a-z][a-z0-9_-]{0,31}$/,
++  path: /^\/[A-Za-z0-9/._-]{0,128}$/,
++  reason: /^(|[a-z][a-z0-9_]{0,63})$/,
++  defects: /^(|[A-Za-z0-9_]{1,32}(,[A-Za-z0-9_]{1,32}){0,7})$/
++};
++
++const ALLOWLISTED_FIELDS = Object.keys(EXPORT_FIELD_ALLOWLIST);
++
++/* -------------------------------------------------------------------------- */
++/* 褰㈢姸鑴辨晱锛堢浜岄亾闃茬嚎锛?                                                      */
++/* -------------------------------------------------------------------------- */
++
++const KEY_VALUE_RE =
++  /\b(apiKey|access_token|refresh_token|id_token|token|credential|password|secret|client_secret|authorization|private_key)(\s*[:=]\s*)("?)([^\s"',;]+)\3/gi;
++const PREFIX_RE = /\b(?:sk|pk|rk|ak)-[A-Za-z0-9._-]{6,}/g;
++/** Bearer/JWT/鍓嶇紑蹇呴』**鍏堜簬**閿€艰鍒欙細鍚﹀垯 `Authorization: Bearer x` 浼氬彉鎴?`Authorization: [REDACTED] x`锛屼护鐗屽垢瀛樸€?*/
++const BEARER_RE = /\bBearer\s+[A-Za-z0-9._~+/-]+=*/g;
++const JWT_RE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
++
++/**
++ * @param {string} value
++ * @param {readonly string[]} secrets
++ * @returns {string}
++ */
++function redactValue(value, secrets) {
++  let out = value;
++  for (const secret of secrets) {
++    if (typeof secret === 'string' && secret.length >= 8 && out.includes(secret)) out = out.split(secret).join(REDACTED);
++  }
++  out = out.replace(BEARER_RE, `Bearer ${REDACTED}`);
++  out = out.replace(JWT_RE, REDACTED);
++  out = out.replace(PREFIX_RE, REDACTED);
++  out = out.replace(KEY_VALUE_RE, (_m, key, sep) => `${key}${sep}${REDACTED}`);
++  return out;
++}
++
++/* -------------------------------------------------------------------------- */
++/* 琛?-> 鐧藉悕鍗曞瓧娈?                                                           */
++/* -------------------------------------------------------------------------- */
++
++/**
++ * 鎶婁竴琛?`k=v k=v ...` 瑙ｆ瀽鎴?*鐧藉悕鍗曞瓧娈?*搴忓垪銆?+ * 闈炵櫧鍚嶅崟瀛楁銆侀潪娉曞彇鍊笺€佷互鍙?*鎵€鏈夎嚜鐢辨枃鏈?*閮戒笉杩涚粨鏋溿€?+ *
++ * @param {string} line
++ * @param {readonly string[]} secrets
++ * @returns {{ kept: {key: string, value: string}[], droppedFields: number, droppedInvalid: number }}
++ */
++function selectAllowlistedFields(line, secrets) {
++  /** @type {{ key: string, value: string }[]} */
++  const kept = [];
++  let droppedFields = 0;
++  let droppedInvalid = 0;
++
++  // 瀛楁鍚?*蹇呴』**鍖呭惈杩炲瓧绗︼細鍍?`x-zcc-session-id=` 杩欑甯︽í绾跨殑鍚嶅瓧锛?+// 鑻ュ彧鎸?`[A-Za-z0-9_]` 鍖归厤灏变細鏁存鐪嬩笉瑙佲€斺€斿畠涓嶄細琚鍑猴紙瀹夊叏锛夛紝浣?*涓㈠純璁℃暟浼氬皯鎶?*锛?+// 鑰岃鏁版槸浜鸿兘鐪嬪埌鐨勫敮涓€淇″彿锛?鏈変笢瑗胯杩囨护浜?锛夈€傝俯杩囦竴娆★細`1 !== 2`銆?+for (const match of String(line).matchAll(/(?:^|\s)([a-zA-Z_][a-zA-Z0-9_-]*)=(\S*)/g)) {
++    const key = match[1];
++    if (key === undefined) continue;
++    const rawValue = match[2] ?? '';
++    const grammar = EXPORT_FIELD_ALLOWLIST[key];
++    if (grammar === undefined) {
++      droppedFields += 1;
++      continue;
++    }
++    const redacted = redactValue(rawValue, secrets);
++    if (!grammar.test(redacted)) {
++      droppedInvalid += 1;
++      continue;
++    }
++    kept.push({ key, value: redacted });
++  }
++
++  return { kept, droppedFields, droppedInvalid };
++}
++
++/* -------------------------------------------------------------------------- */
++/* 杞借嵎鏋勫缓                                                                    */
++/* -------------------------------------------------------------------------- */
++
++/**
++ * @typedef {object} ExportOk
++ * @property {true} ok
++ * @property {string} text
++ * @property {number} bytes
++ * @property {string} sha256
++ * @property {number} totalLines
++ * @property {number} includedLines
++ * @property {number} droppedLines
++ * @property {boolean} truncated
++ * @property {number} redactedLines
++ * @property {number} droppedFields
++ * @property {number} droppedInvalid
++ * @property {number} maxBytes
++ * @property {string} generatedAt
++ *
++ * @typedef {object} ExportErr
++ * @property {false} ok
++ * @property {string} code
++ * @property {string} reason
++ */
++
++/**
++ * @param {unknown} input
++ * @returns {{ ok: true, mode: 'preview'|'save', maxBytes: number } | ExportErr}
++ */
++function planLogExport(input) {
++  if (input === null || typeof input !== 'object') {
++    return { ok: false, code: 'INVALID_INPUT', reason: '瀵煎嚭鍙傛暟涓嶆槸瀵硅薄' };
++  }
++  // 涓婇潰鍒氱‘璁ゅ畠鏄璞★紝杩欓噷鎶婂舰鐘舵樉寮忓寲璁╁睘鎬ц闂湁绫诲瀷锛?+  // 杩欐槸**鏃㈡湁杩愯鏃朵簨瀹?*鐨勭被鍨嬫姇褰憋紝涓嶆槸鍏抽棴妫€鏌ャ€?+  const raw = /** @type {Record<string, unknown>} */ (input);
++  const mode = raw.mode ?? 'preview';
++  if (mode !== 'preview' && mode !== 'save') {
++    return { ok: false, code: 'INVALID_INPUT', reason: `鏈煡瀵煎嚭妯″紡锛?{String(mode)}` };
++  }
++  const requested = raw.maxBytes ?? DEFAULT_MAX_BYTES;
++  if (typeof requested !== 'number' || !Number.isInteger(requested) || requested <= 0) {
++    return { ok: false, code: 'INVALID_INPUT', reason: `瀛楄妭涓婇檺闈炴硶锛?{String(requested)}` };
++  }
++  const maxBytes = Math.min(HARD_MAX_BYTES, Math.max(MIN_MAX_BYTES, requested));
++  return { ok: true, mode, maxBytes };
++}
++
++/**
++ * 鏋勫缓瀵煎嚭鏂囨湰銆?*鍙**锛氫笉鏀逛紶鍏ョ殑 lines锛屼笉鍔ㄥ叏灞€鐘舵€併€?+ *
++ * @param {object} input
++ * @param {readonly {stream?: string, at?: number, text?: string}[]} [input.lines]
++ * @param {readonly string[]} [input.secrets]
++ * @param {number} [input.maxBytes]
++ * @param {() => number} [input.now]
++ * @returns {ExportOk | ExportErr}
++ */
++function buildLogExport(input) {
++  const plan = planLogExport(input);
++  if (plan.ok === false) return plan;
++
++  const raw = input ?? {};
++  const lines = raw.lines ?? [];
++  if (!Array.isArray(lines)) return { ok: false, code: 'INVALID_INPUT', reason: 'lines 涓嶆槸鏁扮粍' };
++  const secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
++  const now = typeof raw.now === 'function' ? raw.now : Date.now;
++  const maxBytes = plan.maxBytes;
++  const encoder = new TextEncoder();
++
++  const totalLines = lines.length;
++  const generatedAt = new Date(now()).toISOString();
++  let droppedFields = 0;
++  let droppedInvalid = 0;
++  let redactedLines = 0;
++
++  const prepared = [];
++  for (const entry of lines) {
++    if (entry === null || typeof entry !== 'object') {
++      return { ok: false, code: 'INVALID_INPUT', reason: '鏃ュ織琛屼笉鏄璞? };
++    }
++    const text = typeof entry.text === 'string' ? entry.text : '';
++    const stream = typeof entry.stream === 'string' ? entry.stream : 'main';
++    const at = typeof entry.at === 'number' ? entry.at : null;
++    const selected = selectAllowlistedFields(text, secrets);
++    droppedFields += selected.droppedFields;
++    droppedInvalid += selected.droppedInvalid;
++    if (redactValue(text, secrets) !== text) redactedLines += 1;
++    const stamp = at === null ? '-' : new Date(at).toISOString();
++    const body = selected.kept.map((f) => `${f.key}=${f.value}`).join(' ');
++    prepared.push(`${stamp} stream=${stream} ${body}`.trimEnd());
++  }
++
++  const header = [
++    '# ZCode Companion 鑴辨晱鏃ュ織瀵煎嚭',
++    `# generated_at=${generatedAt}`,
++    `# line_total=${totalLines}`,
++    `# byte_cap=${maxBytes}`,
++    `# allowlist_fields=${ALLOWLISTED_FIELDS.join(',')}`,
++    `# dropped_fields=${droppedFields} dropped_invalid_values=${droppedInvalid}`,
++    '# 鑷敱鏂囨湰锛堢敤鎴锋鏂囨墍鍦ㄥ锛変笉瀵煎嚭锛涗粎淇濈暀鐧藉悕鍗曞瓧娈典笖鍙栧€奸』绗﹀悎鏂囨硶銆?,
++    '# 绋嬪簭涓嶄細鑷姩涓婁紶锛涗繚瀛樹綅缃敱鐢ㄦ埛鍦ㄧ郴缁熷璇濇涓嚜琛岄€夋嫨銆?
++  ];
++
++  const head = `${header.join('\n')}\n`;
++  let bytes = encoder.encode(head).byteLength;
++  const body = [];
++  const bodyBytes = [];
++  let includedLines = 0;
++
++  for (const line of prepared) {
++    const candidate = `${line}\n`;
++    const candidateBytes = encoder.encode(candidate).byteLength;
++    if (bytes + candidateBytes > maxBytes) break;
++    body.push(candidate);
++    bodyBytes.push(candidateBytes);
++    bytes += candidateBytes;
++    includedLines += 1;
++  }
++
++  let marker = null;
++  if (includedLines < totalLines) {
++    // 鏍囪鏂囨湰閲屽惈涓㈠純琛屾暟锛岃€屼涪寮冭鏁板彇鍐充簬鍥為€€浜嗗嚑琛?鈬?浜掔浉渚濊禆锛岃窇瀹氱偣杩唬銆?+    for (;;) {
++      const dropped = totalLines - includedLines;
++      const candidate = `# ... 鎴柇锛氬洜瀛楄妭涓婇檺 ${maxBytes} 鏈鍑?${dropped} 琛岋紙鍏?${totalLines} 琛岋級\n`;
++      const candidateBytes = encoder.encode(candidate).byteLength;
++      if (bytes + candidateBytes <= maxBytes || includedLines === 0) {
++        marker = candidate;
++        bytes += candidateBytes;
++        break;
++      }
++      const freed = bodyBytes.pop();
++      body.pop();
++      includedLines -= 1;
++      bytes -= freed === undefined ? 0 : freed;
++    }
++    body.push(marker);
++  }
++
++  let text = head + body.join('');
++  // 鏃犳潯浠剁粓閽筹細鍗充娇瀹氱偣杩唬鍥犳湭鏉ユ敼鍔ㄥけ鍑嗭紝鏈€缁堟枃鏈篃涓€瀹氫笉瓒呬笂闄愩€?+  if (encoder.encode(text).byteLength > maxBytes) {
++    text = head + '# ... 鎴柇锛氬凡杈惧瓧鑺備笂闄怽n';
++    includedLines = 0;
++    marker = text;
++  }
++
++  const droppedLines = totalLines - includedLines;
++  return {
++    ok: true,
++    text,
++    bytes: encoder.encode(text).byteLength,
++    sha256: crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
++    totalLines,
++    includedLines,
++    droppedLines,
++    truncated: droppedLines > 0,
++    redactedLines,
++    droppedFields,
++    droppedInvalid,
++    maxBytes,
++    generatedAt
++  };
++}
++
++/* -------------------------------------------------------------------------- */
++/* 鍙疄娴嬬殑瀵煎嚭鎵ц鍣?                                                         */
++/* -------------------------------------------------------------------------- */
++
++/**
++ * 閫犱竴涓鍑烘墽琛屽櫒銆?*渚濊禆鍏ㄩ儴娉ㄥ叆**锛屾墍浠ュ彇娑?/ 鍦ㄩ€?/ 鍐欏け璐ヤ笁鏉¤涔?+ * 鍙互鍦ㄦ病鏈?Electron 鐨勫湴鏂硅鐪熷疄椹卞姩锛岃€屼笉鏄彧闈犱唬鐮佸璇汇€?+ *
++ * @param {object} deps
++ * @param {() => readonly {stream?: string, at?: number, text?: string}[]} deps.getLines
++ * @param {() => readonly string[]} deps.getSecrets
++ * @param {(options: {generatedAt: string}) => Promise<{canceled?: boolean, filePath?: string}>} deps.saveAs
++ * @param {(filePath: string, text: string) => void} deps.writeFile
++ * @param {() => number} [deps.now]
++ * @param {number} [deps.previewChars]
++ */
++function createLogExporter(deps) {
++  let inFlight = false;
++
++  /**
++   * @param {unknown} input
++   * @returns {Promise<object>}
++   */
++  return async function run(input) {
++    const plan = planLogExport(input);
++    if (plan.ok === false) return plan;
++    if (inFlight) {
++      return { ok: false, code: 'EXPORT_IN_PROGRESS', reason: '宸叉湁涓€涓鍑轰繚瀛樻鍦ㄨ繘琛岋紝璇峰厛瀹屾垚鎴栧彇娑堛€? };
++    }
++
++    const built = buildLogExport({
++      lines: deps.getLines(),
++      secrets: deps.getSecrets(),
++      maxBytes: plan.maxBytes,
++      now: deps.now
++    });
++    if (built.ok === false) return built;
++
++    const summary = {
++      bytes: built.bytes,
++      sha256: built.sha256,
++      totalLines: built.totalLines,
++      includedLines: built.includedLines,
++      droppedLines: built.droppedLines,
++      truncated: built.truncated,
++      redactedLines: built.redactedLines,
++      droppedFields: built.droppedFields,
++      droppedInvalid: built.droppedInvalid,
++      maxBytes: built.maxBytes,
++      generatedAt: built.generatedAt
++    };
++
++    if (plan.mode === 'preview') {
++      const limit = typeof deps.previewChars === 'number' ? deps.previewChars : DEFAULT_PREVIEW_CHARS;
++      return { ok: true, mode: 'preview', preview: built.text.slice(0, limit), ...summary };
++    }
++
++    inFlight = true;
++    try {
++      const chosen = await deps.saveAs({ generatedAt: built.generatedAt });
++      // 鍙栨秷鏄?*姝ｅ父缁撳眬**锛氫笉鍐欐枃浠躲€佷笉鎶ラ敊銆佷笉鐣欏崐鎴枃浠躲€?+      if (chosen === null || chosen === undefined || chosen.canceled === true) {
++        return { ok: false, code: 'CANCELLED', reason: '鐢ㄦ埛鍙栨秷浜嗕繚瀛橈紝鏈啓鍏ヤ换浣曟枃浠躲€?, ...summary };
++      }
++      if (typeof chosen.filePath !== 'string' || chosen.filePath === '') {
++        return { ok: false, code: 'CANCELLED', reason: '鏈€夊畾淇濆瓨璺緞锛屾湭鍐欏叆浠讳綍鏂囦欢銆?, ...summary };
++      }
++      deps.writeFile(chosen.filePath, built.text);
++      return { ok: true, mode: 'save', path: chosen.filePath, ...summary };
++    } catch (error) {
++      return {
++        ok: false,
++        code: 'SAVE_FAILED',
++        reason: error instanceof Error ? error.message : String(error),
++        ...summary
++      };
++    } finally {
++      inFlight = false;
++    }
++  };
++}
++
++module.exports = {
++  REDACTED,
++  OMITTED,
++  DEFAULT_MAX_BYTES,
++  MIN_MAX_BYTES,
++  HARD_MAX_BYTES,
++  DEFAULT_PREVIEW_CHARS,
++  EXPORT_FIELD_ALLOWLIST,
++  ALLOWLISTED_FIELDS,
++  redactValue,
++  selectAllowlistedFields,
++  planLogExport,
++  buildLogExport,
++  createLogExporter
++};
+\ No newline at end of file
+warning: in the working copy of 'apps/desktop/lib/__tests__/log-export.test.mjs', LF will be replaced by CRLF the next time Git touches it
+diff --git a/apps/desktop/lib/__tests__/log-export.test.mjs b/apps/desktop/lib/__tests__/log-export.test.mjs
+new file mode 100644
+index 0000000..3660a16
+--- /dev/null
++++ b/apps/desktop/lib/__tests__/log-export.test.mjs
+@@ -0,0 +1,380 @@
++/**
++ * 鑴辨晱鏃ュ織瀵煎嚭锛坄apps/desktop/lib/log-export.cjs`锛夊崟娴嬨€?+ *
++ * 钀界洏鐩爣**鍙湪 `os.tmpdir()`**锛氭湰鏂囦欢鐢?`fs.mkdtempSync` 鐜伴€犵鏈夌洰褰曪紝
++ * 浠讳綍鏂█閮藉彧璇?鍙啓閭ｉ噷銆傜粷涓嶈Е纰扮湡瀹炵敤鎴锋枃浠躲€佺湡瀹炶缃洰褰曟垨鐪熷疄鍑嵁銆?+ * 鍚堟垚 canary 鍏ㄩ儴鏄湰鏂囦欢鐜伴€犵殑甯搁噺涓层€?+ *
++ * 杩愯锛歚node --test apps/desktop/lib/__tests__/log-export.test.mjs`
++ */
++
++'use strict';
++
++import assert from 'node:assert/strict';
++import crypto from 'node:crypto';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import test from 'node:test';
++import { createRequire } from 'node:module';
++
++const require = createRequire(import.meta.url);
++const {
++  DEFAULT_MAX_BYTES,
++  MIN_MAX_BYTES,
++  HARD_MAX_BYTES,
++  ALLOWLISTED_FIELDS,
++  selectAllowlistedFields,
++  planLogExport,
++  buildLogExport,
++  createLogExporter
++} = require('../log-export.cjs');
++
++/** 鍚堟垚 canary锛氶潪鍑嵁褰㈢姸锛屾湰鏂囦欢鐜伴€狅紝涓嶅搴斾换浣曠湡瀹炲€笺€?*/
++const CANARY_BODY = 'RA09CANARY-7f3a91c4e2b6d05';
++const CANARY_REGISTERED = 'zcc-canary-registered-4f1d9a';
++const OP_ID = 'chatcmpl-68379b97-81c8-4329-9e3a-46e6cfdafbfb';
++const HEX64 = 'a'.repeat(64);
++const FIXED_NOW = () => Date.parse('2026-10-07T08:00:00.000Z');
++const AT = Date.parse('2026-10-07T07:59:00.000Z');
++
++function line(text, stream = 'stdout') {
++  return { stream, at: AT, text };
++}
++
++/** 绉佹湁涓存椂鐩綍锛氭墍鏈夎惤鐩樻柇瑷€鍙湪杩欓噷鍙戠敓銆?*/
++function privateTmp(tag) {
++  return fs.mkdtempSync(path.join(os.tmpdir(), `zcc-ra09-exp-${tag}-`));
++}
++
++/* -------------------------------------------------------------------------- */
++/* 鐧藉悕鍗曪細瀛楁鍚嶄笌鍙栧€兼枃娉?                                                    */
++/* -------------------------------------------------------------------------- */
++
++test('姝ｆ枃 canary 鎵€鍦ㄧ殑鑷敱鏂囨湰鏍规湰涓嶈繘瀵煎嚭', () => {
++  const built = buildLogExport({
++    lines: [line(`event=completion operation=${OP_ID} status=200 鐢ㄦ埛鎻愰棶锛?{CANARY_BODY}`)],
++    secrets: [],
++    now: FIXED_NOW
++  });
++  assert.equal(built.ok, true);
++  assert.equal(built.text.includes(CANARY_BODY), false, '姝ｆ枃 canary 涓嶅緱鍑虹幇鍦ㄥ鍑烘枃鏈噷');
++  assert.ok(built.text.includes('event=completion'), '鐧藉悕鍗曞瓧娈靛繀椤讳繚鐣?);
++  assert.ok(built.text.includes(OP_ID));
++});
++
++test('闈炵櫧鍚嶅崟瀛楁琚涪寮冨苟璁℃暟', () => {
++  const built = buildLogExport({
++    lines: [line(`event=operation operation=${OP_ID} my_private_field=${CANARY_BODY} x-zcc-session-id=${CANARY_BODY}`)],
++    secrets: [],
++    now: FIXED_NOW
++  });
++  assert.equal(built.droppedFields, 2, '涓や釜闈炵櫧鍚嶅崟瀛楁閮藉繀椤昏璁℃暟');
++  assert.equal(built.text.includes(CANARY_BODY), false);
++  assert.equal(built.text.includes('my_private_field'), false);
++});
++
++test('鐧藉悕鍗曞瓧娈电殑鍙栧€间笉鍚堟枃娉?鈬?涓㈠純锛堜笉鏄浛鎹紝鏇挎崲绛変簬鎶婂師鏂囩暀鍦ㄦ枃浠堕噷锛?, () => {
++  const built = buildLogExport({
++    // key 瀛楁鏂囨硶鏄?zcc-fp:<12 hex>锛涘 canary 杩涘幓蹇呴』琚涪锛岃€屼笉鏄娲楁垚 [REDACTED] 鐣欎笅銆?+    lines: [line(`event=operation key=${CANARY_BODY} status=200`)],
++    secrets: [],
++    now: FIXED_NOW
++  });
++  assert.equal(built.droppedInvalid, 1);
++  assert.equal(built.text.includes(CANARY_BODY), false);
++  assert.ok(built.text.includes('event=operation'));
++});
++
++test('鍙嶅悜瀵圭収锛氫竴琛岀函鐧藉悕鍗曞瓧娈靛繀椤?0 涓㈠純銆? 鑴辨晱', () => {
++  const text = `event=operation key=zcc-fp:1a2b3c4d5e6f operation=${OP_ID} status=200 stream=false fixture=false idempotency=none`;
++  const built = buildLogExport({ lines: [line(text)], secrets: [], now: FIXED_NOW });
++  assert.equal(built.droppedFields, 0, '鐧藉悕鍗曞瓧娈典笉寰楄璇涪');
++  assert.equal(built.droppedInvalid, 0, '鍚堟硶鍙栧€间笉寰楄璇垽');
++  assert.equal(built.redactedLines, 0);
++});
++
++test('宸茬櫥璁版満瀵嗕笉鍑虹幇鍦ㄥ鍑洪噷鈥斺€斾絾**鎵块噸闃茬嚎鏄彇鍊兼枃娉曪紝涓嶆槸鏈哄瘑鏇挎崲**', () => {
++  // 濡傚疄鏍囨敞鏈哄埗锛歚reason` 鐨勬枃娉曚笉鎺ュ彈浠讳綍鍚?`zcc-canary-...` 鐨勫彇鍊硷紝
++  // 鎵€浠ュ嵆渚挎妸鏈哄瘑鏇挎崲寰幆鏁存鍒犳帀锛岃繖鏉℃柇瑷€**鐓ф牱鎴愮珛**銆?+  // 涔熷氨鏄 `redactValue` 鐨勬満瀵嗗惊鐜湪瀵煎嚭璺緞涓婃槸**绾垫繁闃插尽銆佷笉鏄壙閲嶉」**銆?+  // 鎶婂畠鍐欐垚"鍥犱负鏈哄瘑鏇挎崲鎵嶄笉娉勬紡"浼氭槸**褰掑洜閿欒**鈥斺€旈偅绉嶆柇瑷€鐪嬬潃鏈夌墮锛屽疄鍒欐亽鐪熴€?+  const built = buildLogExport({
++    lines: [line(`event=rate_limited key=zcc-fp:1a2b3c4d5e6f reason=${CANARY_REGISTERED}`)],
++    secrets: [CANARY_REGISTERED],
++    now: FIXED_NOW
++  });
++  assert.equal(built.text.includes(CANARY_REGISTERED), false);
++  assert.ok(built.droppedInvalid + built.droppedFields > 0, '鐪熸涓㈠純瀹冪殑鏄瓧娈靛彇鍊兼枃娉?);
++});
++
++test('鍑嵁褰㈢姸鍦ㄧ櫧鍚嶅崟瀛楁閲屽悓鏍疯娲楁帀', () => {
++  const built = buildLogExport({
++    lines: [line('event=rejected status=401 token=sk-abcdef123456')],
++    secrets: [],
++    now: FIXED_NOW
++  });
++  assert.equal(built.text.includes('sk-abcdef123456'), false);
++});
++
++test('鑳藉姏杈圭晫濡傚疄璁板綍锛氱櫧鍚嶅崟瀛楁閲屽舰浼煎悎娉曠殑 canary 璁や笉鍑烘潵锛堜笉鍋囪瑙ｅ喅锛?, () => {
++  // reason 鏂囨硶鏄?`^([a-z][a-z0-9_]{0,63})$`锛屽皬鍐欑煭涓查兘鍚堟硶銆?+  // 涓€涓?*鍏ㄥ皬鍐?*鐨?canary 濉炲湪 reason 閲岀‘瀹炶繃寰楀幓鈥斺€旇繖鏄凡鐭ヨ竟鐣岋紝鍐欐垚娴嬭瘯閽変綇锛?+  // 鍏嶅緱灏嗘潵鏈変汉浠ヤ负鐧藉悕鍗曠瓑浜庝竾鑳介槻鎶ゃ€?+  const lowercaseCanary = 'ra09canarylower7f3a91c4';
++  const built = buildLogExport({
++    lines: [line(`event=x reason=${lowercaseCanary}`)],
++    secrets: [],
++    now: FIXED_NOW
++  });
++  assert.equal(built.text.includes(lowercaseCanary), true, '杩欐槸宸茬煡鑳藉姏杈圭晫锛屽瀹為拤浣?);
++});
++
++/* -------------------------------------------------------------------------- */
++/* 瀛楄妭涓婇檺                                                                    */
++/* -------------------------------------------------------------------------- */
++
++test('涓嶈秴涓婇檺鏃朵笉鎴柇涓斿畬鏁?, () => {
++  const built = buildLogExport({ lines: [line('event=a'), line('event=b')], now: FIXED_NOW });
++  assert.equal(built.truncated, false);
++  assert.equal(built.droppedLines, 0);
++  assert.equal(built.includedLines, 2);
++});
++
++test('瓒呬笂闄愭椂鎸夎鎴柇銆佸瀹炴爣璁帮紝瀹為檯瀛楄妭涓嶈秴涓婇檺', () => {
++  const many = Array.from({ length: 400 }, (_, i) => line(`event=filler stream=false status=200 in_flight=false ${'x'.repeat(70)}`));
++  const built = buildLogExport({ lines: many, maxBytes: 4096, now: FIXED_NOW });
++  assert.equal(built.truncated, true);
++  assert.ok(built.droppedLines > 0);
++  assert.equal(built.includedLines + built.droppedLines, built.totalLines);
++  assert.ok(built.bytes <= 4096, `瀹為檯瀛楄妭 ${built.bytes} 瓒呬笂闄恅);
++  assert.ok(built.text.includes('鎴柇'));
++});
++
++test('涓婇檺澶瑰湪 [MIN, HARD]', () => {
++  assert.equal(planLogExport({ maxBytes: 10 }).maxBytes, MIN_MAX_BYTES);
++  assert.equal(planLogExport({ maxBytes: 10 ** 12 }).maxBytes, HARD_MAX_BYTES);
++  assert.equal(planLogExport({}).maxBytes, DEFAULT_MAX_BYTES);
++});
++
++test('闈炴硶杈撳叆涓€寰?INVALID_INPUT', () => {
++  assert.equal(buildLogExport({ mode: 'nope', lines: [] }).code, 'INVALID_INPUT');
++  assert.equal(buildLogExport({ maxBytes: -1 }).code, 'INVALID_INPUT');
++  assert.equal(buildLogExport({ lines: 'not-an-array' }).code, 'INVALID_INPUT');
++  assert.equal(buildLogExport({ lines: [42] }).code, 'INVALID_INPUT');
++});
++
++/* -------------------------------------------------------------------------- */
++/* 纭畾鎬т笌鍙                                                                */
++/* -------------------------------------------------------------------------- */
++
++test('鍚岃緭鍏ュ悓鏃堕棿 鈬?鍚?sha256锛涗笉鍚屾椂闂?鈬?涓嶅悓 sha256', () => {
++  const input = { lines: [line('event=a')], secrets: [] };
++  const a = buildLogExport({ ...input, now: FIXED_NOW });
++  const b = buildLogExport({ ...input, now: FIXED_NOW });
++  assert.equal(a.sha256, b.sha256);
++  assert.equal(a.sha256, crypto.createHash('sha256').update(a.text, 'utf8').digest('hex'));
++  const c = buildLogExport({ ...input, now: () => Date.parse('2026-10-07T08:00:01.000Z') });
++  assert.notEqual(a.sha256, c.sha256);
++});
++
++test('瀵煎嚭鏄彧璇绘梺璺細涓嶄慨鏀逛紶鍏ョ殑 lines', () => {
++  const lines = [line('event=a')];
++  const snapshot = JSON.stringify(lines);
++  buildLogExport({ lines, secrets: [], now: FIXED_NOW });
++  assert.equal(JSON.stringify(lines), snapshot);
++});
++
++/* -------------------------------------------------------------------------- */
++/* 鐪熷疄椹卞姩锛歱review / save / cancel / repeat                                   */
++/* -------------------------------------------------------------------------- */
++
++/** 閫犱竴涓鍑哄櫒锛宍saveAs` 涓?`writeFile` 閮芥槸鍙帶妗╋紝鍐欏叆鐩爣鐢辨祴璇曟寚瀹氬湪绉佹湁涓存椂鐩綍鍐呫€?*/
++function makeExporter({ dir, lines, secrets = [], saveAs, now = FIXED_NOW }) {
++  const writes = [];
++  const run = createLogExporter({
++    getLines: () => lines,
++    getSecrets: () => secrets,
++    saveAs,
++    writeFile: (filePath, text) => {
++      writes.push(filePath);
++      fs.writeFileSync(filePath, text, 'utf8');
++    },
++    now
++  });
++  return { run, writes };
++}
++
++test('preview锛氬彧璇讳笉钀界洏锛屼笖鍥炲悙鍐呭閲屾病鏈夋鏂?canary', async () => {
++  const dir = privateTmp('preview');
++  const { run, writes } = makeExporter({
++    dir,
++    lines: [line(`event=completion operation=${OP_ID} 姝ｆ枃锛?{CANARY_BODY}`)],
++    saveAs: async () => {
++      throw new Error('preview 涓嶈璋冪敤 saveAs');
++    }
++  });
++  const result = await run({ mode: 'preview' });
++  assert.equal(result.ok, true);
++  assert.equal(result.mode, 'preview');
++  assert.equal(typeof result.preview, 'string');
++  assert.equal(result.preview.includes(CANARY_BODY), false);
++  assert.ok(result.sha256);
++  assert.deepEqual(writes, [], 'preview 涓嶅緱鍐欎换浣曟枃浠?);
++});
++
++test('save锛氱湡瀹炶惤鐩樺埌绉佹湁涓存椂鐩綍锛屾枃浠跺唴瀹逛笉鍚?canary锛屼笖 hash 鍙绠?, async () => {
++  const dir = privateTmp('save');
++  const target = path.join(dir, 'export.txt');
++  const { run, writes } = makeExporter({
++    dir,
++    lines: [line(`event=completion operation=${OP_ID} 姝ｆ枃锛?{CANARY_BODY}`)],
++    saveAs: async () => ({ canceled: false, filePath: target })
++  });
++  const result = await run({ mode: 'save' });
++  assert.equal(result.ok, true);
++  assert.equal(result.path, target);
++  assert.deepEqual(writes, [target], '鍙簲鍐欎竴娆★紝涓斿彧鍐欑敤鎴烽€夊畾鐨勯偅涓€涓洰鏍?);
++
++  const onDisk = fs.readFileSync(target, 'utf8');
++  assert.equal(onDisk.includes(CANARY_BODY), false, '钀界洏鏂囦欢涓嶅緱鍚鏂?canary');
++  assert.equal(
++    crypto.createHash('sha256').update(onDisk, 'utf8').digest('hex'),
++    result.sha256,
++    ':876 瑕佺殑鑴辨晱瀵煎嚭 hash 蹇呴』鑳戒粠钀界洏鏂囦欢澶嶇畻鍑烘潵'
++  );
++});
++
++test('cancel锛氫笉鍐欎换浣曟枃浠讹紝涓斿洖 CANCELLED锛堜笉鏄敊璇爜涔熶笉鏄垚鍔燂級', async () => {
++  const dir = privateTmp('cancel');
++  const { run, writes } = makeExporter({
++    dir,
++    lines: [line('event=a')],
++    saveAs: async () => ({ canceled: true })
++  });
++  const result = await run({ mode: 'save' });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, 'CANCELLED');
++  assert.deepEqual(writes, [], '鍙栨秷涓嶅緱鐣欎笅浠讳綍鍐欏叆');
++  assert.deepEqual(fs.readdirSync(dir), [], '鍙栨秷涓嶅緱鍦ㄧ洰鏍囩洰褰曠暀涓嬩换浣曟枃浠?);
++});
++
++test('cancel锛氶€変簡璺緞浣?filePath 涓虹┖涓诧紝鍚屾牱鎸夊彇娑堝鐞?, async () => {
++  const dir = privateTmp('cancel2');
++  const { run, writes } = makeExporter({
++    dir,
++    lines: [line('event=a')],
++    saveAs: async () => ({ canceled: false, filePath: '' })
++  });
++  const result = await run({ mode: 'save' });
++  assert.equal(result.code, 'CANCELLED');
++  assert.deepEqual(writes, []);
++});
++
++test('repeat锛氫繚瀛樿繘琛屼腑鏃跺啀鏉ヤ竴娆?鈬?EXPORT_IN_PROGRESS锛屼笖涓嶉噸澶嶅啓鐩?, async () => {
++  const dir = privateTmp('repeat');
++  const target = path.join(dir, 'export.txt');
++  let saveCalls = 0;
++  let release;
++  const gate = new Promise((resolve) => {
++    release = resolve;
++  });
++  const { run, writes } = makeExporter({
++    dir,
++    lines: [line('event=a')],
++    saveAs: async () => {
++      saveCalls += 1;
++      await gate; // 鎶婄涓€娆′繚瀛樺崱鍦ㄣ€岄€夌洰鏍囥€嶈繖涓€姝ワ紝鍒堕€犵湡瀹炵殑骞跺彂绐楀彛
++      return { canceled: false, filePath: target };
++    }
++  });
++
++  const first = run({ mode: 'save' });
++  const second = await run({ mode: 'save' });
++  assert.equal(second.ok, false);
++  assert.equal(second.code, 'EXPORT_IN_PROGRESS', '閲嶅鍔ㄤ綔蹇呴』琚湪閫旈椄闂ㄦ尅浣?);
++  assert.equal(saveCalls, 1, '绗簩娆′笉寰楀啀寮逛竴娆′繚瀛樺璇濇');
++
++  release();
++  const firstResult = await first;
++  assert.equal(firstResult.ok, true);
++  assert.deepEqual(writes, [target], '鏁翠釜杩囩▼鍙啓涓€娆★紝涓嶉噸澶嶅啓鐩?);
++  // 瓒呮椂鏄?*蹇呴渶**鐨勶紝涓嶆槸淇濋櫓锛氭妸鍦ㄩ€旈椄闂ㄧ煭鎺ユ帀涔嬪悗锛岀浜屾 run() 浼氬悓鏍峰崱鍦?+  // saveAs 鐨?gate 涓婏紝`await second` 姘歌繙涓嶈繑鍥?鈬?鏁磋疆鎸傛鑰屼笉鏄彉绾€?+  // 鎸傛鐨勫彉寮備綋楠岃瘉绛変簬娌℃湁楠岃瘉锛堝畠鏃笉鎶ラ€氳繃涔熶笉鎶ュけ璐ワ紝鍙槸鎶婇棬鍗′綇锛夈€?+}, { timeout: 15000 });
++
++test('鍐欑洏澶辫触 鈬?SAVE_FAILED锛堝瀹炴姤閿欙紝涓嶅亣瑁呬繚瀛樻垚鍔燂級', async () => {
++  const dir = privateTmp('writefail');
++  const run = createLogExporter({
++    getLines: () => [line('event=a')],
++    getSecrets: () => [],
++    saveAs: async () => ({ canceled: false, filePath: path.join(dir, 'x.txt') }),
++    writeFile: () => {
++      throw new Error('disk is read-only (fixture)');
++    },
++    now: FIXED_NOW
++  });
++  const result = await run({ mode: 'save' });
++  assert.equal(result.ok, false);
++  assert.equal(result.code, 'SAVE_FAILED');
++  assert.match(result.reason, /read-only/);
++});
++
++test('鍐欑洏澶辫触鍚庨椄闂ㄥ繀椤婚噴鏀撅細涓嬩竴娆′繚瀛樹粛鍙垚鍔燂紙涓嶈娈嬬暀鐘舵€佹案涔呭崱姝伙級', async () => {
++  const dir = privateTmp('release');
++  const target = path.join(dir, 'export.txt');
++  let shouldFail = true;
++  const run = createLogExporter({
++    getLines: () => [line('event=a')],
++    getSecrets: () => [],
++    saveAs: async () => ({ canceled: false, filePath: target }),
++    writeFile: (filePath, text) => {
++      if (shouldFail) {
++        shouldFail = false;
++        throw new Error('transient fixture failure');
++      }
++      fs.writeFileSync(filePath, text, 'utf8');
++    },
++    now: FIXED_NOW
++  });
++  assert.equal((await run({ mode: 'save' })).code, 'SAVE_FAILED');
++  assert.equal((await run({ mode: 'save' })).ok, true, '闂搁棬蹇呴』宸查噴鏀?);
++  assert.ok(fs.existsSync(target));
++});
++
++test('闈炴硶 mode 鍦ㄨЕ杈?saveAs 涔嬪墠灏辫鎷?, async () => {
++  const dir = privateTmp('badmode');
++  let saveCalls = 0;
++  const { run } = makeExporter({
++    dir,
++    lines: [line('event=a')],
++    saveAs: async () => {
++      saveCalls += 1;
++      return { canceled: true };
++    }
++  });
++  const result = await run({ mode: 'upload-to-cloud' });
++  assert.equal(result.code, 'INVALID_INPUT');
++  assert.equal(saveCalls, 0);
++});
++
++/* -------------------------------------------------------------------------- */
++/* 鐧藉悕鍗曟湰韬?                                                                 */
++/* -------------------------------------------------------------------------- */
++
++test('鐧藉悕鍗曟槸鏄惧紡琛紝涓斾笉鍚换浣曡嚜鐢辨枃鏈瓧娈?, () => {
++  assert.ok(Array.isArray(ALLOWLISTED_FIELDS));
++  assert.ok(ALLOWLISTED_FIELDS.includes('event'));
++  assert.ok(ALLOWLISTED_FIELDS.includes('operation'));
++  for (const forbidden of ['message', 'text', 'content', 'prompt', 'body', 'raw']) {
++    assert.equal(ALLOWLISTED_FIELDS.includes(forbidden), false, `鐧藉悕鍗曚笉寰楀惈 ${forbidden}`);
++  }
++});
++
++test('selectAllowlistedFields锛氳嚜鐢辨枃鏈笉浜х敓浠讳綍瀛楁', () => {
++  const out = selectAllowlistedFields(`鐢ㄦ埛娑堟伅锛?{CANARY_BODY}`, []);
++  assert.deepEqual(out.kept, []);
++  assert.equal(out.droppedFields, 0);
++  assert.equal(out.droppedInvalid, 0);
++});
+\ No newline at end of file

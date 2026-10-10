@@ -1,0 +1,34 @@
+{
+  "task": "ra09-journal-impl",
+  "round": "3fa0162a-093f-4363-b2b7-9f87f3bce0bb",
+  "status": "blocked",
+  "projects": {
+    "impl": {
+      "actions": [
+        "f4187197-795a-409b-af5e-792f57153896",
+        "e84e8767-31d7-4163-8ecc-f7d725f17744",
+        "3fdf77d8-cccd-4e8c-95b7-69df8761a883",
+        "05337c6c-1f7c-404f-af7f-559a64a1f9ac"
+      ],
+      "explanation": "RA-09 条款 875『journal不足拒新发而非丢unknown』的实现与私有数据验收。改动范围精确三处：新增 apps/desktop/lib/journal.cjs（持久化唯一实现）、新增 apps/desktop/lib/__tests__/journal.test.mjs（私有临时 data 验收）、既有 apps/desktop/main.cjs 纯新增 26 行（require + 实例化 + 3 个 IPC handler），git diff --stat 显示 26 insertions 零删除，无重构无新架构。行为验收 f4187197：pid 65476，exit 0，2026-10-07T05:22:07Z-05:22:07Z，node --test 输出 tests 5 / pass 5 / fail 0 / duration_ms 94，五条用例分别是 J1 容量不足明确拒绝新发（返回 journal_capacity_exceeded、entry 为 null、条目数不变、被拒条目不落盘）、J2 unknown 记录在连续 12 次容量压力下逐字保留（state/outcome/at 全等、evictable 为 false）、J3 进程重开（新实例 load）后 unknown 与全部记录从磁盘读回且 journal.json 确实落盘、J4 边界语义（取消不改写已有 unknown 而是另记一条 #cancel 事实、重复 operationId 幂等且返回既有条目不被后到者覆盖、写失败返回 journal_write_failed 且内存态不变不落盘）、J5 读损坏逐条丢弃并如实报告不整份丢弃不覆盖原文件。语法检查 e84e8767：node --check main.cjs exit 0（journal.cjs 与测试文件另行 --check 亦均 exit 0，未启动任何进程）。接线核证 3fdf77d8（pid 65860，exit 0）确认 journal 进入真实业务入口而非孤立新 helper：main 真实 require、实例化、目录取 path.dirname(settingsFile) 即真实 userData、启动时 load、三个 IPC handler 已注册且 append 结果原样透出、journal_capacity_exceeded 原因对渲染层可见；落盘范式与 settings.cjs 同款（tmp+rename 原子写、mode 0o600）；语义保护齐备（unknown 与 in_flight 均不可淘汰、新条目自身不可作为淘汰对象给自己腾位、写失败如实报告、unknown 必须带 outcome）；测试隔离确认只用 os.tmpdir() 私有目录且跑完清理、不触碰真实 userData。05337c6c 把封存 stdout 转录为结构化裁定 JSON 产物（generated=True，sha256 f68a79024a4fe39aa9c17491a7bdf48b027ff85942c0b49b1690fc06c58f1ed3）。全程未启动宿主、未调用真实推理、未使用真实凭据、未做运行时 IPC 调用、未触碰真实 userData、未改 git、未写记忆。",
+      "blockers": [
+        {
+          "condition": "条款 875 的 journal 要求已实现并通过私有临时 data 验收，但 RA-09 的其余通过条件（secret canary 导出无泄漏、官方秘密未入采集管道、密钥 ACL、OS 级加密存储、后台自动上转）仍未覆盖，故 RA-09 整体不可签收",
+          "gap": "本轮只实现并验收了 :875 后半句『journal不足拒新发而非丢unknown』；前半句『secret canary无泄漏、正文默认不外带』与『官方秘密不曾进入采集管道』未测；密钥 ACL、OS 级加密存储、后台自动上转链路未测；journal 的 IPC handler 只做了源码级注册核证，未做运行时调用（按父审要求不启动宿主、不做 IPC）；真实 userData 下的落盘未触碰（按授权只用私有临时 data）",
+          "action": "05337c6c-1f7c-404f-af7f-559a64a1f9ac",
+          "observed": "NOT_SIGNED",
+          "required": "SIGNED",
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-impl-audit-20261007\\evidence\\3fa0162a-093f-4363-b2b7-9f87f3bce0bb\\journal-impl-verdict.json",
+            "sha256": "f68a79024a4fe39aa9c17491a7bdf48b027ff85942c0b49b1690fc06c58f1ed3",
+            "pointer": ["ra09_overall"],
+            "observed": "NOT_SIGNED"
+          }
+        }
+      ],
+      "diagnosis": "本轮 status=blocked 的唯一原因是 RA-09 整体未签收，不是 journal 实现缺陷——journal 子项 5/5 全绿且已接入真实业务入口。实现过程中发现并修掉两个真实产品 bug（均由自写测试抓出，非测试自身问题）：(1) 淘汰循环遍历 [新,...,旧] 全数组，导致新条目把自己淘汰、append 返回 ok 却实际没写入——改为只遍历旧条目并把新条目固定放在首位；(2) 容量判定用 next 数组统计可淘汰数，把新条目自己算作淘汰候选，于是『无可淘汰对象时应拒新发』退化成静默丢新发——改为只统计旧条目，旧可淘汰数不足即返回 journal_capacity_exceeded。另修三处测试自身缺陷：用 sort().reverse() 臆测 load 顺序、J4 多个子用例共用目录互相污染、一处越界字符。裁定脚本初版解析 node:test 的 TAP 摘要失败（行首符号前缀未剥、tests/pass/fail 是空格分隔而非 key=value），预验证时即发现并改正。",
+      "unverified": "未启动宿主、未调用运行时 IPC、未调用真实推理、未使用真实凭据、未触碰真实 userData（验收只用 os.tmpdir 私有目录）；IPC handler 仅做源码级注册核证，运行时行为未验；journal 与真实 API 驱动（packages/api 的 in_flight 登记）尚未联动，两套幂等/记录机制的关系未梳理；条款 875 前半句与密钥 ACL、OS 级加密存储、后台自动上转仍未测；未使用 git 写操作、未写记忆。",
+      "nextstep": "条款 875 后半句已实现并验收。等主上裁决是否接受该实现，以及是否继续推进 RA-09 其余项（:875 前半句 secret canary 导出无泄漏、密钥 ACL、后台自动上转）。若需要，可另起一轮梳理 journal 与 packages/api 幂等表的联动关系。"
+    }
+  }
+}

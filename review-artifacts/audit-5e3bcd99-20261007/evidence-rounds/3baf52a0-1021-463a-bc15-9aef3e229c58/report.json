@@ -1,0 +1,19 @@
+{
+  "task": "companion-audit-5e3bcd99",
+  "round": "3baf52a0-1021-463a-bc15-9aef3e229c58",
+  "status": "success",
+  "projects": {
+    "contract": {
+      "actions": ["b2fa6632-db70-4967-8ea6-549f0b615cdb"],
+      "explanation": "权威审查文档 review-20261003.md 只读解析：真实分母为 U_COUNT=1(U01) + F_COUNT=42(F01..F42) = 43 项，而非会话中反复自述的 48 项。文档自身 DECL 行写明『新增已确认缺陷/遗漏 42（35项中等、7项低）』，与 F01..F42 逐字一致；U01 是单列的重复工作项，不属于 F 族。ZC-xx 卡片编号是整改执行单元，与审查分母不同层，禁止混算。",
+      "unverified": "48 这个数字的历史出处未在本轮权威文档中复现；会话里 48 可能是早期版本或口头自述，本轮只读未追到其原始出处。ZC 卡完成度（ZC-01..56）与本分母无映射关系，未核。",
+      "nextstep": "下一最小私有验证项：只读解析 packages/plansrc/src/mapper.ts 的 PLAN_ACCESS_MODE_BILLING 映射表，逐条列出每个 providerId->billingClass 的判定依据与证据行，产出『哪些通道属订阅桶、哪些属按量付费桶』的权威对照表，供主上确认哪些可真实发、哪些禁止真实发。范围：单文件只读，不发请求、不读凭据。"
+    },
+    "errorclass": {
+      "actions": ["a3612f86-15e7-4564-bf31-22d5b10784ab"],
+      "explanation": "114 个源文件只读扫描，三类观测与本地代码归类完全一致。(1) 502/operation_outcome_unknown：errors.ts:121 定义 upstream_outcome_unknown -> status 502 / contractCode operation_outcome_unknown / delivery outcome_unknown，与实测 502 逐字对应；errors.ts:120 注释写明『驱动器在产出过程中抛错：结果不可知，且不允许被内部重试掩盖』。(2) cache-unavailable：entitlement.ts:225 返回 reason cache-unavailable，host-driver.ts:1329-1335 在 !entitled 时抛 upstream_unavailable 并附『不伪造 entitled』，对应实测 503/502 上游不可用而非改道。(3) 200：走 entitled=true 正常分支。判决性问题『outcome_unknown 是否阻止自动重试与自动换收费通道』——阻止：packages/api/src 下 attempts/maxRetries/自动重试/退避 全模式零命中，源码无任何自动重试机制；换通道方向 snapshot.ts:87 与 ChatPage.tsx:30 逐字写明『不自动改模型、不换通道』。即三类失败均诚实上抛，绝不静默改道到按量付费通道。",
+      "unverified": "本轮未发任何真实请求，quota/cache-unavailable/200 三类结论仅由源码静态归类推出，未做真实复现验证；exceed quota 字样在源码零命中（0 hits），该文案来自官方宿主上游而非本产品源码，属已验证的外部来源差异。model_is_real 字段的真实判定逻辑未单独审。",
+      "nextstep": "下一最小私有验证项：只读审 packages/official-host/src/entitlement.ts 全文，确认 entitled:true 的唯一充分条件（官方本地缓存 status==available）是否无旁路，并列出 cacheStatus 全部取值枚举。范围：单文件只读，不发请求。"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+
+
+STAGE_GATE_SUB=typecheck:desktop
+STAGE_GATE_EXIT=0

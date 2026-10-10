@@ -1,0 +1,47 @@
+{
+  "task": "business-v95-20261007",
+  "round": "1763aeb8-66e7-41db-95b8-63a87df390dc",
+  "project": "companion-export-canary",
+  "action": "d74c4c45-6539-45d6-bce9-c29ff96990fb",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\private\\scan-export-entry.py"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\1763aeb8-66e7-41db-95b8-63a87df390dc",
+  "pid": 60408,
+  "startedUtc": "2026-10-07T06:55:48.282806+00:00",
+  "start_ns": 1791356148282817400,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T06:55:48.794081+00:00",
+  "end_ns": 1791356148794094200,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\1763aeb8-66e7-41db-95b8-63a87df390dc\\export-entry-scan.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\1763aeb8-66e7-41db-95b8-63a87df390dc\\export-entry-scan.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "generated": false
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\1763aeb8-66e7-41db-95b8-63a87df390dc\\actions\\d74c4c45-6539-45d6-bce9-c29ff96990fb\\stdout",
+      "sha256": "ae14749aa24418e03be08d3e5077a5a6a9ed9adb7f3fcb2bd9e67c242e8ac0ef",
+      "mtime_ns": 1791356148786623700
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\1763aeb8-66e7-41db-95b8-63a87df390dc\\actions\\d74c4c45-6539-45d6-bce9-c29ff96990fb\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791356148282629300
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "task": "business-v94-20261007",
+  "round": "b69423dd-c2c3-4dca-9166-799bc4857640",
+  "project": "companion-journal",
+  "action": "0daeecac-f3af-410e-82e4-0dc55e55f7bb",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\node_modules\\vitest\\vitest.mjs",
+    "run",
+    "G:/zcode-project/zcode-companion/tests/unit/api-replay-budget-inflight.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/unit/desktop-proxy-manager.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/unit/desktop-key-redaction.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/unit/api-request-decode.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/contract/api-contract.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/contract/api-start-entry.test.mjs",
+    "G:/zcode-project/zcode-companion/tests/contract/official-host-contract.test.mjs",
+    "--root",
+    "G:/zcode-project/zcode-companion",
+    "--reporter=dot"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640",
+  "pid": 65644,
+  "startedUtc": "2026-10-07T06:44:39.225484+00:00",
+  "start_ns": 1791355479225498600,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T06:44:48.239460+00:00",
+  "end_ns": 1791355488239474500,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640\\actions\\0daeecac-f3af-410e-82e4-0dc55e55f7bb\\stdout",
+      "sha256": "46d104f103474626d7c34f65f48aa76395bd0f998820d9d1819d4784fe659523",
+      "mtime_ns": 1791355488214658400
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640\\actions\\0daeecac-f3af-410e-82e4-0dc55e55f7bb\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791355479224957400
+    }
+  ]
+}

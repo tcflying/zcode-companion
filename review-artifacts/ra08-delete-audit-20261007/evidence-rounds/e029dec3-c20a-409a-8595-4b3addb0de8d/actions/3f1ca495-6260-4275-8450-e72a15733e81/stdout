@@ -1,0 +1,15 @@
+RUN_UTC=2026-10-07T00:52:20.444260+00:00
+PID=51628
+PROBE_SHA256=50401242e97b19f03fe121eb2fe5e5c1d5613647c43b48c98cd8c0decfd7bbb9
+VITEST_EXIT=1
+× src/pages/__ra08_delete2.test.ts > RA-08 删除手工条目：只影响目标记录 > D1 删掉目标手工条目，来源条目逐条仍在（不靠 revision 证明） 440ms
+✓ src/pages/__ra08_delete2.test.ts > RA-08 删除手工条目：只影响目标记录 > D2 删除只影响记录、不改变准入判断：删除后 E0 与零 dispatch 仍成立 371ms
+× src/pages/__ra08_delete2.test.ts > RA-08 双模式均有内容时往返切换 > S1 来源 2 条 + 手工 2 条：切到写死→切回动态，两侧 ID 逐条都在 491ms
+✓ src/pages/__ra08_delete2.test.ts > RA-08 双模式均有内容时往返切换 > S2 往返切换全程 dispatch 为零：无任何非目录请求 532ms
+SUMMARY: Test Files  1 failed (1)
+SUMMARY: Tests  2 failed | 2 passed (4)
+SUMMARY: Duration  2.44s (tests 80%, setup 13%, transform 4%, import 2%)
+SUMMARY: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+DETAIL: AssertionError: expected [] to deeply equal [ 'man-alpha', 'man-beta' ]
+DETAIL: AssertionError: expected [] to deeply equal [ 'src-a', 'src-b' ]
+TEMP_LEFT=True

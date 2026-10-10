@@ -1,0 +1,33 @@
+{
+  "task": "ra08-delete",
+  "round": "e029dec3-c20a-409a-8595-4b3addb0de8d",
+  "project": "deletion",
+  "action": "3f1ca495-6260-4275-8450-e72a15733e81",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-delete-audit-20261007\\evidence-rounds\\e029dec3-c20a-409a-8595-4b3addb0de8d",
+  "pid": 51628,
+  "startedUtc": "2026-10-07T00:52:20.396677+00:00",
+  "start_ns": 1791334340396687300,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T00:52:23.269841+00:00",
+  "end_ns": 1791334343269878900,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-delete-audit-20261007\\evidence-rounds\\e029dec3-c20a-409a-8595-4b3addb0de8d\\actions\\3f1ca495-6260-4275-8450-e72a15733e81\\stdout",
+      "sha256": "47290392025a5882280e5e585bb042b56966ae7518b78e5091bced5970795814",
+      "mtime_ns": 1791334343261030200
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-delete-audit-20261007\\evidence-rounds\\e029dec3-c20a-409a-8595-4b3addb0de8d\\actions\\3f1ca495-6260-4275-8450-e72a15733e81\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791334340395963100
+    }
+  ]
+}

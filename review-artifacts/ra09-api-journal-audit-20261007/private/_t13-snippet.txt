@@ -1,0 +1,143 @@
+/* -------------------------------------------------------------------------- */
+/* T13 · 崩溃遗留 in_flight：跨重建后同会话仍零重发（RA-06）                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `loadJournal` 会把上一进程遗留的 `in_flight` 承接为 `unknown`——因为那个在途请求
+ * 在新进程里**永远不可能**再被结算，它的真实语义就是「已提交、结果不可知」。
+ *
+ * 若仍按 `in_flight` 处理：会话闸门只看 `unknown` ⇒ 判不到它 ⇒ 同会话换新键即可
+ * 穿透，「终止本应用子进程后重开零重发」这条（`:853`）直接被破。
+ */
+describe('T13 崩溃遗留 in_flight 不得被新键穿透', () => {
+  const SESSION = { 'x-zcc-client-id': 'client-R', 'x-zcc-session-id': 'sess-R' };
+
+  /**
+   * 模拟「已提交上游、尚未拿到终态，然后进程被杀」。
+   *
+   * 用**产品自己的** `createOperationJournal` 做 `reserve`（真实持久登记），
+   * 然后**不** `settle`、直接丢弃那个实例——这正是崩溃现场。
+   * 不是复刻实现：调的就是产品模块自己的边界。
+   */
+  function simulateCrashWhileInFlight(dir, sessionKey, scope, bodyHash) {
+    const crashed = createOperationJournal(dir);
+    const reserved = crashed.reserve({ operationId: 'op-crashed', scope, bodyHash, sessionKey, at: 1, maxEntries: 64 });
+    expect(reserved.ok).toBe(true);
+    // 刻意不 settle：这条永远停在 in_flight。
+    expect(crashed.entries()[0].state).toBe('in_flight');
+    // 盘上确实写着 in_flight（证明后面测的是「读回来」而不是「我提前改好了」）
+    expect(readJournalRawState(dir)).toBe('in_flight');
+  }
+
+  /** 直接读盘上的 state，绕开 createOperationJournal 的载入承接逻辑。 */
+  function readJournalRawState(dir) {
+    const parsed = JSON.parse(fs.readFileSync(path.join(dir, 'api-operations-journal.json'), 'utf8'));
+    return parsed.entries[0].state;
+  }
+
+  it('T13a 预先持久 in_flight（模拟已提交未 terminal）后重建：同会话换新键 ⇒ 驱动器零调用', async () => {
+    const dir = tmpRoot('crash-a');
+    const apiKey = generateApiKey();
+    const fp = fingerprintApiKey(apiKey);
+    const session = resolveSessionIdentity(SESSION, fp);
+    const scopeFor = (key) => canonicalScopeFor(key, fp);
+
+    simulateCrashWhileInFlight(dir, session.sessionKey, scopeFor('old-key'), 'hash-of-old-body');
+
+    // 重建：新进程、新 journal 实例
+    const probe = createOrderProbeDriver(createFixtureDriver(), dir);
+    const h = await startApi({ driver: probe, journalDir: dir }, { apiKey });
+
+    const r = await post({
+      port: h.port,
+      apiKey,
+      body: chatBody('after crash, new key'),
+      headers: { ...SESSION, 'idempotency-key': 'new-key' }
+    });
+
+    expect(r.status).toBe(502);
+    expect(r.json.error.code).toBe('upstream_outcome_unknown');
+    expect(r.json.zcc_error.detail.session_locked).toBe(true);
+    // 核心：重建后零新增投递
+    expect(probe.calls.n).toBe(0);
+    expect(h.server.diagnostics.driverCalls).toBe(0);
+  });
+
+  it('T13b 承接本身可见且不误伤：problems 为空（否则会 poisoned 永久拒发）、recovered 有说明', async () => {
+    const dir = tmpRoot('crash-b');
+    const j1 = createOperationJournal(dir);
+    j1.reserve({ operationId: 'op-x', at: 1, maxEntries: 64 });
+    // 不 settle，丢弃 j1 = 崩溃
+
+    const j2 = createOperationJournal(dir);
+    // 承接是**正常语义**，绝不能进 problems：problems 非空 = poisoned = 一切拒发
+    expect(j2.problems()).toEqual([]);
+    expect(j2.poisoned()).toBe(false);
+    expect(j2.recovered().length).toBe(1);
+    expect(j2.recovered()[0]).toContain('op-x');
+    // 状态确实变成 unknown，且不可淘汰
+    expect(j2.entries()[0].state).toBe('unknown');
+  });
+
+  it('T13c 反向对照：同一进程内活着的 in_flight **不**冻结并发（并发契约不得被扩大）', async () => {
+    // 这一条钉住「别擅自扩大」：同进程的在途不是未知结果。
+    // 驱动器挂住，让第一条真正处于在途，同时发第二条（不同键、同会话）。
+    const dir = tmpRoot('crash-c');
+    let releaseFirst = null;
+    const blocked = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    const holdDriver = {
+      ...createFixtureDriver(),
+      name: 'hold',
+      fixture: true,
+      async *stream() {
+        yield { type: 'delta', text: 'first' };
+        await blocked; // 挂住，直到测试放行
+        yield { type: 'finish', reason: 'stop' };
+      }
+    };
+
+    const probe = createOrderProbeDriver(holdDriver, dir);
+    const apiKey = generateApiKey();
+    const h = await startApi({ driver: probe, journalDir: dir }, { apiKey });
+
+    const firstPromise = post({
+      port: h.port,
+      apiKey,
+      body: chatBody('in flight'),
+      headers: { ...SESSION, 'idempotency-key': 'k-inflight' }
+    });
+    // 等第一条真的进了驱动器（在途）
+    const entered = await waitFor(() => (probe.calls.n >= 1 ? true : null), 5000);
+    expect(entered).not.toBeNull();
+
+    // 第二条：同会话、**不同键**。按原并发契约应当放行。
+    const second = await post({
+      port: h.port,
+      apiKey,
+      body: chatBody('concurrent in same session'),
+      headers: { ...SESSION, 'idempotency-key': 'k-concurrent' }
+    });
+    expect(second.status).toBe(200);
+    expect(probe.calls.n).toBe(2);
+
+    releaseFirst();
+    expect((await firstPromise).status).toBe(200);
+  });
+
+  it('T13d 边界：旧记录**没有** sessionKey ⇒ 无法归属会话，不构成完整保障（如实钉住缺口）', () => {
+    // 这条**不是**给缺口背书，是把缺口钉成可复核的事实：
+    // 引入 sessionKey 之前写下的记录没有这个字段，会话闸门无从判断它属于哪个会话。
+    const dir = tmpRoot('crash-d');
+    fs.writeFileSync(
+      path.join(dir, 'api-operations-journal.json'),
+      `${JSON.stringify({ entries: [{ operationId: 'legacy', state: 'in_flight', at: 1 }] })}\n`,
+      'utf8'
+    );
+    const j = createOperationJournal(dir);
+    expect(j.entries()[0].state).toBe('unknown'); // 仍被承接为 unknown
+    // 但因为没有 sessionKey，任何 sessionKey 都查不到它 ⇒ 换新键仍可发
+    expect(j.lookupSessionUnknown('any-session-key')).toBeUndefined();
+  });
+});

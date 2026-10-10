@@ -1,0 +1,31 @@
+main.cjs_SHA256=8f1abc22967e6188eac5029e4ee6b0f101e29e9fd53c5d4c597144857f486c47
+journal.cjs_SHA256=386b1bf5fb72de9ef24fe8323382905b0aeefe58161e02acf08b34fe6b2c59b4
+journal.test.mjs_SHA256=907ce5987cfe83600b084cca301a15a2514be0989020ecc13bb02ab3acb1e629
+settings.cjs_SHA256=c34b6bcca2a70b327202cc2e6b2d0c6aba0c803860f3aa55a3891382a7d98c17
+--- 接线：journal 是否进入真实业务入口 ---
+W1_main_requires_journal= True
+W2_main_creates_instance= True
+W3_instance_dir_is_userData= True
+W4_main_loads_on_startup= True
+--- IPC handler 注册 ---
+W5_handler_list= True
+W6_handler_append= True
+W7_handler_cancel= True
+W8_reject_reason_exposed= True
+W9_append_result_passthrough= True
+--- 落盘范式与权限（须与 settings.cjs 同款）---
+W10_atomic_tmp_rename= True
+W11_mode_0600= True
+W12_settings_same_pattern= True
+--- 语义保护 ---
+W13_unknown_not_evictable= True
+W14_inflight_not_evictable= True
+W15_self_eviction_guard= True
+W16_write_failure_reported= True
+W17_unknown_requires_outcome= True
+--- 测试只碰私有临时目录 ---
+T_uses_os_tmpdir= True
+T_cleans_up= True
+T_no_real_userdata= True
+T_assert_cases= 5
+T_uses_node_test= True

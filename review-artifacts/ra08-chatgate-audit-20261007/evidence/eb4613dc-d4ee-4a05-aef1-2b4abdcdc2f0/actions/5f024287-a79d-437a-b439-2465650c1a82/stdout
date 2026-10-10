@@ -1,0 +1,23 @@
+ChatPage_SHA256=a09b9d89fe67fd2c644edfa56039ada1f18f839a7a9bc63faf7d1f61b7639db4
+snapshot_SHA256=3f4600a22e90963ee224e17ba0e62d8a51cfa888520a390f073e621906b4cfb8
+ChatPage_lines=124
+--- 代码区（已剔除注释与字符串）---
+CODE_HAS_fetch= False
+CODE_HAS_XMLHttpRequest= False
+CODE_HAS_WebSocket= False
+CODE_HAS_ipcRenderer= False
+CODE_HAS_ipc= False
+CODE_HAS_axios= False
+CODE_HAS_chat_completions= False
+CODE_HAS_onKeyDown= False
+CODE_HAS_onKeyPress= False
+CODE_HAS_onKeyUp= False
+--- 发送按钮标签体 ---
+SEND_TAG_LINES=9
+SEND_TAG_HAS_disabled= True
+SEND_TAG_HAS_onClick= False
+TOTAL_onClick_count= 1
+TOTAL_handleClearDraft_count= 2
+IMPORTS_CURRENT_EVIDENCE= True
+snapshot_CURRENT_EVIDENCE_E0= True
+snapshot_SEND_DISABLED_LABEL= True

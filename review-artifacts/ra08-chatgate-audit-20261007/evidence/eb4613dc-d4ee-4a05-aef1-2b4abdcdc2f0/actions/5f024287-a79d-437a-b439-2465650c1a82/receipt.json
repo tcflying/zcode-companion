@@ -1,0 +1,34 @@
+{
+  "task": "ra08-chatgate",
+  "round": "eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0",
+  "project": "chatgate",
+  "action": "5f024287-a79d-437a-b439-2465650c1a82",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\private\\static-check.py"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0",
+  "pid": 24848,
+  "startedUtc": "2026-10-07T03:04:00.672153+00:00",
+  "start_ns": 1791342240672163000,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T03:04:00.704428+00:00",
+  "end_ns": 1791342240704442300,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\actions\\5f024287-a79d-437a-b439-2465650c1a82\\stdout",
+      "sha256": "90e7090f9d2e5ce6713a29892dd8faaaac2ad45cb75fc1dd546cd69af9dd152d",
+      "mtime_ns": 1791342240699223600
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-chatgate-audit-20261007\\evidence\\eb4613dc-d4ee-4a05-aef1-2b4abdcdc2f0\\actions\\5f024287-a79d-437a-b439-2465650c1a82\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791342240672223900
+    }
+  ]
+}

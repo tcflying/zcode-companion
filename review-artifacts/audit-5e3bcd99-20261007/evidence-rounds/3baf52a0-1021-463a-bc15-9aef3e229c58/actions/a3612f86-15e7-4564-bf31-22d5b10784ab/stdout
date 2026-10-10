@@ -1,0 +1,98 @@
+SOURCE_FILES_SCANNED=114
+
+### outcome_unknown : 59 hits
+  apps\ui\dist\assets\index-OTMFIZBo.js:9  `).replace(Qf,``)}function ep(e,t){return t=$f(t),$f(e)===t}function $(e,t,n,r,i,a){switch(n){case`children`:if(typeof r==`string`)t===`body`||t===`te
+  apps\ui\src\data\snapshot.ts:100  | 'outcome_unknown';
+  apps\ui\src\data\snapshot.ts:112  outcome_unknown: 'outcome_unknown · 结果未知'
+  apps\ui\src\pages\ChatPage.tsx:74  <Chip tone="unknown">{OPERATION_STATE_LABEL['outcome_unknown']}</Chip>
+  packages\api\src\chat.ts:841  throw new ApiError('upstream_outcome_unknown', '客户端在 fixture 产出前取消', { driver: FIXTURE_DRIVER_NAME });
+  packages\api\src\errors.ts:53  'upstream_outcome_unknown',
+  packages\api\src\errors.ts:119  upstream_timeout: { status: 504, contractCode: 'upstream_timeout', delivery: 'outcome_unknown', type: 'api_error' },
+  packages\api\src\errors.ts:121  upstream_outcome_unknown: { status: 502, contractCode: 'operation_outcome_unknown', delivery: 'outcome_unknown', type: 'api_error' },
+  packages\api\src\errors.ts:122  internal_error: { status: 500, contractCode: 'internal_error', delivery: 'outcome_unknown', type: 'server_error' }
+  packages\api\src\errors.ts:218  * `upstream_outcome_unknown`（投递结果不可知），因为那才是"来源不明"的诚实结论。
+  packages\api\src\errors.ts:223  return new ApiError('upstream_outcome_unknown', `上游驱动器异常：${err.message}`, { driver_error_name: err.name });
+  packages\api\src\errors.ts:225  return new ApiError('upstream_outcome_unknown', '上游驱动器抛出非 Error 值，结果不可知', {});
+
+### operation_outcome_unknown : 5 hits
+  packages\api\src\errors.ts:121  upstream_outcome_unknown: { status: 502, contractCode: 'operation_outcome_unknown', delivery: 'outcome_unknown', type: 'api_error' },
+  packages\contracts\src\errors.ts:478  | 'operation_outcome_unknown'
+  packages\contracts\src\errors.ts:493  'operation_outcome_unknown',
+  tests\contract\contracts.test.mjs:814  'operation_outcome_unknown',
+  tests\contract\contracts.test.mjs:848  'operation_outcome_unknown',
+
+### upstream_outcome_unknown : 22 hits
+  packages\api\src\chat.ts:841  throw new ApiError('upstream_outcome_unknown', '客户端在 fixture 产出前取消', { driver: FIXTURE_DRIVER_NAME });
+  packages\api\src\errors.ts:53  'upstream_outcome_unknown',
+  packages\api\src\errors.ts:121  upstream_outcome_unknown: { status: 502, contractCode: 'operation_outcome_unknown', delivery: 'outcome_unknown', type: 'api_error' },
+  packages\api\src\errors.ts:218  * `upstream_outcome_unknown`（投递结果不可知），因为那才是"来源不明"的诚实结论。
+  packages\api\src\errors.ts:223  return new ApiError('upstream_outcome_unknown', `上游驱动器异常：${err.message}`, { driver_error_name: err.name });
+  packages\api\src\errors.ts:225  return new ApiError('upstream_outcome_unknown', '上游驱动器抛出非 Error 值，结果不可知', {});
+  packages\official-host\src\host-driver.ts:1311  throw new ApiError('upstream_outcome_unknown', '客户端在宿主产出前取消', { driver: OFFICIAL_HOST_DRIVER_NAME });
+  packages\official-host\src\host-driver.ts:1422  throw new ApiError('upstream_outcome_unknown', `官方宿主会话失败：${(failure as Error).message}`, { driver: OFFICIAL_HOST_DRIVER_NAME });
+  packages\official-host\src\host-driver.ts:1435  throw new ApiError('upstream_outcome_unknown', `官方宿主会话失败：${(failure as Error).message}`, { driver: OFFICIAL_HOST_DRIVER_NAME });
+  scripts\official-host\host-child.mjs:186  * 后者正是 2026-10-01 实弹第二轮的症状（300041 ms 后 502 `upstream_outcome_unknown`，
+  scripts\official-host\session-drive.mjs:1380  // `upstream_outcome_unknown`，宿主日志里 app-server 起完 126 ms 就 `shutdown.completed`、
+  tests\unit\api-request-decode.test.mjs:295  'upstream_outcome_unknown',
+
+### exceed_quota : 0 hits
+
+### cache_unavailable : 7 hits
+  packages\official-host\src\entitlement.ts:74  'cache-unavailable',
+  packages\official-host\src\entitlement.ts:225  if (status === 'unavailable') return { available: false, reason: 'cache-unavailable', cacheStatus: status };
+  tests\unit\official-host-crash-isolation.test.mjs:202  reason: available ? 'cache-available' : 'cache-unavailable',
+  tests\unit\official-host-crash-isolation.test.mjs:299  expect(caught.detail.entitlement_reason).toBe('cache-unavailable');
+  tests\unit\official-host-entitlement.test.mjs:168  expect(reasons).toContain('cache-unavailable');
+  tests\unit\official-host-entitlement.test.mjs:248  'cache-unavailable',
+  tests\unit\official-host-entitlement.test.mjs:341  expect(line).toContain('reason=cache-unavailable');
+
+### not_entitled : 7 hits
+  packages\official-host\src\credentials.ts:33  *     `nPn` 那侧会硬过滤 `mode === "individual-coding-plan"` → start-plan 永远 not entitled。
+  packages\official-host\src\headers-port.ts:25  *     start-plan 永远 not entitled。
+  packages\official-host\src\host-driver.ts:241  'NOT_ENTITLED',
+  tests\contract\official-host-contract.test.mjs:420  // start-plan 永远 not entitled。所以本包**根本没有**产出它的函数。
+  tests\contract\plansrc.test.mjs:262  'builtin:zai-coding-plan': { status: 'unavailable', reason: 'coding_plan_not_entitled' },
+  tests\contract\plansrc.test.mjs:616  expect(zaiIndividual?.unavailableReason).toBe('coding_plan_not_entitled');
+  tests\unit\official-host-stub-bundle.test.mjs:725  // start-plan 永远 not entitled。
+
+### entitled_forge : 17 hits
+  apps\desktop\lib\proxy-manager.cjs:538  // exit 事件始终没来（极端情况）：自己把状态收干净，但**不**伪造一次成功退出。
+  apps\ui\src\data\desktopBridge.ts:10  *     「桌面壳未接入」而不是伪造一个 running。
+  apps\ui\src\data\desktopBridge.ts:100  /** 未接入桌面壳时的兜底快照：**如实说 stopped**，不伪造一个「在跑」。 */
+  apps\ui\src\data\modelSource.test.ts:577  it('beginRefresh 进入 loading 并清掉上一次的失败，失败时不伪造成功时间', () => {
+  packages\api\src\chat.ts:802  * 按量计费，硬写 `subscription` 等于伪造权益）、`contextLength: null`（不编造 token 数）、
+  packages\official-host\src\entitlement.ts:4  * 这份文件是工单"红线：不伪造 entitled"的落点。整条链路上唯一被允许写 `entitled:true`
+  packages\official-host\src\host-driver.ts:355  * 白名单成员被伪造成一个恰好等于某个成员的真实密钥的概率，等于该密钥本身就是那个名字。
+  packages\official-host\src\host-driver.ts:1331  throw new ApiError('upstream_unavailable', `官方本地缓存未显示该套餐可用（reason=${entitlement.evidence.reason}）；不伪造 entitled`, {
+  packages\official-host\src\index.ts:11  *  - **不伪造 entitled**：写 `entitled:true` 的唯一充分条件是官方本地缓存说 available。
+  packages\plansrc\src\mapper.ts:12  *     伪造权益。证据逐条写在 {@link PLAN_ACCESS_MODE_BILLING} 的注释里。
+  scripts\official-host\session-drive.mjs:1784  // 不伪造：`revision` 是官方比对 `replace()` 是否生效的依据，必须随内容变化。
+  scripts\official-tap\tap-core.mjs:755  * 时它同样带着这个变量。这里只做"保留/透传"，不凭空伪造。
+
+### retry : 70 hits
+  apps\ui\dist\assets\index-OTMFIZBo.js:9  `).replace(Qf,``)}function ep(e,t){return t=$f(t),$f(e)===t}function $(e,t,n,r,i,a){switch(n){case`children`:if(typeof r==`string`)t===`body`||t===`te
+  apps\ui\src\app\useDesktopState.test.ts:720  it('StrictMode setup-cleanup-setup preserves the latest failure and permits a later retry', async () => {
+  apps\ui\src\data\localApiSource.ts:283  `本产品只请求本机回环上的 companion API，不重试、不换来源、不填任何替代数据。`,
+  apps\ui\src\data\modelSource.test.ts:181  ['timeout', () => Promise.reject(new SourceUnavailableError('timeout', '读取超时 3000ms。', '稍后重试。')), (s) => s],
+  apps\ui\src\data\modelSource.ts:286  '确认来源侧没有卡死或被长时间占用，稍后重试刷新。' +
+  packages\api\bin\start-api.mjs:290  '缺少 API key：本机 API 不允许在无认证状态下启动。请设置环境变量 ZCC_API_KEY 后重试（本入口不生成任何默认 key）'
+  packages\api\src\auth.ts:292  * 的令牌，同一个键复用两次就是"同一次操作重试"，而 `x-zcc-session-id` 是**逐会话**
+  packages\api\src\chat.ts:1262  * 处置**同一族**，客户端按 422 分支重试或降级、按 400 分支只会当成请求畸形。
+  packages\api\src\chat.ts:1518  * 那**不是**同一次操作的重试。漏掉它会让 `reasoning_effort` 变成一条"改了也不算数"
+  packages\api\src\errors.ts:120  // 驱动器在产出过程中抛错：结果不可知，且**不允许**被内部重试掩盖。
+  packages\api\src\errors.ts:188  /** 附加机读响应头（`Retry-After`、`x-zcc-ratelimit-*` 等）。返回自身便于链式书写。 */
+  packages\api\src\server.ts:305  'retry-after': String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))),
+
+### failover_billing : 28 hits
+  apps\desktop\preload.cjs:22  /** true 表示运行在桌面壳里；false 表示在 vite dev / 浏览器里打开，界面据此降级。 */
+  apps\ui\dist\assets\index-OTMFIZBo.js:9  `).replace(Qf,``)}function ep(e,t){return t=$f(t),$f(e)===t}function $(e,t,n,r,i,a){switch(n){case`children`:if(typeof r==`string`)t===`body`||t===`te
+  apps\ui\src\data\desktopBridge.test.ts:2  * I10 桌面桥的类型面与「无桥降级」契约。
+  apps\ui\src\data\modelSource.test.ts:284  // 非法枚举不得被偷偷降级成 unknown 后采纳
+  apps\ui\src\data\modelSource.ts:86  '字段缺失 / 类型错 / 非法枚举一律整体拒绝并进错误面板，不部分采纳、不静默降级。' +
+  apps\ui\src\data\modelSource.ts:304  '解析层按"整体拒绝"处理，一条都不采纳，也不降级成 unknown 之后继续显示。',
+  apps\ui\src\data\modelSource.ts:426  * 不部分采纳、不猜测 provider、不补齐 modelId、不把非法枚举降级成 unknown。
+  apps\ui\src\data\modelSource.ts:496  '非法枚举一律整体拒绝，不降级成 unknown 后继续显示。'
+  apps\ui\src\data\snapshot.ts:87  unknown: '证据不足即拒发，不猜测 provider，不换通道补发'
+  apps\ui\src\pages\ChatPage.tsx:30  text: '（版式占位）窗口模式为 advisory 时，窗口外只提示可能扣套餐，不自动改模型、不换通道、不续票。是否扣桶仍需 E3 证据才能断言。'
+  packages\api\src\chat.ts:92  * 的 prompt 行"之外没有别的通道可走——**这条折叠本身就是披露出来的**，不是静默降级。
+  packages\api\src\chat.ts:1262  * 处置**同一族**，客户端按 422 分支重试或降级、按 400 分支只会当成请求畸形。

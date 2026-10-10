@@ -1,0 +1,51 @@
+{
+  "task": "ra09-journal-gap",
+  "round": "5d652382-31a6-438c-86d7-e13f06826318",
+  "project": "journalgap",
+  "action": "62cac537-eb24-4b35-a2ed-593912a57b24",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\private\\summarize.py",
+    "journal-gap-verdict.json",
+    "c3722bcb-8531-46cd-85ea-04552dbe9463",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318",
+  "pid": 56576,
+  "startedUtc": "2026-10-07T05:10:34.473379+00:00",
+  "start_ns": 1791349834473398200,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T05:10:34.528444+00:00",
+  "end_ns": 1791349834528471800,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318\\journal-gap-verdict.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318\\journal-gap-verdict.json",
+        "sha256": "f33702120fe4bf8384e0e786c2c9f07e29b14fd5f3a9431df7f54602df6bb1cf",
+        "mtime_ns": 1791349834518395800
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318\\actions\\62cac537-eb24-4b35-a2ed-593912a57b24\\stdout",
+      "sha256": "99d52e097d76e8307aefeb6fdb885858ca112d4661f30987d135c48341ba6783",
+      "mtime_ns": 1791349834518395800
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318\\actions\\62cac537-eb24-4b35-a2ed-593912a57b24\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791349834473057900
+    }
+  ]
+}

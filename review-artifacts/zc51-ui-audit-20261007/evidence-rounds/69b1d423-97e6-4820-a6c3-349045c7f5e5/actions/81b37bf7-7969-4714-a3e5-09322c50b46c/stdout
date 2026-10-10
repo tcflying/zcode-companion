@@ -1,0 +1,6 @@
+RC=0
+ ✓ src/__zc51_neg.test.ts > ZC-51/F30 负控：基准换回空表必须让文案退化 > 旧实现 listDelta([], entries) 会让「相同2行再刷」文案退化为「新增2」 3ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 6 skipped (7)
+   Duration  300ms (transform 68%, import 27%, worker 2%, tests 2%)
+TEMP_REMOVED=True

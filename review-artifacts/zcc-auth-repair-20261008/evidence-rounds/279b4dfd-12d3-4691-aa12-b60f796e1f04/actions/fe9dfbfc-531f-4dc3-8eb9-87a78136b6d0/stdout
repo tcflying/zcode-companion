@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "status": {
+    "state": "failed",
+    "lastTestedAt": 1791409135050,
+    "lastErrorCode": "timeout",
+    "lastErrorMessage": "Think Effort \"low\": Request timed out after 10000ms; Think Effort \"high\": Request timed out after 10000ms; Think Effort \"max\": Request timed out after 10000ms"
+  }
+}

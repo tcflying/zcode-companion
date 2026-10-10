@@ -1,0 +1,169 @@
+/* -------------------------------------------------------------------------- */
+/* T12 · 会话级闸门（929.md:347 / :853 / :916）                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 同会话存在 unknown 时，**换新幂等键 / 换新输入**都必须拒发且驱动器零调用。
+ *
+ * 关键：会话身份靠 `x-zcc-client-id` / `x-zcc-session-id`，而每次都换
+ * `Idempotency-Key`——正是 `:347` 点名的「外部客户端默认新key重试」那种形态。
+ */
+describe('T12 同会话 unknown 不得被新键穿透', () => {
+  const unknownDriver = {
+    ...createFixtureDriver(),
+    name: 'origin-unknown',
+    fixture: true,
+    async *stream() {
+      throw new Error('来源不明');
+    }
+  };
+
+  const SESSION_HEADERS = { 'x-zcc-client-id': 'client-A', 'x-zcc-session-id': 'sess-A' };
+
+  it('T12a 同会话换新键 ⇒ 拒发，驱动器零调用（不改键时靠作用域守卫也不够，必须有会话闸门）', async () => {
+    const dir = tmpRoot('sess-a');
+    const probe = createOrderProbeDriver(unknownDriver, dir);
+    const h = await startApi({ driver: probe, journalDir: dir }, { apiKey: stableKeyOf('sess-a') });
+
+    // 第一次：产生 unknown
+    const first = await post({
+      port: h.port,
+      apiKey: h.apiKey,
+      body: chatBody('boom'),
+      headers: { ...SESSION_HEADERS, 'idempotency-key': 'key-1' }
+    });
+    expect(first.status).toBe(502);
+    expect(readJournal(dir).filter((e) => e.state === 'unknown').length).toBe(1);
+    expect(probe.calls.n).toBe(1);
+
+    // 第二次：**换键** + **换输入**。作用域已经变了，作用域级守卫打不中，
+    // 只有会话闸门能拦住。
+    const second = await post({
+      port: h.port,
+      apiKey: h.apiKey,
+      body: chatBody('brand new input'),
+      headers: { ...SESSION_HEADERS, 'idempotency-key': 'key-2' }
+    });
+    expect(second.status).toBe(502);
+    expect(second.json.error.code).toBe('upstream_outcome_unknown');
+    // 区分力：error detail 必须指向「会话锁定」这条分支，
+    // 而不是作用域级的 survived_restart 分支。
+    expect(second.json.zcc_error.detail.session_locked).toBe(true);
+    expect(second.json.zcc_error.detail.driver_called).toBe(false);
+
+    // 核心：没有新增任何投递
+    expect(probe.calls.n).toBe(1);
+    expect(h.server.diagnostics.driverCalls).toBe(1);
+
+    // 第三次再来一次，依然拒（不是一次性）
+    const third = await post({
+      port: h.port,
+      apiKey: h.apiKey,
+      body: chatBody('again'),
+      headers: { ...SESSION_HEADERS, 'idempotency-key': 'key-3' }
+    });
+    expect(third.status).toBe(502);
+    expect(probe.calls.n).toBe(1);
+  });
+
+  it('T12b 跨重建（同目录重开）后同会话换新键仍拒，驱动器零调用', async () => {
+    const dir = tmpRoot('sess-b');
+    const key = stableKeyOf('sess-b');
+
+    const a = await startApi({ driver: unknownDriver, journalDir: dir }, { apiKey: key });
+    const first = await post({
+      port: a.port,
+      apiKey: key,
+      body: chatBody('boom'),
+      headers: { ...SESSION_HEADERS, 'idempotency-key': 'key-1' }
+    });
+    expect(first.status).toBe(502);
+    await retire(a.server);
+
+    const probe = createOrderProbeDriver(createFixtureDriver(), dir);
+    const b = await startApi({ driver: probe, journalDir: dir }, { apiKey: key });
+    const second = await post({
+      port: b.port,
+      apiKey: key,
+      body: chatBody('after rebuild'),
+      headers: { ...SESSION_HEADERS, 'idempotency-key': 'key-2' }
+    });
+    expect(second.status).toBe(502);
+    expect(second.json.zcc_error.detail.session_locked).toBe(true);
+    expect(probe.calls.n).toBe(0);
+    expect(b.server.diagnostics.driverCalls).toBe(0);
+  });
+
+  it('T12c 正常会话对照：全部 done 的会话，换新键照常发送（闸门不能误伤正常重试）', async () => {
+    const dir = tmpRoot('sess-c');
+    const probe = createOrderProbeDriver(createFixtureDriver(), dir);
+    const h = await startApi({ driver: probe, journalDir: dir }, { apiKey: stableKeyOf('sess-c') });
+
+    const first = await post({
+      port: h.port,
+      apiKey: h.apiKey,
+      body: chatBody('ok 1'),
+      headers: { ...SESSION_HEADERS, 'idempotency-key': 'ok-1' }
+    });
+    expect(first.status).toBe(200);
+    const second = await post({
+      port: h.port,
+      apiKey: h.apiKey,
+      body: chatBody('ok 2'),
+      headers: { ...SESSION_HEADERS, 'idempotency-key': 'ok-2' }
+    });
+    expect(second.status).toBe(200);
+    expect(probe.calls.n).toBe(2);
+  });
+
+  it('T12d 反向对照：另一个会话不受影响（闸门是会话级，不是全局冻结）', async () => {
+    const dir = tmpRoot('sess-d');
+    const probe = createOrderProbeDriver(unknownDriver, dir);
+    const h = await startApi({ driver: probe, journalDir: dir }, { apiKey: stableKeyOf('sess-d') });
+
+    expect(
+      (
+        await post({
+          port: h.port,
+          apiKey: h.apiKey,
+          body: chatBody('boom'),
+          headers: { 'x-zcc-client-id': 'client-A', 'x-zcc-session-id': 'sess-X', 'idempotency-key': 'k1' }
+        })
+      ).status
+    ).toBe(502);
+    const callsAfterUnknown = probe.calls.n;
+    expect(callsAfterUnknown).toBe(1);
+
+    // 不同会话：驱动器是 unknownDriver，所以这一发**会**进驱动器并再次失败。
+    // 重点是它**没有被会话闸门提前拒掉**——driverCalls 从 1 涨到 2。
+    const other = await post({
+      port: h.port,
+      apiKey: h.apiKey,
+      body: chatBody('other session'),
+      headers: { 'x-zcc-client-id': 'client-A', 'x-zcc-session-id': 'sess-Y', 'idempotency-key': 'k2' }
+    });
+    expect(other.status).toBe(502);
+    expect(probe.calls.n).toBe(2);
+    expect(other.json.zcc_error.detail.session_locked).toBeUndefined();
+  });
+
+  it('T12e 缺会话身份时闸门不做判定：resolveSessionIdentity 返回 null（不假造）', () => {
+    // 这是**契约层**断言，不是给缺口背书：
+    // 两个 x-zcc-* 头都没发 ⇒ 我们无从知道这次请求属于哪个会话，
+    // 编一个会话号会把会话锁定变成全局冻结。所以必须返回 null。
+    expect(resolveSessionIdentity({}, 'zcc-fp:test')).toBeNull();
+    expect(resolveSessionIdentity({ 'idempotency-key': 'k' }, 'zcc-fp:test')).toBeNull();
+    // 有会话头就解析得出来，且与幂等 opt-in 的 identity 形态算出同一个键
+    const s = resolveSessionIdentity(
+      { 'x-zcc-client-id': 'c1', 'x-zcc-session-id': 's1', 'idempotency-key': 'k' },
+      'zcc-fp:test'
+    );
+    expect(s).not.toBeNull();
+    expect(s.sessionKey).toBe(
+      idempotencyScope('c1', 's1', 'zcc-fp:test')
+    );
+    // 只发其一 ⇒ 另一维用缺省值（沿用既有契约，不新造）
+    expect(resolveSessionIdentity({ 'x-zcc-session-id': 's1' }, 'f').sessionId).toBe('s1');
+    expect(resolveSessionIdentity({ 'x-zcc-session-id': 's1' }, 'f').clientId).toBe('default-client');
+  });
+});

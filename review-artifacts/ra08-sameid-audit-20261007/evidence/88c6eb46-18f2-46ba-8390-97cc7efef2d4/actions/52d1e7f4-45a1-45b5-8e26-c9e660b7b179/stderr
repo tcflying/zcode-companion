@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "G:\zcode-project\zcode-companion\review-artifacts\ra08-sameid-audit-20261007\private\summarize.py", line 29, in <module>
+    "total_tests_count": int(parts[3]),
+                         ~~~^^^^^^^^^^
+ValueError: invalid literal for int() with base 10: '(3)'

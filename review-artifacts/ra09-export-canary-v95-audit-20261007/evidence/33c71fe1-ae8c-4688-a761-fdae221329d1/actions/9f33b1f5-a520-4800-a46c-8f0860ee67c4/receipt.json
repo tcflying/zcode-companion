@@ -1,0 +1,48 @@
+{
+  "task": "business-v95b-20261007",
+  "round": "33c71fe1-ae8c-4688-a761-fdae221329d1",
+  "project": "companion-export-canary",
+  "action": "9f33b1f5-a520-4800-a46c-8f0860ee67c4",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\private\\scan-export-entry.py",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\export-entry-scan.json"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1",
+  "pid": 39840,
+  "startedUtc": "2026-10-07T07:00:58.304104+00:00",
+  "start_ns": 1791356458304118700,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T07:00:58.820000+00:00",
+  "end_ns": 1791356458820015200,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\export-entry-scan.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\export-entry-scan.json",
+        "sha256": "684fb65da7c77ef4f221a0007c5678e18cb92ff6d39b1540be01fec78ec8562f",
+        "mtime_ns": 1791356458813106100
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\actions\\9f33b1f5-a520-4800-a46c-8f0860ee67c4\\stdout",
+      "sha256": "a5c5c2cacfd4f69ecfd7cdad541e5f37f5238ab5b8d29870c675944774363e05",
+      "mtime_ns": 1791356458814236000
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-export-canary-v95-audit-20261007\\evidence\\33c71fe1-ae8c-4688-a761-fdae221329d1\\actions\\9f33b1f5-a520-4800-a46c-8f0860ee67c4\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791356458303345900
+    }
+  ]
+}

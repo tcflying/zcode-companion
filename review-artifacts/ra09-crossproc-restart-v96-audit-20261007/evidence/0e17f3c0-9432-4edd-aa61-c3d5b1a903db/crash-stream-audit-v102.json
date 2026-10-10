@@ -1,0 +1,63 @@
+{
+  "crash_repro": {
+    "input": "event=done constructor=x",
+    "threw": false,
+    "selected_kept": [
+      "event"
+    ],
+    "selected_droppedFields": 1,
+    "selected_droppedInvalid": 0,
+    "build_ok": true,
+    "build_droppedFields": 1,
+    "build_droppedInvalid": 0,
+    "canary_absent": true
+  },
+  "legacy_lookup_contrast": {
+    "constructor": {
+      "legacy_hit_is_undefined": false,
+      "legacy_hit_type": "function",
+      "legacy_hit_is_regexp": false,
+      "own_property": false
+    },
+    "toString": {
+      "legacy_hit_is_undefined": false,
+      "legacy_hit_type": "function",
+      "legacy_hit_is_regexp": false,
+      "own_property": false
+    }
+  },
+  "stream_audit": {
+    "log_ring_has_runtime_stream_guard": false,
+    "log_ring_declares_closed_set": true,
+    "ring_accepted_out_of_set_stream": true,
+    "ring_rejected_reason": null,
+    "out_of_set_entry_in_tail": true,
+    "stream_reaches_export_verbatim": true,
+    "stream_in_export_shape": {
+      "found": true,
+      "line_has_timestamp": true
+    },
+    "call_sites": [
+      {
+        "file": "apps/desktop/main.cjs",
+        "arg": "'main'"
+      },
+      {
+        "file": "apps/desktop/lib/proxy-manager.cjs",
+        "arg": "'main'"
+      },
+      {
+        "file": "apps/desktop/lib/proxy-manager.cjs",
+        "arg": "stream"
+      }
+    ],
+    "proxy_child_streams_is_literal": true,
+    "reachable_today_from_current_call_sites": false
+  },
+  "notes": {
+    "canary_is_synthetic": true,
+    "body_or_secret_printed": false,
+    "implementation_changed_by_this_audit": false,
+    "tmp_writes": 0
+  }
+}

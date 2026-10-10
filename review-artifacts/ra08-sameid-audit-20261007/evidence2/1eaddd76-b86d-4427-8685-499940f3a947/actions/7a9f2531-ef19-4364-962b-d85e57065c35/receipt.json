@@ -1,0 +1,51 @@
+{
+  "task": "ra08-sameid2",
+  "round": "1eaddd76-b86d-4427-8685-499940f3a947",
+  "project": "sameid2",
+  "action": "7a9f2531-ef19-4364-962b-d85e57065c35",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\private\\summarize2.py",
+    "sameid-verdict.json",
+    "220b3d29-917a-437b-ad71-bb668b7ae60a",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947",
+  "pid": 7172,
+  "startedUtc": "2026-10-07T01:42:40.733159+00:00",
+  "start_ns": 1791337360733173900,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T01:42:40.771563+00:00",
+  "end_ns": 1791337360771576200,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947\\sameid-verdict.json",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947\\sameid-verdict.json",
+        "sha256": "d2ab4996b763090fe0ea67a2d1950d75954f2c6084d384f152426cee2b1b1d58",
+        "mtime_ns": 1791337360765788700
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947\\actions\\7a9f2531-ef19-4364-962b-d85e57065c35\\stdout",
+      "sha256": "da84c430c1661c0218c6e87f88f0342d849b02c2603dfe8a3b974f7c4a42aaf2",
+      "mtime_ns": 1791337360765788700
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947\\actions\\7a9f2531-ef19-4364-962b-d85e57065c35\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791337360733304000
+    }
+  ]
+}

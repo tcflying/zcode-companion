@@ -1,0 +1,34 @@
+{
+  "task": "business-v97-20261007",
+  "round": "eedfb710-40a8-4f38-bdba-f6f715ba3c32",
+  "project": "companion-log-export",
+  "action": "861afb2f-bdb6-4d60-8941-57dd5648c096",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "scripts/stage-gate.mjs",
+    "typecheck:apps"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\eedfb710-40a8-4f38-bdba-f6f715ba3c32",
+  "pid": 15780,
+  "startedUtc": "2026-10-07T08:00:56.626831+00:00",
+  "start_ns": 1791360056626851000,
+  "exit": 1,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T08:00:56.711672+00:00",
+  "end_ns": 1791360056711690600,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\eedfb710-40a8-4f38-bdba-f6f715ba3c32\\actions\\861afb2f-bdb6-4d60-8941-57dd5648c096\\stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791360056626597900
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\eedfb710-40a8-4f38-bdba-f6f715ba3c32\\actions\\861afb2f-bdb6-4d60-8941-57dd5648c096\\stderr",
+      "sha256": "3f4bc1839faa69d167a6caae86a7a37efe348c5d718af7c6759ed7acc25e09aa",
+      "mtime_ns": 1791360056705617600
+    }
+  ]
+}

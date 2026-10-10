@@ -1,0 +1,52 @@
+{
+  "schema": "zcc-auth-models/3",
+  "task": "ZCC-AUTH-20261008",
+  "subtreeLeafCount": 48,
+  "subtreeTopLevelKeys": [
+    "name",
+    "kind",
+    "enabled",
+    "api",
+    "options",
+    "models"
+  ],
+  "providerLevelFound": {
+    "enabled": "true",
+    "api": "openai-completions",
+    "baseURL": null,
+    "type": null,
+    "name": "ZCC Companion"
+  },
+  "optionsLevelFound": {
+    "enabled": null,
+    "api": null,
+    "baseURL": "http://127.0.0.1:8790/v1",
+    "base_url": null
+  },
+  "models": [
+    {
+      "id": "account",
+      "displayName": "GLM-5.3-Flash (ZCC)"
+    }
+  ],
+  "effortOptions": [
+    {
+      "id": "account",
+      "effortOptions": "UNKNOWN_NOT_FOUND"
+    }
+  ],
+  "secretLeafNamesPresent": [
+    "apiKey"
+  ],
+  "keyLeafStructure": {
+    "located": true,
+    "quoted": false,
+    "hasBackslash": false,
+    "quoteClosed": null,
+    "matchesSimpleTokenCharset": true,
+    "parseIsLosslessForThisLeaf": true,
+    "note": "仅 bool；值未输出、未哈希"
+  },
+  "secretValuesEmitted": false,
+  "otherProvidersRead": false
+}

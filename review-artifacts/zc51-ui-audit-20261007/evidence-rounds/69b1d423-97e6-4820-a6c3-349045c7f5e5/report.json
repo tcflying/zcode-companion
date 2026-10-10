@@ -1,0 +1,27 @@
+{
+  "task": "zc51-ui-audit",
+  "round": "69b1d423-97e6-4820-a6c3-349045c7f5e5",
+  "status": "success",
+  "projects": {
+    "render": {
+      "actions": [
+        "98bd4431-17d3-4472-96aa-864ba31fa1a5",
+        "1231ab0b-2a88-49d3-81f9-869995f9e720",
+        "f629edb4-7023-44b8-830d-585858201f9b",
+        "53485fed-ccca-48de-bac2-db09a362a6ae",
+        "5b996702-0c7e-425e-93e9-06058955b119"
+      ],
+      "explanation": "真实挂载渲染验证 F30 五组表层行为，7/7 通过、RC=0、257ms。渲染路径为 react-dom renderToStaticMarkup 真实渲染 ModelsPage 组件本体 + 真实数据函数（parseCatalogPayload/beginRefresh/completeRefresh/describeDelta），fake loader 零网络。选此路径的原因：apps/ui/vitest.config.ts 为 environment:node 且 include 仅 src/**/*.test.ts，jsdom 未安装，装依赖等于改正式树故禁止；ModelsPage 唯一客户端 API 是 readFixtureScenario 内的 window.location(:68)，打桩即可。逐条对齐卡面（1005.md:2382-2385）：S1 首刷2行 delta previous=null/added=0/kept=0/current=2 且文案不含『新增2』；S2 相同2行再刷 0/0/2 且文案『与上次一致』；S3 2→1 得 0/1/1（removed[0]=m2），恰为卡面要求的正解；S4 空源失败 status≠ok、entries 仍2行、failure.reason=empty_source（保旧表）；S5 真实渲染 HTML 文本实测含『账号 epoch unknown』『配置 revision unknown』『目录 revision unknown』，且成功读回后 revision 取动态字段 rev-real 而非固定值；S6 首屏渲染不抛错且含『模型 / 套餐目录』与刷新入口。负控（卡面『把差异基准换回空表→红』）成立：旧路径 describeDelta(listDelta([],entries)) 实测产出『与上次相比：新增 2（m1、m2），消失 0，保持 0 个，0 → 2』——逐字复现 F30 原文症状（review-20261003.md:353,357），而新路径以真实前表为基准不含『新增 2』。四次失败均为探针自身缺陷并已留证：98bd4431 因 vitest include 不收 .tsx；1231ab0b 因相对路径 '../pages/ModelsPage' 写错（落点在 src/ 应为 './'）；f629edb4 因负控预期文案写成『首次读回』而实测是『与上次相比：新增 2』，53485fed 时 PowerShell 字符串替换未生效（换行符差异）改用精确行编辑；修正后 5b996702 全绿。旧失败证据一律保留未覆盖，临时探针每次运行后即删（TEMP_REMOVED=True），未改任何正式源码。",
+      "unverified": "渲染为**首屏静态渲染**（renderToStaticMarkup），不含点击『刷新』后的重渲染——ModelsPage 的 refresh 状态在组件内 useState(:160)，真实点击链路（handleRefresh→runRefresh→setRefresh→再渲染）本轮未走通，故 S1-S4 的页面文案是用真实数据函数产出的 describeDelta 结果断言，而非 DOM 点击后的重渲染快照；这是本轮与真机 E2E 的实质差距。未使用 jsdom/@testing-library（项目未安装），故未验证事件绑定与交互态。未跑 typecheck（避免无关全绿），ZC-50 依赖仍未验证（1005.md:2380 卡面写『依赖：ZC-50』，本机未找到 ZC-50 实现或签收证据）。",
+      "nextstep": "最小私有验证项（不改正式实现）：在 apps/ui 现有 vitest(node) 下用 react-dom/server 的 renderToStaticMarkup 配合可注入的 refresh 初始态，补一条覆盖 ModelsPage 成功态分支(:768 StatePanel『来源读取成功』)与 deltaText(:268) 在真实渲染 HTML 中的断言，把 S1-S4 从『数据函数文案』升级为『组件渲染输出』。若需覆盖点击链路，则需先由主上决定是否批准在 apps/ui devDependencies 增加 jsdom/@testing-library——那是改正式依赖树，超出本轮只读范围。"
+    },
+    "negative": {
+      "actions": [
+        "81b37bf7-7969-4714-a3e5-09322c50b46c"
+      ],
+      "explanation": "负控专用 action（-t 负控 过滤，1 passed / RC=0）。断言对象是 describeDelta 产出的**页面文案字符串**（ModelsPage:268 deltaText 与 :232 notice 实际渲染的那份文本），非 delta 字段内联比较，满足『不能仅内联比较』。实测旧基准（空表）文案为『与上次相比：新增 2（m1、m2），消失 0，保持 0 个，0 → 2』，与 F30 原始审查 review-20261003.md:353『把当前全报新增、消失/保持报0』逐条对应；新基准为『与上次一致：2 个条目，无增删』且不含『新增 2』。两条路径均用产品 describeDelta 真实实现。",
+      "unverified": "负控只替换了『基准』一个变量，未做全量变异扫描；ModelsPage:768 成功态分支的删除变异未测。",
+      "nextstep": "最小私有验证项：补三条精准变异并各自断言具体页面断言失败——(a) describeDelta 把 previous===null 判据改掉 → S2 文案退化红；(b) 删除 ModelsPage:768 成功态 StatePanel → 成功态渲染断言红；(c) 目录 revision 恒取 CATALOG_STATE.catalogRevision → S5 的『目录 revision unknown』红。"
+    }
+  }
+}

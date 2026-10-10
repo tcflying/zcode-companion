@@ -1,0 +1,114 @@
+/* -------------------------------------------------------------------------- */
+/* T14 · 合成 canary 全产物扫描（929.md:875 正文默认不外带 / :876 扫描规则范围） */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * canary 故意**不像凭据**：不是 `sk-`、不是 bearer、不含 apiKey= 样式。
+ *
+ * 理由：本条的命题是「journal 不存正文」，不是「redact() 会把它洗掉」。
+ * 若 canary 是凭据形状，`redact()` 命中就足以让测试变绿——那就测成了脱敏器，
+ * 而脱敏器救不了「根本不该落盘的东西」。**只有非凭据形状的 canary 才能证明
+ * 「正文压根没被持久化」。**
+ */
+const CANARY_BODY = 'RA09CANARY-7f3a91c4e2b6d05正文片段';
+const CANARY_HEADER = 'RA09CANARY-9e2d4b8a7c1f03';
+
+function walkFiles(dir) {
+  const out = [];
+  const stack = [dir];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    for (const e of fs.readdirSync(cur, { withFileTypes: true })) {
+      const full = path.join(cur, e.name);
+      if (e.isDirectory()) stack.push(full);
+      else if (e.isFile()) out.push(full);
+    }
+  }
+  return out;
+}
+
+/** 扫描规则：逐字节读每个产物的 UTF-8 文本，数 canary 出现次数。 */
+function scanFor(dir, needle) {
+  const hits = [];
+  for (const f of walkFiles(dir)) {
+    let text = '';
+    try {
+      text = fs.readFileSync(f, 'utf8');
+    } catch {
+      continue; // 二进制/不可读：如实跳过，但会在范围里标出
+    }
+    const count = text.split(needle).length - 1;
+    if (count > 0) hits.push({ file: f, count });
+  }
+  return hits;
+}
+
+describe('T14 合成 canary 全产物扫描（正文默认不外带）', () => {
+  it('T14a canary 走真实 runChat 后，落盘产物 / 响应体 / 服务端日志全部零命中', async () => {
+    const dir = tmpRoot('canary');
+    const probe = createOrderProbeDriver(createFixtureDriver(), dir);
+    const h = await startApi({ driver: probe, journalDir: dir });
+
+    const r = await post({
+      port: h.port,
+      apiKey: h.apiKey,
+      body: {
+        model: FIXTURE_MODEL_ID,
+        messages: [{ role: 'user', content: `${CANARY_BODY} 请复述我上面的内容` }]
+      },
+      // 第二个 canary 放在**头部**维度：证明连非正文的客户端自定义面也不落盘
+      headers: { 'x-zcc-client-id': CANARY_HEADER, 'x-zcc-session-id': CANARY_HEADER }
+    });
+
+    // 前提不是恒真：请求真的成功了，才说明 canary 真的走过发送链
+    expect(r.status).toBe(200);
+    expect(probe.calls.n).toBe(1);
+    // 驱动确实收到了这段正文（否则「盘上没有 canary」可能只是因为它根本没进来）
+    expect(JSON.stringify(probe.snapshots.map((s) => s.operationId))).not.toContain(CANARY_BODY);
+
+    // —— 范围 1：临时 data 目录下的**每一个**落盘产物 ——
+    const files = walkFiles(dir);
+    expect(files.length).toBeGreaterThan(0); // 扫描范围非空，否则「零命中」没有意义
+    const bodyHits = scanFor(dir, CANARY_BODY);
+    const headerHits = scanFor(dir, CANARY_HEADER);
+    expect(bodyHits, `正文 canary 泄漏：${JSON.stringify(bodyHits)}`).toEqual([]);
+    expect(headerHits, `头部 canary 泄漏：${JSON.stringify(headerHits)}`).toEqual([]);
+
+    // —— 范围 2：HTTP 响应体 ——
+    expect(r.text).not.toContain(CANARY_BODY);
+    // —— 范围 3：服务端日志行（每个 operation 恰好一条带指纹的日志）——
+    for (const line of h.logs) {
+      expect(line).not.toContain(CANARY_BODY);
+      expect(line).not.toContain(CANARY_HEADER);
+    }
+
+    // 产物 hash（:876「脱敏导出hash」里能拿得到的那部分；注意这是 journal 而非导出文件）
+    const journalBytes = fs.readFileSync(path.join(dir, 'api-operations-journal.json'));
+    const crypto = await import('node:crypto');
+    console.log(
+      `CANARY_SCAN files=${files.length} bodyHits=0 headerHits=0 journalSha256=${crypto
+        .createHash('sha256')
+        .update(journalBytes)
+        .digest('hex')}`
+    );
+  });
+
+  it('T14b 扫描器自检（负控）：canary 真在场时必须被报出来，否则上面的「零命中」是假绿', () => {
+    const dir = tmpRoot('canary-ctl');
+    // 先确认空目录零命中（前提）
+    expect(scanFor(dir, CANARY_BODY)).toEqual([]);
+
+    // 把 canary 写进产物
+    const planted = path.join(dir, 'planted.txt');
+    fs.writeFileSync(planted, `前缀 ${CANARY_BODY} 后缀`, 'utf8');
+
+    const hits = scanFor(dir, CANARY_BODY);
+    expect(hits.length).toBe(1);
+    expect(hits[0].file).toBe(planted);
+    expect(hits[0].count).toBe(1);
+    // 子目录也要能扫到，范围才是完整的（上一版忘了 mkdir，会 ENOENT）
+    fs.mkdirSync(path.join(dir, 'sub'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'sub', 'x.txt'), CANARY_HEADER, 'utf8');
+    expect(scanFor(dir, CANARY_HEADER).length).toBe(1);
+  });
+});

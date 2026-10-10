@@ -1,0 +1,11 @@
+RUN_UTC=2026-10-07T00:28:55.337294+00:00
+PID=15880
+PROBE_SHA256=eab6cea19bf26f9ee4b924fcd194f54df94a431adde9960bd19917d05736ef99
+VITEST_EXIT=0
+✓ src/pages/__ra08_modeswitch4.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M1 读入 2 条 → 切到写死固定：已读条目被保留并明确告知，不清空 207ms
+✓ src/pages/__ra08_modeswitch4.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M2 录入一条手工条目 → 切到动态刷新 → 切回写死固定：手工条目与已读条目都在 329ms
+✓ src/pages/__ra08_modeswitch4.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M3 切换全程资格显示为未验证 / E0，绝不变成可发送 311ms
+SUMMARY: Test Files  1 passed (1)
+SUMMARY: Tests  3 passed (3)
+SUMMARY: Duration  1.37s (tests 68%, setup 22%, transform 7%, import 3%)
+TEMP_LEFT=True

@@ -1,0 +1,4 @@
+MUTANT_CONFIRMED E1-drop-secret-redaction exit=1 fail=1 expect="已登记的合成 canary 在导出里零出现"
+MUTANT_CONFIRMED E2-bearer-after-keyvalue exit=1 fail=1 expect="凭据形状四类都被洗掉"
+MUTANT_CONFIRMED E3-remove-byte-cap-both-enforcements exit=1 fail=1 expect="超上限时按行截断"
+MUTATION_SUMMARY confirmed=3 failed=0 total=3

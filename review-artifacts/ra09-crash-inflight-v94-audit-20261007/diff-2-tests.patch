@@ -1,0 +1,152 @@
+diff --git a/tests/contract/api-contract.test.mjs b/tests/contract/api-contract.test.mjs
+index 8700ba1..48fd795 100644
+--- a/tests/contract/api-contract.test.mjs
++++ b/tests/contract/api-contract.test.mjs
+@@ -2910,7 +2910,9 @@ describe('API01 本机 API · fixture 隔离（生产配置开不了假模型）
+       'driver',
+       'testOnlyFixtureToken',
+       'logger',
+-      'now'
++      'now',
++      'journalDir',
++      'journalMaxEntries'
+     ]);
+     // 表里唯一与 fixture 有关的键必须是需要 symbol 的那一把。
+     const fixtureish = API_SERVER_CONFIG_KEYS.filter((k) => k.toLowerCase().includes('fixture'));
+diff --git a/tests/contract/api-start-entry.test.mjs b/tests/contract/api-start-entry.test.mjs
+index d718cd2..0f16afb 100644
+--- a/tests/contract/api-start-entry.test.mjs
++++ b/tests/contract/api-start-entry.test.mjs
+@@ -388,10 +388,32 @@ describe('API01 入口：COMPAT1/C4 权限档位与工具应答策略（启动
+       'ZCC_HOST_REASONING',
+       'ZCC_HOST_PERMISSION_MODE',
+       'ZCC_HOST_TOOL_POLICY',
+-      'ZCC_HOST_DEBUG'
++      'ZCC_HOST_DEBUG',
++      // 2026-10-07 因 929.md:875 新增。不登记进这个闭集的**直接后果**是：
++      // 设了 `ZCC_JOURNAL_DIR` 的机器会拿到 `UNKNOWN_ENV_KEY` 而**起不来**——
++      // 这正是「宿主 spawn 时必然下发这个键」所必须的（见下方 journalDir 用例）。
++      'ZCC_JOURNAL_DIR'
+     ]);
+   });
+ 
++  it('`ZCC_JOURNAL_DIR`：桌面 spawn 路径默认接通；缺省仍是不落盘', () => {
++    // 宿主把**既有** settings 目录经 env 交进来时，journal 落到那个目录。
++    const withEnv = parseEntryOptions([], { ZCC_API_KEY: TEST_KEY, ZCC_JOURNAL_DIR: 'C:/profiles/web' });
++    expect(withEnv.journalDir).toBe('C:/profiles/web');
++
++    // CLI 覆盖 env（优先级 CLI > env > 缺省，与其余键同一条规则）。
++    const withFlag = parseEntryOptions(['--journal-dir', 'C:/from-flag'], {
++      ZCC_API_KEY: TEST_KEY,
++      ZCC_JOURNAL_DIR: 'C:/from-env'
++    });
++    expect(withFlag.journalDir).toBe('C:/from-flag');
++
++    // 缺省 = 不启用持久化（纯内存 journal，容量拒绝照样生效）。
++    expect(parseEntryOptions([], { ZCC_API_KEY: TEST_KEY }).journalDir).toBeUndefined();
++    // 空白等价于没给，不当成路径 ''。
++    expect(parseEntryOptions([], { ZCC_API_KEY: TEST_KEY, ZCC_JOURNAL_DIR: '   ' }).journalDir).toBeUndefined();
++  });
++
+   it('`ZCC_HOST_PERMISSION_MODE`：缺省 `yolo`，闭集内透传，闭集外**启动即拒**并指名', () => {
+     const official = parseEntryOptions([], { ZCC_API_KEY: TEST_KEY, ZCC_DRIVER: 'official-host' });
+     expect(official.hostPermissionMode).toBe(ENTRY_DEFAULT_HOST_PERMISSION_MODE);
+diff --git a/tests/unit/api-request-decode.test.mjs b/tests/unit/api-request-decode.test.mjs
+index ca4b540..364dd52 100644
+--- a/tests/unit/api-request-decode.test.mjs
++++ b/tests/unit/api-request-decode.test.mjs
+@@ -268,9 +268,12 @@ describe('ZC-12 · F01 非法百分号编码路径不得终止 API 进程', () =
+     expect(companion.retry.requiresExplicitHumanDecision).toBe(true);
+   });
+ 
+-  it('接口约束：400 复用既有 invalid_request，不新增 errors.ts 的 code', async () => {
+-    // 逐条相等，而不是「至少包含」：卡上写死「不新增 errors.ts 的 code」，
+-    // 有人往 API_ERROR_CODES 里塞新码必须让本钉变红。
++  it('接口约束：错误码表逐条钉死，新增 code 必须让本钉变红并写明理由', async () => {
++    // 逐条相等，而不是「至少包含」：本钉就是「新增 errors.ts 的 code」的唯一拦路石。
++    // 历史：400 曾要求复用既有 invalid_request 不新增码；2026-10-07 因
++    // 929.md:875 拒新发条款新增 `journal_capacity_exceeded` 与 `journal_write_failed`
++    // 两个码——**两者都复用契约既有码 `operation_not_submitted`，未新增契约码**，
++    // 仍满足「不扩 I04 契约面」这条原始约束。
+     expect([...API_ERROR_CODES]).toEqual([
+       'host_not_allowed',
+       'origin_not_allowed',
+@@ -293,6 +296,10 @@ describe('ZC-12 · F01 非法百分号编码路径不得终止 API 进程', () =
+       'upstream_unavailable',
+       'upstream_timeout',
+       'upstream_outcome_unknown',
++      // 929.md:875：journal 不足/落盘失败时拒新发，驱动器未被调用。
++      'journal_capacity_exceeded',
++      'journal_write_failed',
++      'journal_corrupt',
+       'internal_error'
+     ]);
+     expect(API_ERROR_SPECS.invalid_request.status).toBe(400);
+diff --git a/tests/unit/desktop-key-redaction.test.mjs b/tests/unit/desktop-key-redaction.test.mjs
+index 1c1e2fe..c2cc25e 100644
+--- a/tests/unit/desktop-key-redaction.test.mjs
++++ b/tests/unit/desktop-key-redaction.test.mjs
+@@ -271,7 +271,14 @@ describe('不变式：桥面上根本没有 key 这条路', () => {
+       'zcc:desktop:settings:save',
+       'zcc:desktop:start',
+       'zcc:desktop:state',
+-      'zcc:desktop:stop'
++      'zcc:desktop:stop',
++      // 2026-10-07 因 929.md:875（journal不足拒新发而非丢unknown）新增。
++      // 这三个 handler **不返回 settings、不返回 apiKey**：list 只回操作记录
++      // （operationId/state/outcome/at），append/cancel 无返回值。
++      // 上方 findIpcLeaks 扫描同时确认它们没有引入 key 泄漏面。
++      'zcc:journal:append',
++      'zcc:journal:cancel',
++      'zcc:journal:list'
+     ]);
+     // 明确点名：唯一的出口是 publicSettings。
+     expect(MAIN_SRC).toContain('publicSettings(settings)');
+diff --git a/tests/unit/desktop-proxy-manager.test.mjs b/tests/unit/desktop-proxy-manager.test.mjs
+index 7762076..540bdb4 100644
+--- a/tests/unit/desktop-proxy-manager.test.mjs
++++ b/tests/unit/desktop-proxy-manager.test.mjs
+@@ -361,6 +361,8 @@ describe('子进程 env 闭集', () => {
+       apiKey: SYNTHETIC_KEY,
+       apiPort: 8791,
+       reasoning: 'low',
++      // 929.md:875：journal 目录由主进程给出，值来自参数而不是从父进程继承。
++      journalDir: 'C:/profiles/web',
+       parentEnv: {
+         SystemRoot: 'C:\\Windows',
+         PATH: 'C:\\bin',
+@@ -369,6 +371,7 @@ describe('子进程 env 闭集', () => {
+         ZCC_DRIVER: 'official-host',
+         ZCC_HOST_DEBUG: '1',
+         ZCC_SHUTDOWN_GRACE_MS: '999',
++        ZCC_JOURNAL_DIR: '父进程里的旧目录',
+         ELECTRON_RUN_AS_NODE: '1'
+       },
+       extra: { ELECTRON_RUN_AS_NODE: '1', ZCC_DRIVER: 'fixture' }
+@@ -379,6 +382,7 @@ describe('子进程 env 闭集', () => {
+     expect(env.ZCC_API_KEY).toBe(SYNTHETIC_KEY);
+     expect(env.ZCC_API_PORT).toBe('8791');
+     expect(env.ZCC_HOST_REASONING).toBe('low');
++    expect(env.ZCC_JOURNAL_DIR).toBe('C:/profiles/web');
+     expect(env.ZCC_SHUTDOWN_GRACE_MS).toBe('5000');
+     // extra 里混进来的 ZCC_* 也进不来。
+     expect(env.ZCC_DRIVER).toBeUndefined();
+@@ -394,6 +398,18 @@ describe('子进程 env 闭集', () => {
+       expect(entry.ENTRY_ENV_KEYS, `${key} 必须是入口认识的 env 键`).toContain(key);
+     }
+   });
++
++  it('journalDir 缺省时不发射该键（子进程保持纯内存，不猜目录）', () => {
++    const env = buildChildEnv({
++      apiKey: SYNTHETIC_KEY,
++      apiPort: 8791,
++      reasoning: 'low'
++    });
++    expect(env.ZCC_JOURNAL_DIR).toBeUndefined();
++    expect(Object.keys(env).filter((k) => k.startsWith('ZCC_')).sort()).toEqual(
++      [...CHILD_ENV_KEYS].filter((k) => k !== 'ZCC_JOURNAL_DIR').sort()
++    );
++  });
+ });
+ 
+ describe('反代状态机：并发 start 不得泄漏孤儿（I10 CRITICAL-1）', () => {

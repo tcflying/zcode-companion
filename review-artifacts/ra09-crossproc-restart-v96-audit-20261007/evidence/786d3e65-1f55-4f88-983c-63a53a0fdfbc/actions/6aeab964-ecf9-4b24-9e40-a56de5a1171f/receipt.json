@@ -1,0 +1,35 @@
+{
+  "task": "business-v96-20261007",
+  "round": "786d3e65-1f55-4f88-983c-63a53a0fdfbc",
+  "project": "companion-crossproc-restart",
+  "action": "6aeab964-ecf9-4b24-9e40-a56de5a1171f",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\private\\run-crossproc.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc",
+  "pid": 1732,
+  "startedUtc": "2026-10-07T07:18:09.896212+00:00",
+  "start_ns": 1791357489896222700,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T07:18:11.819007+00:00",
+  "end_ns": 1791357491819024300,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc\\actions\\6aeab964-ecf9-4b24-9e40-a56de5a1171f\\stdout",
+      "sha256": "09c34e95094a1769299ce888fb22eeada8832f181d2d2bc9eeaa16528d3f2571",
+      "mtime_ns": 1791357491774078900
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\786d3e65-1f55-4f88-983c-63a53a0fdfbc\\actions\\6aeab964-ecf9-4b24-9e40-a56de5a1171f\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791357489895715000
+    }
+  ]
+}

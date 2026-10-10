@@ -1,0 +1,36 @@
+{
+  "task": "business-v94-20261007",
+  "round": "b69423dd-c2c3-4dca-9166-799bc4857640",
+  "project": "companion-journal",
+  "action": "730c27c1-72c3-4f0e-ade7-5a86c2994c42",
+  "argv": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "G:\\zcode-project\\zcode-companion\\node_modules\\typescript\\bin\\tsc",
+    "--noEmit",
+    "-p",
+    "G:\\zcode-project\\zcode-companion\\tsconfig.json"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640",
+  "pid": 52956,
+  "startedUtc": "2026-10-07T06:44:37.447225+00:00",
+  "start_ns": 1791355477447234900,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T06:44:37.620906+00:00",
+  "end_ns": 1791355477620932500,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640\\actions\\730c27c1-72c3-4f0e-ade7-5a86c2994c42\\stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791355477446606700
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crash-inflight-v94-audit-20261007\\evidence\\b69423dd-c2c3-4dca-9166-799bc4857640\\actions\\730c27c1-72c3-4f0e-ade7-5a86c2994c42\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791355477446606700
+    }
+  ]
+}

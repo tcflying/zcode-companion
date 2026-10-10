@@ -1,0 +1,32 @@
+{
+  "task": "ra09-journal-gap",
+  "round": "5d652382-31a6-438c-86d7-e13f06826318",
+  "status": "blocked",
+  "projects": {
+    "journalgap": {
+      "actions": [
+        "c3722bcb-8531-46cd-85ea-04552dbe9463",
+        "62cac537-eb24-4b35-a2ed-593912a57b24"
+      ],
+      "explanation": "RA-09 条款 875『journal不足拒新发而非丢unknown』的缺口核证（只读源码事实盘点，零失败动作）。定案 c3722bcb：pid 3464，exit 0，2026-10-07T05:09:33Z-05:09:33Z，timeout false。脚本逐字取自 G:/zcode-project/zcode-dev/929.md（SHA256 13b3e59d3f43054c757db13b95174c75ae8e135200dee3be600664b656d1af5f）第 875 行，判定 SPEC_875_has_journal_clause=True，确认条款原文确实含该通过条件。PART A（条款要求的三项机制是否存在）结论为**均不存在**：(A1) 产品代码（apps/ui/src 与 packages 全树，排除 node_modules）中 journal 字样仅 1 处命中，位于 apps/ui/src/data/snapshot.ts:270 的 journal: NOT_CONNECTED as string，是纯展示占位，其常量 NOT_CONNECTED='未接入' 定义于 snapshot.ts:10；packages/api/src 下 journal 命中数为 0。(A2) 任何 journal 写入型 API（writeJournal/journalPath/journalStore/appendJournal/journalFile）在全产品代码中命中数为 0，即无任何落盘实现。(A3)『容量不足则拒绝新操作』语义标记（journal_capacity_exceeded/journal_full/insufficient_journal/reject_new_operation/refuse_new）在 server.ts 代码区命中数为 0。PART B 只登记产品中**真实存在但语义相邻**的行为，明确标注为邻近行为而非条款验收：server.ts:209 MAX_IDEMPOTENCY_ENTRIES = 512；server.ts:815 isEvictableReplay = entry.state === 'done' && entry.replay !== null；server.ts:201 StoredOperation.state 枚举为 'in_flight' | 'done' | 'failed'，**不含 unknown**；server.ts:836 无候选即 break（宁可暂时超限也不硬删在途登记）；server.ts:855-862 结算先于淘汰；packages/api/src 全树 maxRetries/backoff/shouldRetry/retryCount 命中数为 0，即 outcome_unknown 不被任何自动重试机制掩盖；chat.ts:841 抛 ApiError('upstream_outcome_unknown')，errors.ts:53 已注册该错误码。据此准确结论：条款 875 的 journal 持久化、容量不足拒新发、unknown 记录保留三项在当前产品中**业务未实现**（未接线），不是实现错误，也不是缺陷；幂等重放表的容量淘汰与 outcome_unknown 不被重试掩盖虽为真实行为，但**不能**用邻近 Map 的测试充当本条验收。62cac537 把封存 stdout 转录为结构化裁定 JSON 产物（generated=True，sha256 f33702120fe4bf8384e0e786c2c9f07e29b14fd5f3a9431df7f54602df6bb1cf），其中 journal_clause_accepted=false、real_journal_module_present=false、ra09_overall=NOT_SIGNED。正式源码零改动，未提交未推送。",
+      "blockers": [
+        {
+          "condition": "条款 875 要求『journal不足拒新发而非丢unknown』，而产品中 journal 持久化与容量不足拒新发机制均未实现，故该条款在当前产品上无法验收，只能记为业务未实现",
+          "gap": "产品代码中 journal 仅在 apps/ui/src/data/snapshot.ts:270 作为 NOT_CONNECTED 展示占位出现一次，packages/api/src 下零命中；journal 写入型 API 全树命中 0，无任何落盘实现，故『重开后仍在』无载体；『容量不足则拒绝新操作』语义标记全树命中 0，而现有 server.ts 幂等重放表在容量超限时执行的是 evictReplayOverflow 逐出最旧可淘汰条目而非拒绝新发；StoredOperation.state 枚举不含 unknown；本轮为只读源码事实盘点，未启动宿主、未调用真实推理、未使用真实凭据、未做 IPC，未复刻任何产品逻辑",
+          "action": "62cac537-eb24-4b35-a2ed-593912a57b24",
+          "observed": false,
+          "required": "SIGNED",
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318\\journal-gap-verdict.json",
+            "sha256": "f33702120fe4bf8384e0e786c2c9f07e29b14fd5f3a9431df7f54602df6bb1cf",
+            "pointer": ["journal_clause_accepted"],
+            "observed": false
+          }
+        }
+      ],
+      "diagnosis": "本轮 status=blocked 的原因是**业务未实现**，不是测试失败、也不是产品缺陷。上一轮回复我曾把 929.md:875 读成只讲凭据不泄漏，漏引了『journal不足拒新发而非丢unknown』这半句，属引用错误；本轮已按主线程指定的精确路径逐行复核并由脚本逐字取原文确认（SPEC_875_has_journal_clause=True）。核证结果是：条款要求的 journal 持久化（A2 写入 API 全树 0 命中）、容量不足拒新发（A3 语义标记 0 命中）、unknown 记录保留（StoredOperation.state 枚举无 unknown）三项在当前产品中均不存在，产品只把 journal 显示为 snapshot.ts:270 的 NOT_CONNECTED 占位。按主线程指示，不用邻近的幂等重放表测试冒充本条验收，PART B 的六项真实行为（512 容量、done+replay 双条件淘汰、state 枚举无 unknown、无候选即 break、结算先于淘汰、outcome_unknown 无自动重试机制掩盖）一律标注为邻近行为。本轮未新造任何产品机制、未写正式源码、未写记忆、未启动宿主或服务。",
+      "unverified": "本轮为只读源码事实盘点，不含运行时实证：未启动宿主、未调用真实推理、未使用真实凭据、未做 IPC；PART B 的邻近行为仅有源码级判定，未做运行时触发验证（那属于邻近事实，不属条款验收）；条款 875 的另一半『secret canary 无泄漏、正文默认不外带』与『官方秘密未曾进入采集管道』不在本轮范围；密钥 ACL、OS 级加密存储、后台自动上转链路仍未测，**不冒称 RA-09 整体通过**。",
+      "nextstep": "已给出条款 875 的准确原文与逐项缺口证据（journal 持久化/拒新发/unknown 保留三项均未实现）。等主上裁定是否立项实现该机制；若立项，本轮缺口报告可直接作为实现前的边界说明。不再以邻近 Map 测试推进本条。"
+    }
+  }
+}

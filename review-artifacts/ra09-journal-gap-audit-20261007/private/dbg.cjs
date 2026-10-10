@@ -1,0 +1,15 @@
+const { createRequire } = require('node:module');
+const rq = createRequire('file:///G:/zcode-project/zcode-companion/apps/desktop/lib/__tests__/x.mjs');
+const { createJournal } = rq('../journal.cjs');
+const fs=require('node:fs'), os=require('node:os'), path=require('node:path');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(),'dbg-'));
+const j = createJournal({ dir, maxEntries: 3 });
+console.log('load->', JSON.stringify(j.load()));
+j.append({operationId:'op1',state:'done',at:1});
+j.append({operationId:'op2',state:'done',at:2});
+j.append({operationId:'op3',state:'done',at:3});
+console.log('after3', JSON.stringify(j.list().map(e=>e.operationId)));
+const r4 = j.append({operationId:'op4',state:'done',at:4});
+console.log('r4', JSON.stringify({ok:r4.ok,evicted:r4.evicted}));
+console.log('after4', JSON.stringify(j.list().map(e=>e.operationId)));
+fs.rmSync(dir,{recursive:true,force:true});

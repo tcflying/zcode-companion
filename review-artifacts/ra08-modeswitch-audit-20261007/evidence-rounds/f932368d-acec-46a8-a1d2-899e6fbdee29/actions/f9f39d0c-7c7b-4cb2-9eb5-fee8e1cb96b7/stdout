@@ -1,0 +1,14 @@
+RUN_UTC=2026-10-07T00:28:22.161648+00:00
+PID=9240
+PROBE_SHA256=adc288e303abd81e66b20dc46f0ab905ce55cec4ac8f42bd2360b5bdd1b716a6
+VITEST_EXIT=1
+✓ src/pages/__ra08_modeswitch3.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M1 读入 2 条 → 切到写死固定：已读条目被保留并明确告知，不清空 192ms
+× src/pages/__ra08_modeswitch3.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M2 录入一条手工条目 → 切到动态刷新 → 切回写死固定：手工条目与已读条目都在 303ms
+× src/pages/__ra08_modeswitch3.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M3 切换全程资格显示为未验证 / E0，绝不变成可发送 183ms
+SUMMARY: Test Files  1 failed (1)
+SUMMARY: Tests  2 failed | 1 passed (3)
+SUMMARY: Duration  1.20s (tests 62%, setup 26%, transform 8%, import 3%)
+SUMMARY: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+DETAIL: AssertionError: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '我的手工模型'
+DETAIL: AssertionError: expected [ …(3) ] to have a length of +0 but got 3
+TEMP_LEFT=True

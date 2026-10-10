@@ -1,0 +1,430 @@
+/**
+ * api 侧操作 journal 存储：`runChat` 在**真实副作用之前**的强制登记点。
+ *
+ * 需求出处：`G:/zcode-project/zcode-dev/929.md:875`
+ *   「journal不足拒新发而非丢unknown」
+ *
+ * 与 `apps/desktop/lib/journal.cjs` 的关系：桌面主进程也有同名需求，但运行在
+ * **不同进程**（desktop 主进程 vs 被 spawn 的 API 子进程），各自持有独立的全量列表
+ * 并整体覆盖写盘。所以两者**同目录、不同文件**（见 {@link API_JOURNAL_FILE_NAME}）：
+ * 共用一个文件会变成「后写者抹掉先写者」，那正是条款要禁止的静默丢记录。
+ * 两份实现的淘汰语义必须一致，注释在此互相点名，避免日后单边漂移。
+ *
+ * 只存**结构化操作记录**：`operationId` / `state` / `outcome` / 时间 /
+ * 幂等作用域摘要 / 请求体哈希。**不存请求正文、不存消息内容、不存模型请求、
+ * 不存任何凭据**——这既是 929.md:875 的前半句要求，也让 journal 本身不成为泄漏面。
+ * 跨重启复用幂等作用域靠的是**哈希**而不是正文，所以重启后能拒绝「同键再发」，
+ * 却**不能**原样重放上次的 2xx 正文（那需要存正文，是另一件事，本模块明确不做）。
+ *
+ * 同步写：登记必须在 `driver.stream()` 之前完成，异步化会留下
+ * 「已发送但未登记」的窗口，那正是条款要禁止的状态。
+ *
+ * ── 四条 fail-closed 铁律（2026-10-07 父审 v90 反例实证后补入）─────────────
+ *  1. **盘上原件不可信 ⇒ 拒绝新发，绝不覆盖。** 载入期只要报出任何问题，
+ *     本实例即进入 `poisoned`：所有 `reserve` 返回 `journal_corrupt`。
+ *     宁可整个功能停摆等人来看一眼，也不静默吞掉读不懂的记录。
+ *  2. **`unknown` / `in_flight` 的 operationId 不可再发。** 这两条状态的意思
+ *     就是「这次操作发出去了、结果不可知」；再发一次就是对同一件事重复扣费。
+ *  3. **持久成功之前不提交内存变更。** 淘汰、改状态都先写盘，写盘失败则
+ *     内存**原封不动**——否则内存与磁盘会永久分叉（磁盘留着旧记录、
+ *     内存以为已淘汰，重启后「消失」的记录又冒出来）。
+ *  4. **同作用域哈希用于跨重启守卫**，只存哈希不存原文。
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+export type JournalState = 'in_flight' | 'done' | 'failed' | 'unknown';
+
+export interface JournalEntry {
+  readonly operationId: string;
+  readonly state: JournalState;
+  readonly outcome?: string;
+  readonly at: number;
+  /** 幂等作用域摘要（哈希）。缺省 = 这次请求没有 opt-in 幂等。 */
+  readonly scope?: string;
+  /** 规范化请求体哈希（哈希，非正文）。 */
+  readonly bodyHash?: string;
+  /**
+   * 会话身份哈希（`clientId + sessionId + keyFingerprint`，不含正文）。
+   *
+   * 存在的理由：幂等 `scope` 只覆盖「同一个键」。而 929.md:347/853/916 要求
+   * **同会话内换新键也不得穿透 unknown 保护**——那需要会话维度，与键维度是正交的。
+   * 缺省 = 该请求没有声明会话身份（此时**不做**会话级判定，见
+   * `resolveSessionIdentity` 的说明：缺身份不假造）。
+   */
+  readonly sessionKey?: string;
+}
+
+/**
+ * `reserve` 的拒绝原因。调用方**一律**据此拒绝本次新发。
+ *
+ * 前三个是「journal 本身不可用」，后两个是「这个操作已经发过了，不许重发」。
+ */
+export type ReserveRejection =
+  | 'journal_capacity_exceeded'
+  | 'journal_write_failed'
+  | 'journal_corrupt'
+  | 'operation_outcome_unknown'
+  | 'operation_in_progress';
+
+export interface JournalAppendResult {
+  readonly ok: boolean;
+  readonly reason?: ReserveRejection | string;
+  readonly entry?: JournalEntry;
+}
+
+/** 跨重启可查的「这个作用域已经发过什么」。 */
+export interface PersistedOperation {
+  readonly operationId: string;
+  readonly state: JournalState;
+  readonly bodyHash?: string;
+}
+
+export interface OperationJournal {
+  /**
+   * 在真实副作用**之前**登记一条记录。
+   *
+   * 返回 `ok:false` 时调用方**不得继续发送**——条款说的「拒新发」就是这一步。
+   * 可淘汰条目不足 ⇒ 明确拒绝；新条目自身**不能**作为淘汰对象给自己腾位。
+   */
+  reserve(input: {
+    operationId: string;
+    scope?: string;
+    bodyHash?: string;
+    sessionKey?: string;
+    at: number;
+    maxEntries: number;
+  }): JournalAppendResult;
+  /**
+   * 终态更新。**先落盘、后改内存**：写失败则内存保持原状，
+   * 保证内存与磁盘始终一致（否则重启后会「复活」出已作废的状态）。
+   */
+  settle(operationId: string, state: JournalState, outcome?: string): boolean;
+  entries(): readonly JournalEntry[];
+  /** 跨重启幂等守卫：按作用域查已发出的操作事实。 */
+  lookupScope(scope: string): PersistedOperation | undefined;
+  /**
+   * 会话级闸门：查该会话里是否存在**结果不可知**（`unknown`）的记录。
+   *
+   * 「跨进程遗留的 `in_flight` 算不算」这个问题在**载入时**就已定：
+   * `recoverInFlightFromPreviousProcess` 把上一进程遗留的 `in_flight` 承接成了
+   * `unknown`（那个在途请求在新进程里永远不可能结算），所以这里只需认 `unknown`。
+   *
+   * 同一进程里活着的 `in_flight` **不算**：那是正常在途，会话并发不该被冻住。
+   */
+  lookupSessionUnknown(sessionKey: string): PersistedOperation | undefined;
+  /** 载入期问题。非空即「盘上原件不可信」，此时 `reserve` 一律拒绝。 */
+  problems(): readonly string[];
+  /**
+   * 载入期的**跨进程承接**说明（上一进程遗留的 `in_flight` → `unknown`）。
+   * 这是正常语义，**不是**问题：它不会触发 poisoned。
+   */
+  recovered(): readonly string[];
+  /** 当前是否处于 fail-closed 的「不可信」状态。 */
+  poisoned(): boolean;
+  /**
+   * 是否**真的落盘**（调用方给了目录）。
+   *
+   * 跨重启幂等守卫**只在为真时生效**：这个守卫的全部意义是「重启后别把同一次
+   * 用户意图当成全新操作再发一遍」，而没有落盘目录就根本不存在跨重启这回事。
+   * 缺省（纯内存）时行为与加 journal 之前逐字一致——包括 F02 明确要求的
+   * 「重放预算淘汰后，同键作为**全新操作**重新执行」。
+   */
+  persistent(): boolean;
+}
+
+const UNKNOWN: JournalState = 'unknown';
+const IN_FLIGHT: JournalState = 'in_flight';
+
+/** 与 desktop 侧同名函数保持一致：`unknown` 与 `in_flight` 都不可淘汰。 */
+function evictable(e: JournalEntry): boolean {
+  return e.state !== UNKNOWN && e.state !== IN_FLIGHT;
+}
+
+/**
+ * api 侧 journal 的文件名。
+ *
+ * **刻意不等于桌面侧的 `journal.json`**（`apps/desktop/lib/journal.cjs:29`）。
+ *
+ * 两份 journal 在产品里会落进**同一个目录**（`<userData>/`，桌面把它经
+ * `ZCC_JOURNAL_DIR` 交给本子进程），但它们是两个**独立进程**、两份**独立**的
+ * 全量列表，写法都是「把内存里的整个 `entries` 数组原子覆盖回文件」。
+ *
+ * 若共用一个文件名：谁后写谁就把对方整个列表抹掉——**静默丢记录**，
+ * 而且丢的往往正是 `unknown`。这与 929.md:875 的要求正好相反。
+ *
+ * 同目录、不同文件、各自原子写：互不干扰，语义上它们本来就是两套记录
+ * （桌面记它自己的 IPC 操作，api 记 `runChat` 的操作）。
+ */
+const API_JOURNAL_FILE_NAME = 'api-operations-journal.json';
+
+function journalFile(dir: string): string {
+  return path.join(dir, API_JOURNAL_FILE_NAME);
+}
+
+/**
+ * 载入期把上一进程遗留的 `in_flight` **承接为 `unknown`**。
+ *
+ * 理由（RA-06，`929.md:853/854`）：`in_flight` 的含义是「已提交给上游、尚未拿到终态」。
+ * 但**跨进程**看这条记录时，本进程里根本没有那个在途请求，也**永远不可能**再去结算它
+ * ——没有任何代码路径会把一条从磁盘载入的 `in_flight` 改成终态。所以它的真实语义就是
+ * 「结果不可知」。若仍按 `in_flight` 处理：它不可淘汰（占死容量）、会话闸门判不到它
+ * （只看 unknown），于是「终止本应用子进程后重开零重发」这条直接被穿透。
+ *
+ * **只作用于载入**：同一进程里 `reserve` 造出来的 `in_flight` 不受影响，
+ * 正常并发契约（同一会话允许并发不同键的新操作）保持原样。
+ *
+ * ## 绝不能进 `problems`
+ *
+ * `problems` 非空会触发 `poisoned` → 拒绝**一切**新发。把这里当成「问题」上报，
+ * 等于让一次崩溃把整个发送功能永久冻死。承接是**正常语义**，不是异常。
+ */
+function recoverInFlightFromPreviousProcess(entries: JournalEntry[]): {
+  entries: JournalEntry[];
+  recovered: string[];
+} {
+  const recovered: string[] = [];
+  const next = entries.map((e) => {
+    if (e.state !== IN_FLIGHT) return e;
+    recovered.push(`JOURNAL_INFLIGHT_RECOVERED_AS_UNKNOWN: ${e.operationId}`);
+    return { ...e, state: UNKNOWN, outcome: `in_flight_from_previous_process: ${e.outcome ?? 'none'}` };
+  });
+  return { entries: next, recovered };
+}
+
+/**
+ * 从磁盘载入。文件缺失是正常首启；**任何**无法完整解析的情况都如实报告，
+ * 并且**不覆盖原文件**（原文件由调用方在 poisoned 状态下保持原样）。
+ *
+ * @returns 记录 + 问题列表 + 跨进程承接说明（后者**不是**问题，不触发 poisoned）
+ */
+export function loadJournal(dir: string): {
+  entries: JournalEntry[];
+  problems: string[];
+  recovered: string[];
+} {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(journalFile(dir), 'utf8');
+  } catch (err) {
+    // **必须区分「文件不存在」与「文件存在但读不到」**：
+    // 首次启动时 journal.json 根本不存在，那是**正常状态**，不是问题。
+    // 把 ENOENT 也算成问题会让每个新用户一启动就进入 poisoned、
+    // 永远拒发——这是比原缺陷更严重的事故。
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') return { entries: [], problems: [], recovered: [] };
+    // 其余（EACCES / EISDIR / …）：确实拿不到原始字节，如实标问题，
+    // 让 fail-closed 生效（宁可拒发，也不覆盖可能是有效的记录）。
+    return {
+      entries: [],
+      problems: [`JOURNAL_FILE_UNREADABLE: ${code ?? 'UNKNOWN'}: ${err instanceof Error ? err.message : String(err)}`],
+      recovered: []
+    };
+  }
+  const problems: string[] = [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return {
+      entries: [],
+      problems: [`JOURNAL_FILE_UNREADABLE: ${err instanceof Error ? err.message : String(err)}`],
+      recovered: []
+    };
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { entries: [], problems: ['JOURNAL_FILE_SHAPE: 顶层不是对象'], recovered: [] };
+  }
+  const list = (parsed as { entries?: unknown }).entries;
+  if (!Array.isArray(list)) {
+    return { entries: [], problems: ['JOURNAL_ENTRIES_MISSING: 缺少 entries 数组'], recovered: [] };
+  }
+  /** @type {JournalEntry[]} */
+  const entries: JournalEntry[] = [];
+  list.forEach((item, i) => {
+    if (
+      item !== null &&
+      typeof item === 'object' &&
+      typeof (item as JournalEntry).operationId === 'string' &&
+      typeof (item as JournalEntry).state === 'string' &&
+      typeof (item as JournalEntry).at === 'number'
+    ) {
+      entries.push(item as JournalEntry);
+    } else {
+      problems.push(`JOURNAL_ENTRY_DROPPED: [${i}] 结构非法`);
+    }
+  });
+  const recoveredView = recoverInFlightFromPreviousProcess(entries);
+  return { entries: recoveredView.entries, problems, recovered: recoveredView.recovered };
+}
+
+/**
+ * 建一个 journal 实例。
+ *
+ * @param dir 落盘目录。**调用方显式传入才算启用持久化**，缺省不启用。
+ */
+export function createOperationJournal(dir: string | undefined): OperationJournal {
+  const loaded =
+    dir === undefined ? { entries: [], problems: [] as string[], recovered: [] as string[] } : loadJournal(dir);
+  /** @type {JournalEntry[]} */
+  let entries: JournalEntry[] = loaded.entries;
+  /**
+   * 盘上原件不可信 ⇒ **拒绝一切新发**。
+   *
+   * 刻意「一律全拒」而不是「只对坏的那条 fail-closed」：无法解析的记录里
+   * 可能藏着别的 `unknown`，而 `unknown` 被静默丢弃正是条款要禁止的。
+   * 停摆 + 保留原件，比猜着继续写安全。
+   */
+  const isPoisoned = loaded.problems.length > 0;
+
+  /**
+   * 原子写：先写 tmp 再改名，写到一半断电不留半份 JSON（与 settings.cjs 同款）。
+   *
+   * **只写传入的 list，绝不读 `entries`**——调用方必须「先算好候选、
+   * 落盘成功、再赋给 `entries`」，写失败时 `entries` 保持原状。
+   */
+  function persist(list: readonly JournalEntry[]): string | null {
+    if (dir === undefined) return null; // 未启用持久：不写盘也不报错
+    const file = journalFile(dir);
+    const tmp = `${file}.tmp`;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(tmp, `${JSON.stringify({ entries: list }, null, 2)}\n`, {
+        encoding: 'utf8',
+        mode: 0o600
+      });
+      fs.renameSync(tmp, file);
+      return null;
+    } catch (err) {
+      // 半份 tmp 留着会挡住下一次写入，如实清掉。
+      try {
+        fs.unlinkSync(tmp);
+      } catch {
+        // 清不掉不是本次失败的原因，原样吞掉（不覆盖真实原因）
+      }
+      return `journal_write_failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  return {
+    reserve({ operationId, scope, bodyHash, sessionKey, at, maxEntries }) {
+      if (isPoisoned) {
+        // 铁律 1：原件读不懂就不许动它，更不许在上面盖新账。
+        return { ok: false, reason: 'journal_corrupt' };
+      }
+
+      const existing = entries.find((e) => e.operationId === operationId);
+      if (existing !== undefined) {
+        // 铁律 2：同 operationId 再来一次，按**状态**决定能不能发。
+        if (existing.state === UNKNOWN) {
+          // 上一次发出去了、结果不可知。再发就是对同一件事重复投递。
+          return { ok: false, reason: 'operation_outcome_unknown' };
+        }
+        if (existing.state === IN_FLIGHT) {
+          // 还在途。并发重复提交不是「再来一次」，是同一个操作。
+          return { ok: false, reason: 'operation_in_progress' };
+        }
+        // 已结算（done / failed）：幂等返回既有记录，由调用方决定后续。
+        return { ok: true, entry: existing };
+      }
+
+      /** @type {JournalEntry} */
+      const entry: JournalEntry = {
+        operationId,
+        state: IN_FLIGHT,
+        at,
+        ...(scope === undefined ? {} : { scope }),
+        ...(bodyHash === undefined ? {} : { bodyHash }),
+        ...(sessionKey === undefined ? {} : { sessionKey })
+      };
+
+      /** @type {JournalEntry[]} */
+      let next: JournalEntry[];
+      const overflow = entries.length + 1 - maxEntries;
+      if (overflow > 0) {
+        // 只统计**旧**条目：可淘汰的旧条目不足以腾位 ⇒ 明确拒新发。
+        const oldEvictable = entries.filter(evictable).length;
+        if (oldEvictable < overflow) {
+          return { ok: false, reason: 'journal_capacity_exceeded' };
+        }
+        /** @type {JournalEntry[]} */
+        const survivors: JournalEntry[] = [];
+        let dropped = 0;
+        // entries 是「新 → 旧」，从末尾往前才是最旧优先。
+        for (let i = entries.length - 1; i >= 0; i -= 1) {
+          const e = entries[i] as JournalEntry;
+          if (dropped < overflow && evictable(e)) {
+            dropped += 1;
+            continue;
+          }
+          survivors.push(e);
+        }
+        survivors.reverse();
+        next = [entry, ...survivors];
+      } else {
+        next = [entry, ...entries];
+      }
+
+      // 铁律 3：**先落盘**。写失败则 `entries` 一个字节都没动过，
+      // 既不会丢新条目，也不会把被淘汰的旧条目从内存里抹掉。
+      const err = persist(next);
+      if (err !== null) {
+        return { ok: false, reason: err };
+      }
+      entries = next;
+      return { ok: true, entry };
+    },
+
+    settle(operationId, state, outcome) {
+      const next = entries.map((e) =>
+        e.operationId === operationId ? { ...e, state, ...(outcome === undefined ? {} : { outcome }) } : e
+      );
+      // 铁律 3 同样适用于结算：写失败就保持原状。
+      // 宁可让这条停在 in_flight（不可淘汰、不会丢），也不制造内存/磁盘分叉。
+      if (persist(next) !== null) return false;
+      entries = next;
+      return true;
+    },
+
+    entries() {
+      return entries.slice();
+    },
+
+    lookupScope(scope) {
+      const hit = entries.find((e) => e.scope === scope);
+      if (hit === undefined) return undefined;
+      return {
+        operationId: hit.operationId,
+        state: hit.state,
+        ...(hit.bodyHash === undefined ? {} : { bodyHash: hit.bodyHash })
+      };
+    },
+
+    lookupSessionUnknown(sessionKey) {
+      const hit = entries.find((e) => e.sessionKey === sessionKey && e.state === UNKNOWN);
+      if (hit === undefined) return undefined;
+      return {
+        operationId: hit.operationId,
+        state: hit.state,
+        ...(hit.bodyHash === undefined ? {} : { bodyHash: hit.bodyHash })
+      };
+    },
+
+    problems() {
+      return loaded.problems.slice();
+    },
+
+    recovered() {
+      return loaded.recovered.slice();
+    },
+
+    poisoned() {
+      return isPoisoned;
+    },
+
+    persistent() {
+      return dir !== undefined;
+    }
+  };
+}

@@ -1,0 +1,21 @@
+RC=1
+--- OUT ---
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  07:48:11
+   Duration  411ms (environment 99%, worker 1%)
+
+
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__zc51_compatA.test.ts [ src/__zc51_compatA.test.ts ]
+Error: The environment happy-dom-private-adapter was not defined in the Vite config.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+TEMP_REMOVED=True

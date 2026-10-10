@@ -1,0 +1,34 @@
+{
+  "task": "ra09-realhook",
+  "round": "f0038b70-39be-4981-be9b-022ff01d5273",
+  "project": "realhook",
+  "action": "8bf8aa37-a08e-4a06-bf0c-cc88710ee9a1",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\private\\static-check.py"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273",
+  "pid": 28740,
+  "startedUtc": "2026-10-07T04:05:31.839864+00:00",
+  "start_ns": 1791345931839875000,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T04:05:31.874851+00:00",
+  "end_ns": 1791345931874864400,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\actions\\8bf8aa37-a08e-4a06-bf0c-cc88710ee9a1\\stdout",
+      "sha256": "67950d6a7a2f09ee6bd3550afa6d5b7e32292e97fa95f1ca317ded007ff6ec8b",
+      "mtime_ns": 1791345931868324600
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\actions\\8bf8aa37-a08e-4a06-bf0c-cc88710ee9a1\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791345931839325200
+    }
+  ]
+}

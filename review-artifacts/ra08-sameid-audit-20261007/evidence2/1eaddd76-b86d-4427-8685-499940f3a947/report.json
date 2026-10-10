@@ -1,0 +1,34 @@
+{
+  "task": "ra08-sameid2",
+  "round": "1eaddd76-b86d-4427-8685-499940f3a947",
+  "status": "blocked",
+  "projects": {
+    "sameid2": {
+      "actions": [
+        "220b3d29-917a-437b-ad71-bb668b7ae60a",
+        "26d57cfa-95ff-4fc6-b54a-3f942bbf0120",
+        "8ad3c602-d7d2-4e12-bd96-abd0d586ad4e",
+        "7a9f2531-ef19-4364-962b-d85e57065c35"
+      ],
+      "explanation": "RA-08 同 ID 冲突真实挂载验收（干净证据链，替代 evidence/88c6eb46 那轮——该轮因失败动作 52d1e7f4 声明的 artifact 被后续动作复用同一路径写入，gate.py:179 artifact changed 永远无法自证，故如实作废另起本轮，证据动作全部重跑）。定案 220b3d29：pid 55260，exit 0，2026-10-07T01:42:19Z-01:42:21Z，VITEST_EXIT=0 / CLASS=all_passed / Tests 3 passed (3) / Duration 1.97s。K1 同名两域各自独立：写死模式只见手工 1 行（origin=手工录入、provider=unknown），动态模式只见来源 2 行，同名来源行 origin 仍为「来源读回」、provider 未被 unknown 覆盖。K2 删同名手工条目后真实刷新来源：fetch 次数增加且全部为 /v1/zcc/catalog，来源条目 2 条、当前列表条目 2、origin/provider 未污染、摘要为「与上次一致」且不含「新增 1」「消失 1」。K3 正控：同名手工仍在时来源真由 2 变 1，delta 如实报「消失 1（src-b），保持 1 个，2 → 1」，排除 delta 恒零假绿。静态对照 26d57cfa 只读核 modelSource.ts SHA256=78acdb7a2266a3dca4f36543bf7cab0b0cfe57cc888f01abc815269a39642e43 与本轮开始前逐字节一致，双 key 命名空间 manual:m / source: 均在、activeEntries 三元二选一、HAS_merged_domains=False 全文件无任何 concat 合并、listDelta 只比 refresh.entries、removeManualEntry 只 filter 手工域且 HAS_remove_touches_refresh=False。7a9f2531 把封存 stdout 转录为结构化裁定 JSON 产物（generated=True，sha256 d2ab4996b763090fe0ea67a2d1950d75954f2c6084d384f152426cee2b1b1d58）。正式源码零改动，apps/ui git CLEAN，未提交未推送。",
+      "blockers": [
+        {
+          "condition": "同 ID 冲突子项在无真实浏览器、无真实 8790 服务、全替身 fetch 的环境下取得，且 RA-08 其余页面未覆盖，故只能记为未完成签收而非成功",
+          "gap": "happy-dom 20.11.6 非真实浏览器（无布局/CSS/可见性/Tab 焦点）；fetch 全替身，无真实 8790 服务、无回环守卫、无真实上游目录，catalog 为合成数据；RA-08 要求的总览/聊天/请求记录/API关闭页/设置诊断页、多尺寸缩放、Tab 焦点、恶意 Markdown 全未测；同域内重复 id 的 listDelta 语义未验",
+          "action": "7a9f2531-ef19-4364-962b-d85e57065c35",
+          "observed": "NOT_SIGNED",
+          "required": "SIGNED",
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947\\sameid-verdict.json",
+            "sha256": "d2ab4996b763090fe0ea67a2d1950d75954f2c6084d384f152426cee2b1b1d58",
+            "pointer": ["ra08_overall"],
+            "observed": "NOT_SIGNED"
+          }
+        }
+      ],
+      "diagnosis": "本轮 status=blocked 的唯一原因是 RA-08 整体未签收，不是同 ID 子项缺陷。子项在干净证据链上 3/3 全绿且零探针缺陷造成的红。本轮 4 个动作中仅 8ad3c602 失败，原因是首次调用时 summarize2.py 尚未创建（exit 2），补写脚本并补齐 round 参数后重跑为 7a9f2531，属工具调用顺序缺陷。上一轮 evidence/88c6eb46 已如实作废：其失败动作 52d1e7f4 声明的 artifact 路径 sameid-summary.json 被我后续的 v3 脚本写入了同一路径（脚本输出名写死，与 --artifact 声明名不一致），gate.py:179 snapshot(artifact)==recorded after 永不成立，该轮无论怎么改 report 都不可能 validate 通过；按协议不修改 seal/receipt、不删除失败动作、不复用旧 round，改开 evidence2/1eaddd76 重跑全部证据动作。",
+      "unverified": "happy-dom 20.11.6 非真实浏览器（无布局/CSS/可见性/Tab 焦点）；fetch 全替身，无真实 8790 服务、无回环守卫、无真实上游目录，catalog 为合成数据，故只证明逻辑隔离与请求面，不证明真实网络下的行为。同域内重复 id（来源侧同名重复 key、手工侧同名重复 key）的 listDelta 语义未验。RA-08 整体仍未签收：总览/聊天/请求记录/API关闭页/设置诊断页、多尺寸缩放、Tab 焦点、恶意 Markdown 全未测。",
+      "nextstep": "同 ID 冲突缺口已闭合，等主上裁决是否签收 RA-08 子项。RA-08 剩余页面（总览/聊天/请求记录/API关闭页/设置诊断）与多尺寸缩放、Tab 焦点、恶意 Markdown 仍待覆盖。"
+    }
+  }
+}

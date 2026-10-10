@@ -1,0 +1,28 @@
+{
+  "schema": "zcc-operation-status/2",
+  "task": "ZCC-AUTH-20261008",
+  "stage": "api-journal-metadata-readonly",
+  "startedUtc": "2026-10-07T21:48:39.413Z",
+  "journalPath": "C:/Users/datoo/AppData/Roaming/ZCodeCompanion/api-operations-journal.json",
+  "journalExists": false,
+  "journalBytes": null,
+  "journalLastWriteUtc": null,
+  "journalSha256": null,
+  "shape": null,
+  "totalEntries": null,
+  "window": {
+    "startUtc": "2026-10-07T21:38:21.216956Z",
+    "endUtc": "2026-10-07T21:39:30.000000Z"
+  },
+  "entriesInWindow": [],
+  "terminalInWindow": [],
+  "inFlightInWindow": [],
+  "currentInFlightCount": null,
+  "inFlightIsLowerBoundOnly": true,
+  "terminalMeansUnderlyingFinished": null,
+  "activeCountIsZeroProven": null,
+  "canaryRecommended": false,
+  "canaryReason": "API journal 文件在磁盘上不存在；operations 终态无从读取，不做任何推断",
+  "verdict": "API_JOURNAL_FILE_ABSENT",
+  "finishedUtc": "2026-10-07T21:48:39.414Z"
+}

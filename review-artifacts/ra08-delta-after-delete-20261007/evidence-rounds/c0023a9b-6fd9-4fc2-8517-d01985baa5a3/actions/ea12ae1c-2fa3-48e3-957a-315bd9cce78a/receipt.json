@@ -1,0 +1,33 @@
+{
+  "task": "ra08-delta-delete",
+  "round": "c0023a9b-6fd9-4fc2-8517-d01985baa5a3",
+  "project": "delta",
+  "action": "ea12ae1c-2fa3-48e3-957a-315bd9cce78a",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-delta-after-delete-20261007\\evidence-rounds\\c0023a9b-6fd9-4fc2-8517-d01985baa5a3",
+  "pid": 15212,
+  "startedUtc": "2026-10-07T01:16:31.291046+00:00",
+  "start_ns": 1791335791291062900,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T01:16:33.517650+00:00",
+  "end_ns": 1791335793517666200,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-delta-after-delete-20261007\\evidence-rounds\\c0023a9b-6fd9-4fc2-8517-d01985baa5a3\\actions\\ea12ae1c-2fa3-48e3-957a-315bd9cce78a\\stdout",
+      "sha256": "92701a4fe3cf6aae6ac641edbf60f3d3f54b718d6876db1ab02fd6a0123ed6fc",
+      "mtime_ns": 1791335793509796000
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-delta-after-delete-20261007\\evidence-rounds\\c0023a9b-6fd9-4fc2-8517-d01985baa5a3\\actions\\ea12ae1c-2fa3-48e3-957a-315bd9cce78a\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791335791291133300
+    }
+  ]
+}

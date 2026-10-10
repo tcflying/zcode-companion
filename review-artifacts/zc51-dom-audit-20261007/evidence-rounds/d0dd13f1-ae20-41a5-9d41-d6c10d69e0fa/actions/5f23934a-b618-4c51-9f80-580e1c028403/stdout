@@ -1,0 +1,22 @@
+RC=1
+ × src/pages/__zc51_dom_probe3.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S1 首刷 2 行：表格出现两行、摘要说「首次读回」而非「新增 2」、notice 非空 146ms
+ ✓ src/pages/__zc51_dom_probe3.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S2 相同 2 行再刷：摘要变「与上次一致」，仍不出现「新增 2」 201ms
+ × src/pages/__zc51_dom_probe3.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S3 2→1：页面摘要出现 0 新增 / 1 消失 / 1 保持 218ms
+ × src/pages/__zc51_dom_probe3.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S4 失败保留旧表：第二次读空源失败后，表格仍保留上一次的 2 行 222ms
+ ✓ src/pages/__zc51_dom_probe3.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S5 未接 epoch：标题里账号/配置 revision 为 unknown，首刷前目录 revision 亦为 unknown 113ms
+ Test Files  1 failed (1)
+      Tests  3 failed | 2 passed (5)
+   Duration  1.40s (tests 69%, setup 21%, transform 7%, import 3%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '已读到 2 个条目'
+AssertionError: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' not to contain 'm2'
+AssertionError: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' not to contain '来源读取成功'
+---FAIL (truncated) ---
+Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__zc51_dom_probe3.test.ts > ZC-51/F30 真实挂载 · 真实点击 > S1 首刷 2 行：表格出现两行、摘要说「首次读回」而非「新增 2」、notice 非空
+AssertionError: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' to contain '已读到 2 个条目'
+
+Expected: "已读到 2 个条目"
+Received: "模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死固定（手工录入）。两种模式都只影响列表来源，不影响发送门。来源模式 动态刷新额度 无可用额度证据等级 E0零 dispatch来源模式两种模式随时可切换，切换不会清空任何已输入内容：写死条目与上次读到的来源条目都保留，切回即恢复显示。条目可用性一律「未验证」dynamic · 动态刷新（手动点刷新重新读取来源）来源由本机读取，手动点「刷新来源」重新读一次。刷新只读取目录，不发送任何模型请求。当前生效manual · 写死固定（主上手工录入条目）由主上手工录入条目。录入内容不会被官方验证，也不会因此获得可发送资格。可切换提示刷新完成：首次读回：2 个条目（此前没有可对比的列表）。条目可用性仍为「未验证」。来源通道本机 companion API（读取模型目录）本地配置文件（读取模型目录）刷新来源（只读取，不发送）契约：/v1/zcc/catalog。UI04 起本通道有真实执行器：设置页显式开启「连接本机 API」后，只向本机回环（或同源反代）发起 GET 请求，只读取目录、不发任何模型请求；未开启时按未接线失败并显示原因。网络边界已开启「连接本机 API」：刷新会真实请求 http://127.0.0.1:8790/v1/zcc/catalog，只读取目录、不发送任何模型请求。回环守卫只放行 127.0.0.1 / localhost / [::1] 或同源；浏览器 CSP conne
+TEMP_REMOVED=True

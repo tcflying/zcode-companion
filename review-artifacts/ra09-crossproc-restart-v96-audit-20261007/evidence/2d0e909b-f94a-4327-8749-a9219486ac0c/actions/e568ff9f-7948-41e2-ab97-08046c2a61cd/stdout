@@ -1,0 +1,6 @@
+MUTANT_CONFIRMED E1-allowlist-disabled exit=1 fail=2 redMode=assertion expect="非白名单字段被丢弃并计数"
+MUTANT_CONFIRMED E2-value-grammar-disabled exit=1 fail=2 redMode=assertion expect="取值不合文法"
+MUTANT_CONFIRMED E3-remove-byte-cap-both-enforcements exit=1 fail=1 redMode=assertion expect="超上限时按行截断"
+MUTANT_CONFIRMED E4-free-text-flows-through exit=1 fail=7 redMode=assertion expect="正文 canary 所在的自由文本根本不进导出"
+MUTANT_CONFIRMED E5-inflight-guard-removed exit=1 fail=0 redMode=timeout expect="repeat：保存进行中时再来一次"
+MUTATION_SUMMARY confirmed=5 failed=0 total=5

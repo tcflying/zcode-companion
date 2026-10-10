@@ -1,0 +1,49 @@
+{
+  "task": "business-v96b-20261007",
+  "round": "d5386fb5-ee90-4577-a5c0-21c70b354681",
+  "project": "companion-crossproc-restart",
+  "action": "4ec1fbfe-63f7-47fa-b272-d0720dcfc77c",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\private\\run-crossproc.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\d5386fb5-ee90-4577-a5c0-21c70b354681",
+  "pid": 61624,
+  "startedUtc": "2026-10-07T07:21:56.728254+00:00",
+  "start_ns": 1791357716728269000,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T07:21:58.781472+00:00",
+  "end_ns": 1791357718781487800,
+  "artifacts": [
+    {
+      "before": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\d5386fb5-ee90-4577-a5c0-21c70b354681\\crossproc-evidence.jsonl",
+        "sha256": null,
+        "mtime_ns": null
+      },
+      "after": {
+        "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\d5386fb5-ee90-4577-a5c0-21c70b354681\\crossproc-evidence.jsonl",
+        "sha256": "1a65cedbea10bcb65f2fc93cd441de468988c116a0ae746b900fdcfd1eb2cf08",
+        "mtime_ns": 1791357718681354300
+      },
+      "generated": true
+    }
+  ],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\d5386fb5-ee90-4577-a5c0-21c70b354681\\actions\\4ec1fbfe-63f7-47fa-b272-d0720dcfc77c\\stdout",
+      "sha256": "cfeeb73b0fe71254552f144a841a7650f9252e1e57755cd4ff0ab651007f16ce",
+      "mtime_ns": 1791357718735128400
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-crossproc-restart-v96-audit-20261007\\evidence\\d5386fb5-ee90-4577-a5c0-21c70b354681\\actions\\4ec1fbfe-63f7-47fa-b272-d0720dcfc77c\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791357716727909600
+    }
+  ]
+}

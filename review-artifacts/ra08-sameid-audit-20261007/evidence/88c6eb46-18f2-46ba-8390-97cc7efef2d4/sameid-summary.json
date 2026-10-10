@@ -1,0 +1,21 @@
+{
+  "decision": "RA-08 same-id-conflict subset passed under happy-dom private mount",
+  "passed_tests_count": 3,
+  "total_tests_count": 3,
+  "vitest_exit": 0,
+  "classification": "all_passed",
+  "sealed_action": "b293ea06-80d7-4f88-b9f5-989b972edfcc",
+  "sealed_pid": 1732,
+  "sealed_exit": 0,
+  "sealed_started_utc": "2026-10-07T01:36:44.966621+00:00",
+  "sealed_ended_utc": "2026-10-07T01:36:47.647883+00:00",
+  "modelSource_sha256": "78acdb7a2266a3dca4f36543bf7cab0b0cfe57cc888f01abc815269a39642e43",
+  "coverage": [
+    "K1 same-id domains stay independent (origin/provider not cross-contaminated)",
+    "K2 delete same-id manual entry then real refresh: source ids/origin/provider/summary unpolluted, delta stays consistent",
+    "K3 positive control: real source removal still counted in delta"
+  ],
+  "ra08_overall": "NOT_SIGNED",
+  "real_browser": false,
+  "mock_fetch": true
+}

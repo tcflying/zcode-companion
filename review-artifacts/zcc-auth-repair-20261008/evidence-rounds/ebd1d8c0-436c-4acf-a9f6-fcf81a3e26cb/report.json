@@ -1,0 +1,20 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb",
+  "status": "failure",
+  "projects": {
+    "zcc-auth": {
+      "actions": [
+        "2719d457-b5d1-4f29-a5c8-7256d95cee90",
+        "7fdfc689-fc94-429f-b198-446c0ca0fca0",
+        "330f6600-7d4f-4613-9c05-0908ac4f6a2d",
+        "9c1d0731-913c-4683-934b-f25350aaeb85",
+        "111fde5f-85e1-4c44-b200-4545e1c4f835"
+      ],
+      "explanation": "诊断阶段。四个 action 中两个 exit=1，均为执行器自身失误、与 ZCC 故障无因果：2719d457 把 .mjs 误交 python -I 导致 SyntaxError；9c1d0731 因写入时 /\\r?\\n/ 变成字面换行导致 Node SyntaxError。诊断脚本本身 exit=0：7fdfc689 用自写扁平解析取到错误层级，结论不可用，仅保留为历史；330f6600 用官方 readMinimaxApiKey 精确路径 custom_provider.zcc-companion.options.apiKey，解析器 fixture 自测 6/6 通过，同一把 key 在 8791 认证 200、在 8790 认证 401，认证目录 10 个 model ID；111fde5f 用已安装 yaml@2.9.1 真实解析确认 configured 3 个 model ID 与各 3 档 effortOptions。诊断结论成立：故障点是 8790 服务实例不认这把 key，不是 key 失效。",
+      "diagnosis": "本 round 业务目标是确定 8790 的 401 成因，已达成；但两个真实 exit=1 使本 round 不能记为 success。另：root 实际 validate 本 round 为 exit=2 invalid（log/input changed）—— action 9c1d0731 绑定的 runtime-diagnostic-v3-models.cjs 在冻结后又被修改（冻结 SHA e34d8aeba3f6）。该 action 本身是已记录的 exit=1 失败记录，故不掩盖任何通过结论。seal 与 receipt 未被修改，旧文件未恢复洗白。",
+      "unverified": "8790 期望 key 的来源未知：Get-CimInstance 对 PID 6780 的 ExecutablePath 与 CommandLine 均返回空（权限不足），未绕行；未读服务侧 secret；无 GUI 实测。",
+      "nextstep": "本 round 仅作诊断历史证据；后续修复在 round 279b4dfd-12d3-4691-aa12-b60f796e1f04，本轮不再新增动作。"
+    }
+  }
+}

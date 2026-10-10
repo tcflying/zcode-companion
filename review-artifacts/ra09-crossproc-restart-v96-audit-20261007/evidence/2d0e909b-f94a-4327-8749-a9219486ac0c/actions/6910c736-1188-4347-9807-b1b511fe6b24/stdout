@@ -1,0 +1,13 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  5 passed (5)
+      Tests  176 passed (176)
+   Start at  16:25:12
+   Duration  951ms (tests 51%, transform 39%, import 9%, worker 1%)
+
+
+
+STAGE_GATE_SUB=test:ui
+STAGE_GATE_EXIT=0

@@ -1,0 +1,44 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "279b4dfd-12d3-4691-aa12-b60f796e1f04",
+  "project": "zcc-auth",
+  "action": "4e6de70e-2d36-4fac-9341-2ec6862c3dd3",
+  "argv": [
+    "C:/Program Files/nodejs/node.exe",
+    "G:/zcode-project/zcode-companion/review-artifacts/zcc-auth-repair-20261008/repair-route-v3.cjs"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\279b4dfd-12d3-4691-aa12-b60f796e1f04",
+  "pid": 46292,
+  "startedUtc": "2026-10-07T21:32:03.554553+00:00",
+  "start_ns": 1791408723554567100,
+  "exit": 3221226505,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\repair-route-v3.cjs",
+      "sha256": "8de226b19d26700ebca9e471d5246dd99bdf44f7f102d1a88906aad9b8a9583d",
+      "mtime_ns": 1791408703975547400
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\atomic-replace-v2.ps1",
+      "sha256": "0961f29d113a4d5d61d51f90fb461a9a287cc62e480f8a7e53a91532b0bd776c",
+      "mtime_ns": 1791408671612039600
+    }
+  ],
+  "endedUtc": "2026-10-07T21:32:04.469102+00:00",
+  "end_ns": 1791408724469121600,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\279b4dfd-12d3-4691-aa12-b60f796e1f04\\actions\\4e6de70e-2d36-4fac-9341-2ec6862c3dd3\\stdout",
+      "sha256": "ec67af7570a57c86b507bc92b8dc10bbe4d0a468b893b0d9e0f30f46ab19188d",
+      "mtime_ns": 1791408724305565000
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\279b4dfd-12d3-4691-aa12-b60f796e1f04\\actions\\4e6de70e-2d36-4fac-9341-2ec6862c3dd3\\stderr",
+      "sha256": "cd97713815dc5ce58c5af19555bbdabeee25780398294de78f11eb9979e99b26",
+      "mtime_ns": 1791408724342280300
+    }
+  ]
+}

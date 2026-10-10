@@ -1,0 +1,34 @@
+{
+  "task": "ra09-journal-gap",
+  "round": "5d652382-31a6-438c-86d7-e13f06826318",
+  "project": "journalgap",
+  "action": "c3722bcb-8531-46cd-85ea-04552dbe9463",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\private\\gap-check.py"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318",
+  "pid": 3464,
+  "startedUtc": "2026-10-07T05:09:33.690600+00:00",
+  "start_ns": 1791349773690614300,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T05:09:33.780485+00:00",
+  "end_ns": 1791349773780502800,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318\\actions\\c3722bcb-8531-46cd-85ea-04552dbe9463\\stdout",
+      "sha256": "fefc28daebe219375b2495e7d8205aaf7419a49a0aaf036f78cbf0c5af380dbb",
+      "mtime_ns": 1791349773771981000
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-journal-gap-audit-20261007\\evidence\\5d652382-31a6-438c-86d7-e13f06826318\\actions\\c3722bcb-8531-46cd-85ea-04552dbe9463\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791349773690701200
+    }
+  ]
+}

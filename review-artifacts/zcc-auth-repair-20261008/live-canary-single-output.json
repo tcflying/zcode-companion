@@ -1,0 +1,41 @@
+{
+  "schema": "zcc-live-canary-single/1",
+  "task": "ZCC-AUTH-20261008",
+  "requestId": "4b00ec9f-b2a0-4651-a07e-4be1d5af3579",
+  "startedUtc": "2026-10-07T21:54:30.152Z",
+  "target": {
+    "baseURL": "http://127.0.0.1:8791/v1",
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "reasoningEffort": "low",
+    "stream": true
+  },
+  "outcome": "dry_run_only",
+  "http": null,
+  "firstByteUtc": null,
+  "lastByteUtc": null,
+  "replyText": null,
+  "finishReason": null,
+  "toolCallCount": null,
+  "sawDoneMarker": false,
+  "error": null,
+  "configuredModelIds": [
+    "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "account:bigmodel-individual-coding-plan::GLM-5.3",
+    "account:bigmodel-start-plan::GLM-5.3-Flash"
+  ],
+  "configuredContainsTargetModel": true,
+  "configBaseUrlObserved": "http://127.0.0.1:8791/v1",
+  "nonce": "zcc-nonce-de30ee930daa4ed1",
+  "networkRequestsIssued": 0,
+  "payloadShape": {
+    "model": "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+    "stream": true,
+    "reasoning_effort": "low",
+    "hasTools": false,
+    "hasToolChoice": false,
+    "hasMaxTokens": false,
+    "messageCount": 1
+  },
+  "promptLengthChars": 63,
+  "finishedUtc": "2026-10-07T21:54:30.183Z"
+}

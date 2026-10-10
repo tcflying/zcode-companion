@@ -1,0 +1,4 @@
+  File "G:\zcode-project\zcode-companion\review-artifacts\zcc-auth-repair-20261008\runtime-diagnostic.mjs", line 2
+    // ZCC-AUTH-20261008 有界现场诊断（只读）
+                               ^
+SyntaxError: invalid character '（' (U+FF08)

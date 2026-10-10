@@ -1,0 +1,24 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+ �?src/__ra08sameid.probe.test.ts (0 test)
+[31;1m[0m
+[31;1m⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯�?[0m
+[31;1m FAIL  src/__ra08sameid.probe.test.ts [ src/__ra08sameid.probe.test.ts ][0m
+[31;1mError: Cannot find module './ModelsPage' imported from G:/zcode-project/zcode-companion/apps/ui/src/__ra08sameid.probe.test.ts[0m
+[31;1m �?src/__ra08sameid.probe.test.ts:32:1[0m
+[31;1m     30| import { createElement, act } from 'react';[0m
+[31;1m     31| import { createRoot, type Root } from 'react-dom/client';[0m
+[31;1m     32| import { ModelsPage } from './ModelsPage';[0m
+[31;1m       | ^[0m
+[31;1m     33|[0m
+[31;1m     34| let catalog: { revision: string; models: unknown[] } = { revision: '',�?[0m
+[31;1m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]�?[0m
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  09:35:42
+   Duration  452ms (setup 94%, transform 5%, worker 1%)
+
+VITEST_EXIT=1
+CLASS=import_failed

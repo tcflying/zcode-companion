@@ -1,0 +1,19 @@
+{
+  "task": "zc51-dom-audit",
+  "round": "d0dd13f1-ae20-41a5-9d41-d6c10d69e0fa",
+  "status": "success",
+  "projects": {
+    "dom": {
+      "actions": ["778f6b32-4ee8-4009-b9c9-ec955e27b005","0c637fe7-f117-4943-80cf-80141a8b2f52","ae738611-5dc3-4353-9d88-6f964c9a9e93","134895d7-c2b6-432d-834b-888711475c6e","50c48726-5406-46c3-844f-64265069929a","95a138ec-6260-4ac2-a04a-8b1f088e4233","301104c1-85a1-432b-8d8a-bd6aa718a952","ca9f5b86-f359-4d62-be92-c201169e5ed7","84092089-0e51-4d45-83bf-4f01f1590a1f","2696f19d-5cf0-4af9-9c82-027fbbcf31b3","da503c14-4026-4f5b-92ad-dcda9ccc282c","1a361570-f75c-40d4-8fe2-74912700c0d9","0fbb3de5-9d42-49fc-81d4-34ec34b2e2d2","61cc3c2b-b669-44f9-827d-dc510d9c85c2","5f23934a-b618-4c51-9f80-580e1c028403","3ee93329-ebb5-4865-94c6-decfe557618e"],
+      "explanation": "**真实挂载 · 真实点击**验收通过 5/5、RC=0、1.51s。用 react-dom/client createRoot 真实挂载未改一字节的 ModelsPage，点页面上的「刷新」按钮（findButton 按 textContent 定位后 btn.click()，非直接调 handler、非 stub useState/初始 refresh），await act 冲刷 promise 链后断言真实 DOM。DOM 环境：happy-dom 20.11.6（只读复用 G:/mmx-project/bbweb-2/frontend/node_modules，createRequire 解析）+ 本项目 react/react-dom 19.3.0 + vitest 5.0.2，**未安装任何依赖**。兼容性单独实测 4/4 通过（DOM 全局、createRoot+act 真实重渲染、async act、window.location）。五组行为实测：S1 首刷2行——目录表 tbody **实测 2 行**且含 m1/m2、占位行消失、成功态面板「来源读取成功 / 已读取 2 个条目」、notice「刷新完成：首次读回：2 个条目」、目录 revision rev-1、fetchCount=1；S2 相同2行再刷——「与上次一致」、不含「新增 2」、fetchCount=2；S3 2→1——页面摘要含「新增 0 / 消失 1 / 保持 1」、**目录表 tbody 恰 1 行且只含 m1**；S4 空源失败——目录表 **仍 2 行**(m1,m2)、失败原因「empty_source / 来源返回 0 个条目」可见；S5 未接 epoch——首屏「目录 revision unknown / 账号 epoch unknown / 配置 revision unknown」，刷新后目录 revision 转 rev-x 而另两项仍 unknown。**技术缺口如实记录（7 次失败全为环境接入弯路，已留证）**：778f6b32 happy-dom 主入口非 vitest 环境形状；0c637fe7 .mjs 里写了 TS 类型注解致 RolldownError；ae738611/134895d7/50c48726/95a138ec/301104c1/2696f19d 反复撞 'not defined in the Vite config'——根因是 vitest 5 走 **Vite 6 environments API**（index.C-uw7tH9.js:10438 project.vite.environments[name]），CLI --environment 传路径/具名都不进 Vite config 注册；da503c14 --setupFiles 不是 CLI 选项；终解为**保留官方 environment:'node' 不动**，只用私有 config 的 test.setupFiles 注入 DOM。另两次为探针自身：0fbb3de5 fake Response 缺 text()（页面如实报 connection_failed，恰为 F30 的失败路径非被测行为）、61cc3c2b/5f23934a 导入路径与断言文案写错（真实文案是「已读取」非「已读到」、S4 失败态仍含成功面板是卡面负例(a)的正确行为），3ee93329 全绿。",
+      "unverified": "happy-dom 非真浏览器：无真实布局/样式计算/CSS 生效，页面视觉呈现未验；无 HTTP 层（fetch 全替身，回环守卫逻辑未被真实网络触发过）；无真实 8790 服务参与；React 19 的 useTransition/并发特性未覆盖（组件未使用）。目录表格断言只取**第一张 table** 的 tbody 行（页面实有两张：目录表 + 契约列结构说明表，实测前者 tbody 行数=条目数），若将来表格顺序调整需同步改探针。",
+      "nextstep": "最小私有验证项（不改正式实现）：把本轮搭好的 dom-setup + vitest.dom.config 复用到 ZC-52/F31（snapshot.ts 三栏 unknown 不得渲染为 0），以及 ZC-50/F29（文件来源选择下零请求且保旧表）——这两张卡同样是页面层缺陷，现在有可复用的真实挂载通道，不必再退回静态 SSR。"
+    },
+    "mutant": {
+      "actions": ["4d9994a4-e5fd-4994-ac18-b923df533dfd"],
+      "explanation": "变异严格按卡面『把差异基准换回空表 → 红』，且**改的是真实页面断言不是内联比较**：把 modelSource.ts 的 delta 计算从 `state.lastSuccessAt === null ? {previous:null...} : listDelta(state.entries, parsed.entries)` 换成 `listDelta([], parsed.entries)`，以影子目录（复制整个 src/data 后改副本，sha256=5bf3f1b0e3eada73c4f279f686822b3264a5f69778026f201002860856aa39ea，正式文件 sha256=78acdb7a... 未变）+ vite alias 顶替，ModelsPage 与探针均不改。**结果 S1/S2/S3 三个页面断言全部失败**，RC=1。页面真实渲染输出逐字复现 F30 原始症状（review-20261003.md:353）：首刷即显示『与上次相比：新增 2（m1、m2），消失 0，保持 0 个，0 → 2』，notice 同步为『刷新完成：与上次相比：新增 2…』，列表变化区同样退化。S4/S5 仍绿——符合预期，因为该变异只影响 delta 计算，不影响失败保表与 epoch unknown 两条。第一次跑 mutant 时 4d9994a4 报 'no tests'（影子目录缺 ./snapshot 导致 ERR_MODULE_NOT_FOUND），补齐整目录影子后复跑得上述判决。",
+      "unverified": "只做了这一种变异（卡面指定的基准变异），未覆盖 describeDelta 判据、ModelsPage:768 成功态分支删除、目录 revision 回取常量等其它变异点；alias 影子法只改 data 目录，若变异点落在 ModelsPage 则需换影子目标。",
+      "nextstep": "最小私有验证项：复用同一影子+alias 手法补三条变异并各自断言**具体页面断言失败**——(a) delete ModelsPage:768 成功态 StatePanel → S1 的「来源读取成功 / 已读取 2 个条目」红；(b) 目录 revision 回取 CATALOG_STATE 常量 → S5 的「目录 revision rev-1 / rev-x」红；(c) describeDelta 去掉 previous===null 首刷分支 → S1 的「首次读回」红。"
+    }
+  }
+}

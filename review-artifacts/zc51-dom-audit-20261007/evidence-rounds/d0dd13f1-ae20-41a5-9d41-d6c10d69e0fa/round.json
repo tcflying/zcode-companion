@@ -1,0 +1,10 @@
+{
+  "task": "zc51-dom-audit",
+  "projects": [
+    "dom",
+    "mutant"
+  ],
+  "round": "d0dd13f1-ae20-41a5-9d41-d6c10d69e0fa",
+  "directory": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-dom-audit-20261007\\evidence-rounds\\d0dd13f1-ae20-41a5-9d41-d6c10d69e0fa",
+  "createdUtc": "2026-10-06T23:44:13.196761+00:00"
+}

@@ -1,0 +1,133 @@
+{
+  "schema": "zcc-auth-diagnostic/2",
+  "task": "ZCC-AUTH-20261008",
+  "startedUtc": "2026-10-07T21:15:20.726Z",
+  "finishedUtc": "2026-10-07T21:15:20.777Z",
+  "keyAvailable": true,
+  "keySourceIsOfficialHelper": true,
+  "configReadError": null,
+  "parser": {
+    "selfTest": {
+      "cases": [
+        {
+          "name": "exact path wins over sibling vendor + nested dup + shadow prefix",
+          "path": "custom_provider.zcc-companion.options.apiKey",
+          "pass": true,
+          "gotType": "string"
+        },
+        {
+          "name": "double-quoted sibling is not selected",
+          "path": "custom_provider.other-vendor.options.apiKey",
+          "pass": true,
+          "gotType": "string"
+        },
+        {
+          "name": "nested dup under deeper indent not selected",
+          "path": "custom_provider.zcc-companion.nestedDupCheck.apiKey",
+          "pass": true,
+          "gotType": "string"
+        },
+        {
+          "name": "shadow provider not confused with zcc-companion",
+          "path": "custom_provider.zcc-companion-shadow.options.apiKey",
+          "pass": true,
+          "gotType": "string"
+        },
+        {
+          "name": "absent path returns null",
+          "path": "custom_provider.zcc-companion.options.noSuchKey",
+          "pass": true,
+          "gotType": "null"
+        },
+        {
+          "name": "trailing comment stripped from unquoted value",
+          "path": "custom_provider.zcc-companion.options.baseURL",
+          "pass": true,
+          "gotType": "string"
+        }
+      ],
+      "allPass": true
+    },
+    "keyPathUsed": "custom_provider.zcc-companion.options.apiKey"
+  },
+  "endpoints": [
+    {
+      "label": "zcc-api-8790",
+      "port": 8790,
+      "attempted": true,
+      "loopback": true,
+      "http": {
+        "status": 401,
+        "ok": false
+      },
+      "xStatus": "ready",
+      "error": {
+        "code": "unauthorized",
+        "message": "需要有效的本机 API key：请求头 Authorization 使用 Bearer 方案"
+      },
+      "modelIds": null,
+      "timerCleared": true
+    },
+    {
+      "label": "zcc-desktop-8791",
+      "port": 8791,
+      "attempted": true,
+      "loopback": true,
+      "portDeviationFromConfiguredBase": true,
+      "http": {
+        "status": 200,
+        "ok": true
+      },
+      "xStatus": "ready",
+      "error": {
+        "code": null,
+        "message": null
+      },
+      "modelIds": [
+        "account:zai-individual-coding-plan::GLM-5.3",
+        "account:zai-individual-coding-plan::GLM-5.3-Flash",
+        "account:zai-start-plan::GLM-5.3-Flash",
+        "account:zai-start-plan::GLM-5.2",
+        "account:zai-start-plan::GLM-5-Turbo",
+        "account:bigmodel-individual-coding-plan::GLM-5.3",
+        "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+        "account:bigmodel-start-plan::GLM-5.3-Flash",
+        "account:bigmodel-start-plan::GLM-5.2",
+        "account:bigmodel-start-plan::GLM-5-Turbo"
+      ],
+      "timerCleared": true
+    }
+  ],
+  "modelCatalogMatch": [
+    {
+      "label": "zcc-desktop-8791",
+      "http": 200,
+      "configuredCount": 0,
+      "catalogCount": 10,
+      "exactMatch": false,
+      "matchedIds": [],
+      "catalogOnlySample": [
+        "account:zai-individual-coding-plan::GLM-5.3",
+        "account:zai-individual-coding-plan::GLM-5.3-Flash",
+        "account:zai-start-plan::GLM-5.3-Flash",
+        "account:zai-start-plan::GLM-5.2",
+        "account:zai-start-plan::GLM-5-Turbo",
+        "account:bigmodel-individual-coding-plan::GLM-5.3",
+        "account:bigmodel-individual-coding-plan::GLM-5.3-Flash",
+        "account:bigmodel-start-plan::GLM-5.3-Flash",
+        "account:bigmodel-start-plan::GLM-5.2",
+        "account:bigmodel-start-plan::GLM-5-Turbo"
+      ]
+    }
+  ],
+  "configuredModels": {
+    "count": 0,
+    "ids": [],
+    "effortOptions": []
+  },
+  "serviceStartupLogSources": {
+    "status": "NOT_QUERIED_THIS_ROUND",
+    "note": "未读取服务侧启动日志；如需须另行只读授权"
+  },
+  "verdict": "DIAG_AT_LEAST_ONE_AUTH_200"
+}

@@ -1,0 +1,13 @@
+RUN_UTC=2026-10-07T00:27:07.446441+00:00
+PID=53864
+PROBE_SHA256=6b4d3e646201f5e46d43e1c4d7f11749e595d18506e6f8f8b0a3a0071cf45da1
+VITEST_EXIT=1
+✓ src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M1 读入 2 条 → 切到写死固定：已读条目被保留并明确告知，不清空 229ms
+× src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M2 录入一条手工条目 → 切到动态刷新 → 切回写死固定：手工条目与已读条目都在 79ms
+× src/pages/__ra08_modeswitch.test.ts > RA-08 模式切换：保留已读与已输入，零 dispatch > M3 切换全程资格显示为未验证 / E0，绝不变成可发送 95ms
+SUMMARY: Test Files  1 failed (1)
+SUMMARY: Tests  2 failed | 1 passed (3)
+SUMMARY: Duration  967ms (tests 47%, setup 37%, transform 11%, import 5%)
+SUMMARY: ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ASSERT: AssertionError: 读入后 不应出现可发送: expected '模型与套餐来源有两种模式，由您自己选：动态刷新（点刷新重新读取来源）或写死…' not to contain '可发送'
+TEMP_LEFT=True

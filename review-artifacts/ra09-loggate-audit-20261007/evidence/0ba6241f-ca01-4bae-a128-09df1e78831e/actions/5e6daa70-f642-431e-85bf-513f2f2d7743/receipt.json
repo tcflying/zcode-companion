@@ -1,0 +1,36 @@
+{
+  "task": "ra09-loggate",
+  "round": "0ba6241f-ca01-4bae-a128-09df1e78831e",
+  "project": "loggate",
+  "action": "5e6daa70-f642-431e-85bf-513f2f2d7743",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\private\\run-probe.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e",
+  "pid": 25624,
+  "startedUtc": "2026-10-07T03:53:18.303231+00:00",
+  "start_ns": 1791345198303242200,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T03:53:20.411479+00:00",
+  "end_ns": 1791345200411495400,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e\\actions\\5e6daa70-f642-431e-85bf-513f2f2d7743\\stdout",
+      "sha256": "7c0a90d03ff74aee602a433f8d4342e2615630057893ef3bb7de9ede4207acfe",
+      "mtime_ns": 1791345200371240900
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-loggate-audit-20261007\\evidence\\0ba6241f-ca01-4bae-a128-09df1e78831e\\actions\\5e6daa70-f642-431e-85bf-513f2f2d7743\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791345198303193900
+    }
+  ]
+}

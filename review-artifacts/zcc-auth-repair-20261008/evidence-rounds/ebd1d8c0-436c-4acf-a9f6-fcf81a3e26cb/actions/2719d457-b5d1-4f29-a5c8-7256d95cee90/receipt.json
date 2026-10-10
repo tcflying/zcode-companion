@@ -1,0 +1,34 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb",
+  "project": "zcc-auth",
+  "action": "2719d457-b5d1-4f29-a5c8-7256d95cee90",
+  "argv": [
+    "C:\\Python314\\python.exe",
+    "-I",
+    "G:/zcode-project/zcode-companion/review-artifacts/zcc-auth-repair-20261008/runtime-diagnostic.mjs"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb",
+  "pid": 18164,
+  "startedUtc": "2026-10-07T21:05:15.362750+00:00",
+  "start_ns": 1791407115362763700,
+  "exit": 1,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T21:05:15.421336+00:00",
+  "end_ns": 1791407115421356800,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb\\actions\\2719d457-b5d1-4f29-a5c8-7256d95cee90\\stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791407115362421300
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb\\actions\\2719d457-b5d1-4f29-a5c8-7256d95cee90\\stderr",
+      "sha256": "b36d2ccc4d2f9f7bb54524e617292ddbbe28adcd335b2d4926182474c672f0de",
+      "mtime_ns": 1791407115413314600
+    }
+  ]
+}

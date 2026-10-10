@@ -30,3 +30,6 @@ AGENTS.md.bak-*
 .tmp-debug/
 # GUI evidence screenshots (75MB+; audit conclusions live in the small review-artifacts dirs)
 review-artifacts/zcc-gui-evidence-*/
+
+# Locked verifier temp probes inside audit dirs
+review-artifacts/zcc-auth-repair-20261008/verifier-temp/

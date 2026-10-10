@@ -1,0 +1,13 @@
+{
+  "task": "zc51-mutant-reaudit",
+  "round": "319f78d7-e5e8-4943-bcf3-5f74caeb251e",
+  "status": "success",
+  "projects": {
+    "mutant": {
+      "actions": ["5d9bd0fc-2f7c-41b8-931d-85fc6794ae80", "ff8368d8-a78a-4baa-a3c4-a8f29efc7c0f"],
+      "explanation": "**先认错**：上一轮 4d9994a4 的原始 stdout 是 `Tests: no tests` + `Test Files 1 failed` + ERR_MODULE_NOT_FOUND（影子目录缺 ./snapshot 导致收集阶段就挂），**是导入失败、不是反例**；我当时把一次未过 gate 的裸跑结果写成『3失败2通过反例』，属错误归因。本轮在新私有不可变轮重跑一次精准 mutant，取得**有效反例回执**。动作 ff8368d8：门禁 exit=0（仅代表脚本跑完）／PID=38656／startedUtc=2026-10-07T00:02:12.451357+00:00／endedUtc=00:02:14.343095；**脚本内 VITEST_EXIT=1**（vitest 进程真实退出码，非 collector 的 0）。分类 **CLASS=assertion_failed**（不是 import_failed），VITEST_SUMMARY 三行：Test Files 1 failed (1)／Tests 3 failed | 2 passed (5)／Duration 1.53s。**3 条断言失败（逐条带 AssertionError 与 Expected）**：S1『expected … to contain 首次读回』Expected \"首次读回\"；S2『expected … to contain 与上次一致』路径同上；S3『expected … to contain 新增 0』——三条均为**页面断言红**，Received 全文可见页面已渲染出 F30 症状『与上次相比：新增 2（m1、m2），消失 0，保持 0 个，0 → 2』。**2 条通过**：S4 失败保留旧表、S5 未接 epoch 为 unknown——符合预期，该变异只改 delta 基准，不触及这两条。变异实现：把 modelSource.ts 的 delta 由 `state.lastSuccessAt===null ? {previous:null…} : listDelta(state.entries, parsed.entries)` 换成 `listDelta([], parsed.entries)`；影子目录 `__mutant_reaudit`（复制整个 src/data 后改副本，MUTANT_SHA256=5bf3f1b0e3eada73c4f279f686822b3264a5f69778026f201002860856aa39ea），正式文件 REAL_SHA256=78acdb7a2266a3dca4f36543bf7cab0b0cfe57cc888f01abc815269a39642e43 **逐字节未变**，ModelsPage 与探针均未改（PROBE_SHA256=588b94913e7a5b84123afcd7ddaeb6a6a0e1b97c30b1e9a80d1ef58c2e2ce850，CONFIG_SHA256=5362eeedb6625d0124eac6615d7656b90716845353a1e0564a2b8f1777aaa87e）。**未重跑五项绿色基线**，只跑这一份 mutant 影子配置。前一次 5d9bd0fc 同样留证：其 VITEST_EXIT=1 但 CLASS=import_failed（alias 写死 `__mutant` 目录而本轮影子名 `__mutant_reaudit`，替换到不存在文件），根因已修在 vitest.mutant.config.mts 并写入注释。清理走 mavis-trash 可恢复删除，未做永久删除；事后核实 `git status -- apps/ui/src/data apps/ui/src/pages` 为空（正式树零污染）、正式 modelSource.ts hash 仍为 78acdb7a…",
+      "unverified": "本轮只做了卡面指定的这一种变异（delta 基准），未覆盖 describeDelta 判据、ModelsPage:768 成功态分支删除、目录 revision 回取常量等其它变异点；happy-dom 仍非真浏览器（无布局/CSS、无真实 HTTP），mutant 反例证明的是『该变异会让真实挂载的页面断言失败』，不等于覆盖全部可能回归。未重跑绿色基线是遵主线程指示，但意味着本轮不重新确认 S1–S5 在 mutant 之外的当轮状态（上一轮 3ee93329 的 5/5 绿仍为最近一次有效绿证据）。",
+      "nextstep": "最小私有验证项（沿用本轮已验证可用的影子+alias+CLASS 分类包装器，不重跑无关绿测）：补三条变异并各自断言**具体页面断言失败**——(a) 删 ModelsPage:768 成功态 StatePanel → S1 的『来源读取成功 / 已读取 2 个条目』红；(b) 目录 revision 回取 CATALOG_STATE.catalogRevision → S5 的『目录 revision rev-1 / rev-x』红；(c) describeDelta 去掉 previous===null 首刷分支 → S1 的『首次读回』红。每条都必须输出 CLASS=assertion_failed 且 VITEST_EXIT=1 才算通过验收。"
+    }
+  }
+}

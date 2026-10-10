@@ -1,0 +1,19 @@
+RC=1
+     × 首刷 previous=null、added=0、kept=0、current=2，describeDelta 不说「新增 2」 4ms
+     × second refresh with identical 2 entries yields added 0 / removed 0 / kept 2 1ms
+     × shrinking 2 to 1 yields added 0 / removed 1 / kept 1 1ms
+     × empty-source failure keeps previous entries and revision stays 未接入 0ms
+     × revision before epoch integration stays 未接入 (unknown), never a timestamp 1ms
+     × mutant that treats before as empty reproduces the old broken delta 1ms
+ Test Files  1 failed (1)
+      Tests  6 failed (6)
+   Duration  256ms (transform 66%, import 17%, tests 11%, worker 5%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/data/__zc51_probe_v2.test.ts > ZC-51 S1: 首刷 2 行不假空态、不全报新增 > 首刷 previous=null、added=0、kept=0、current=2，describeDelta 不说「新增 2」
+ FAIL  src/data/__zc51_probe_v2.test.ts > ZC-51 S2: 相同 2 行再刷 → 0/0/2 > second refresh with identical 2 entries yields added 0 / removed 0 / kept 2
+ FAIL  src/data/__zc51_probe_v2.test.ts > ZC-51 S3: 2→1 → 0/1/1（卡面正解） > shrinking 2 to 1 yields added 0 / removed 1 / kept 1
+ FAIL  src/data/__zc51_probe_v2.test.ts > ZC-51 S4: 失败保旧表 + 未接 epoch 保持 unknown > empty-source failure keeps previous entries and revision stays 未接入
+ FAIL  src/data/__zc51_probe_v2.test.ts > ZC-51 S4: 失败保旧表 + 未接 epoch 保持 unknown > revision before epoch integration stays 未接入 (unknown), never a timestamp
+ FAIL  src/data/__zc51_probe_v2.test.ts > ZC-51 变异：差异基准换回「空表」必须红在 delta 断言 > mutant that treats before as empty reproduces the old broken delta
+Error: Cannot find module './modelSource'
+TEMP_REMOVED=True

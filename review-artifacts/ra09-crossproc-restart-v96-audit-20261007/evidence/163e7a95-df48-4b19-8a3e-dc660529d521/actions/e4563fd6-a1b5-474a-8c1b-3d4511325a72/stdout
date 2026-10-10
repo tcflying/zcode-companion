@@ -1,0 +1,16 @@
+TYPECHECK_EXIT=1
+ERROR_LINES_TOTAL=10
+ERROR_LINES_IN_ROUND_FILES=0
+ERROR_LINES_PREEXISTING=10
+--- 本轮文件相关错误（必须为空）---
+--- 早轮遗留错误（本轮未改，如实留档）---
+apps/desktop/lib/journal.cjs(93,36): error TS7053: Element implicitly has an 'any' type because expression of type '"entries"' can't be used to index type '{}'.
+apps/desktop/lib/journal.cjs(93,57): error TS7053: Element implicitly has an 'any' type because expression of type '"entries"' can't be used to index type '{}'.
+apps/desktop/lib/journal.cjs(163,62): error TS18048: 'options.maxEntries' is possibly 'undefined'.
+apps/desktop/lib/journal.cjs(179,45): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.
+apps/desktop/lib/journal.cjs(217,38): error TS18048: 'maxEntries' is possibly 'undefined'.
+apps/desktop/lib/journal.cjs(249,45): error TS2345: Argument of type 'JournalEntry | undefined' is not assignable to parameter of type 'JournalEntry'.
+apps/desktop/lib/journal.cjs(253,24): error TS2345: Argument of type 'JournalEntry | undefined' is not assignable to parameter of type 'JournalEntry'.
+apps/desktop/lib/journal.cjs(298,7): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+apps/desktop/lib/journal.cjs(309,20): error TS2769: No overload matches this call.
+apps/desktop/lib/journal.cjs(310,36): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'string'.

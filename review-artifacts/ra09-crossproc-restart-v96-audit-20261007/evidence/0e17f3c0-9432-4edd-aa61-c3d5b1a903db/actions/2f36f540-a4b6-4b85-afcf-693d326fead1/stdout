@@ -1,0 +1,11 @@
+CRASH_THREW=false
+CRASH_BUILD_OK=true
+CRASH_DROPPED_FIELDS=1
+CRASH_DROPPED_INVALID=0
+LEGACY_CONSTRUCTOR_UNDEFINED=false
+LEGACY_CONSTRUCTOR_IS_REGEXP=false
+STREAM_RUNTIME_GUARD=false
+STREAM_ACCEPTED_OUT_OF_SET=true
+STREAM_REACHES_EXPORT_VERBATIM=true
+STREAM_CALLSITES=apps/desktop/main.cjs:'main'|apps/desktop/lib/proxy-manager.cjs:'main'|apps/desktop/lib/proxy-manager.cjs:stream
+ARTIFACT_WRITTEN=G:\zcode-project\zcode-companion\review-artifacts\ra09-crossproc-restart-v96-audit-20261007\evidence\0e17f3c0-9432-4edd-aa61-c3d5b1a903db\crash-stream-audit-v102.json

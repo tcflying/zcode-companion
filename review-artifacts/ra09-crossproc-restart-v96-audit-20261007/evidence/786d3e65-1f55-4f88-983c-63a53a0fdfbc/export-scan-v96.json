@@ -1,0 +1,77 @@
+{
+  "scope": "RA-09 导出预览/保存入口定位（静态负结论）",
+  "authority_note": "这是静态定位，只回答「入口在不在」。导出会不会泄漏 canary 由 T14 （真实 HTTP + 临时 data + 合成 canary）单独证明，两者不可互相替代。",
+  "scan_rule": {
+    "roots": [
+      "apps/ui/src",
+      "apps/desktop/lib",
+      "packages",
+      "apps/desktop/main.cjs",
+      "apps/desktop/preload.cjs"
+    ],
+    "extensions": [
+      ".cjs",
+      ".mjs",
+      ".ts",
+      ".tsx"
+    ],
+    "excluded": [
+      "*.test.*",
+      "**/node_modules/**"
+    ],
+    "note": "排除 node_modules 是必须的：上一版未排除时 createObjectURL 报 8 处，全是 @types 存根。"
+  },
+  "product_file_count": 55,
+  "product_hits": {
+    "createObjectURL": 0,
+    "showSaveFilePicker": 0,
+    "download_attr": 0,
+    "new_Blob": 0,
+    "toBlob": 0,
+    "clipboard_writeText": 0
+  },
+  "product_electron_hits": {
+    "electron_showSaveDialog": 0,
+    "electron_showOpenDialog": 0,
+    "electron_download_event": 0,
+    "electron_openExternal": 0,
+    "electron_net_upload": 0,
+    "electron_saveDialog_message": 0
+  },
+  "product_export_like_ipc_channels": [
+    "apps\\desktop\\main.cjs::zcc:desktop:settings:save",
+    "apps\\desktop\\preload.cjs::zcc:desktop:settings:save"
+  ],
+  "product_informational_not_in_verdict": {
+    "fs_writeFile": 8
+  },
+  "export_primitives_all_zero_in_product": true,
+  "electron_export_primitives_all_zero_in_product": true,
+  "no_export_like_ipc_channel": false,
+  "verdict_scope": "覆盖三面：浏览器渲染层原语、Electron 主进程原语、导出类 IPC 通道名。**仍不等于**「用户可达的导出路径不存在」——UI 文案拼装、fs 直接写文件再让用户自己去拿，都不在这三面的计数里。要彻底否定必须按实际 UI/IPC 链路定位。",
+  "files_mentioning_导出": [
+    "packages\\api\\src\\chat.ts",
+    "packages\\api\\src\\server.ts",
+    "packages\\contracts\\src\\capabilities.ts",
+    "packages\\official-host\\src\\credentials.ts",
+    "packages\\official-host\\src\\headers-port.ts",
+    "packages\\official-host\\src\\host-driver.ts",
+    "packages\\official-host\\src\\index.ts",
+    "packages\\plansrc\\src\\driver.ts",
+    "packages\\plansrc\\src\\mapper.ts",
+    "packages\\plansrc\\src\\reader.ts"
+  ],
+  "node_modules_control": {
+    "file_count": 1614,
+    "hits": {
+      "createObjectURL": 8,
+      "showSaveFilePicker": 0,
+      "download_attr": 0,
+      "new_Blob": 3,
+      "toBlob": 0,
+      "clipboard_writeText": 1
+    },
+    "note": "仅作对照，证明排除 node_modules 是必要的。"
+  },
+  "conclusion": "存在导出/保存类调用点或导出类 IPC 通道，需人工判读是否构成用户可达的导出路径。"
+}

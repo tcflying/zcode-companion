@@ -1,0 +1,9 @@
+{
+  "task": "zc51-mutant-reaudit",
+  "projects": [
+    "mutant"
+  ],
+  "round": "319f78d7-e5e8-4943-bcf3-5f74caeb251e",
+  "directory": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zc51-mutant-reaudit-20261007\\evidence-rounds\\319f78d7-e5e8-4943-bcf3-5f74caeb251e",
+  "createdUtc": "2026-10-07T00:00:36.030377+00:00"
+}

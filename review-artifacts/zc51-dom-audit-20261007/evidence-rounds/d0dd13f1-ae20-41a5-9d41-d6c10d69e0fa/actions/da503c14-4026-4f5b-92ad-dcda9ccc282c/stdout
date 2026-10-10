@@ -1,0 +1,19 @@
+RC=1
+--- OUT ---
+
+file:///G:/zcode-project/zcode-companion/node_modules/vitest/dist/chunks/cac.BLbEtnDd.js:405
+          throw new CACError(`Unknown option \`${name.length > 1 ? `--${name}` : `-${name}`}\``);
+                ^
+
+CACError: Unknown option `--setupFiles`
+    at Command.checkUnknownOptions (file:///G:/zcode-project/zcode-companion/node_modules/vitest/dist/chunks/cac.BLbEtnDd.js:405:17)
+    at CAC.runMatchedCommand (file:///G:/zcode-project/zcode-companion/node_modules/vitest/dist/chunks/cac.BLbEtnDd.js:605:13)
+    at CAC.parse (file:///G:/zcode-project/zcode-companion/node_modules/vitest/dist/chunks/cac.BLbEtnDd.js:546:12)
+    at file:///G:/zcode-project/zcode-companion/node_modules/vitest/dist/cli.js:10:13
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:643:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.18.0
+
+TEMP_REMOVED=True

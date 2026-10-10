@@ -1,0 +1,53 @@
+{
+  "schema": "zcc-auth-diagnostic/1",
+  "startedUtc": "2026-10-07T21:05:47.293Z",
+  "task": "ZCC-AUTH-20261008",
+  "provider": {
+    "name": "zcc-companion",
+    "blockFound": true,
+    "parseNote": null
+  },
+  "config": {
+    "enabled": "true",
+    "api": "openai-completions",
+    "baseURL": "http://127.0.0.1:8790/v1",
+    "apiKeyPresent": true,
+    "apiKeyIsEnvRef": false,
+    "apiKeyEnvRefResolvableFromThisProcess": null,
+    "apiKeyEnvRefNote": null
+  },
+  "authDirStatus": {
+    "path": "C:/Users/datoo/.minimax/auth",
+    "exists": true,
+    "entryCount": 2,
+    "hasProviderNamedEntry": false
+  },
+  "precheck": {
+    "scheme": "http:",
+    "hostname": "127.0.0.1",
+    "port": "8790",
+    "loopback": true,
+    "portMatchesExpected": true
+  },
+  "http": {
+    "status": 401,
+    "statusText": "Unauthorized"
+  },
+  "xZcc": {
+    "present": true,
+    "status": "ready",
+    "version": null
+  },
+  "bodyShape": {
+    "topLevelKeys": [
+      "error",
+      "zcc_error"
+    ],
+    "errorCode": "unauthorized"
+  },
+  "bodyErrorMessage": "需要有效的本机 API key：请求头 Authorization 使用 Bearer 方案",
+  "models": null,
+  "verdict": "DIAG_HTTP_401",
+  "timerCleared": true,
+  "finishedUtc": "2026-10-07T21:05:47.339Z"
+}

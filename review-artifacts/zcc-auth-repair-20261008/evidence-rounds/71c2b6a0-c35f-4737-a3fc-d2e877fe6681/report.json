@@ -1,0 +1,18 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "71c2b6a0-c35f-4737-a3fc-d2e877fe6681",
+  "status": "success",
+  "scope": "本 status=success **仅指本 round 两个 action 的证据本身成立**：解析器合成 fixture 10/10 通过，以及单次 canary 的 12 条硬判据全部为 true。它不代表用户整体目标完成 —— Desktop/GUI 未测，之前 root 官方 provider test 的三档 effort timeout 未定因。",
+  "projects": {
+    "zcc-auth": {
+      "actions": [
+        "fdf42bad-32af-4679-822e-c79350228076",
+        "6125e7c4-788c-4f50-bf23-fd7f4efc7898"
+      ],
+      "explanation": "stage 71c2b6a0 两个 action，均 exit=0。fdf42bad 是合成 fixture（无网络、无真实凭据）验证 sse-parse-v2：total=10、failed=0，覆盖标准流、CRLF 行尾、DONE 后追加内容、非 JSON data、SSE error 事件、多 data 行、缺 DONE、tool_calls 非零、finish_reason=length、尾部空 data。6125e7c4 是 live canary（由 root 亲跑），PID 39412，UTC 2026-10-07T22:10:21.288841Z → 22:10:29.205628Z，实测耗时约 7.917s，未触及 90s 客户端上限。结果：HTTP 200、content-type text/event-stream; charset=utf-8、streamCompleted=true、replyTrimmed 逐字等于 'zcc-nonce-2ea42ba59bf44838 42'、toolCallCount=0、finishReason=stop、精确收到 data: [DONE] 且其后无内容、jsonParseErrors=0、sseErrorEvents=0、overflow=false、未 abort —— 12 条判据全部 true，businessSuccess=true。目标为 baseURL http://127.0.0.1:8791/v1、model account:bigmodel-individual-coding-plan::GLM-5.3-Flash、reasoning_effort=low（字段依据 packages/api/src/chat.ts 已实现字段，闭集 low|high|max）、stream=true、全新 nonce 单次请求、redirect:error。",
+      "diagnosis": "本 round 达成的是『配置路由修复后，8791 对单个 configured Flash 模型在 low 档的一次真实生成确实成功』。它没有、也无法证明：Desktop 端到端可用、GUI 可用、其他 effort 档可用、其他模型可用、以及此前 root 官方 provider test 三档 10s timeout 的成因（本次只跑了 low 档单次且成功，90s 是测量上限而非修复，不据此推断 10s timeout 的原因）。",
+      "unverified": "Desktop 实际采纳该 provider 与模型未测；无 GUI/webui 实测；high/max 两档未测；其余 2 个 configured 模型未测；之前 root 官方 provider test 三档全部 10s timeout 的定因仍未完成。",
+      "nextstep": "已授权桌面验收继续；当前阻塞是 GUI 工具缺失，待主上在同一聊天启用电脑操控，或主上在既有测试会话手动选择同 existing configured Flash + low 档发一条唯一纯文本。不新建业务会话、不改本轮模型绑定、不强制重启、不自动重放旧请求。另档（high/max）未测，留存不另行讨授权。"
+    }
+  }
+}

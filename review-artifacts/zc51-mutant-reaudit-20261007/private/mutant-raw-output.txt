@@ -1,0 +1,28 @@
+
+ RUN  v5.0.2 G:/zcode-project/zcode-companion/apps/ui
+
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  08:00:55
+   Duration  496ms (setup 93%, transform 5%, worker 1%)
+
+
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/__zc51_mutant_reaudit.test.ts [ src/pages/__zc51_mutant_reaudit.test.ts ]
+Error: Cannot find module '../data/modelSource' imported from G:/zcode-project/zcode-companion/apps/ui/src/pages/ModelsPage.tsx
+ ❯ src/pages/ModelsPage.tsx:17:1
+     15|   type BillingClass
+     16| } from '../data/snapshot';
+     17| import {
+       | ^
+     18|   EMPTY_MANUAL_DRAFT,
+     19|   MANUAL_ENTRY_BADGE,
+ ❯ src/pages/__zc51_mutant_reaudit.test.ts:21:1
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'ERR_MODULE_NOT_FOUND' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+

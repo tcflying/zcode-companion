@@ -1,0 +1,12 @@
+RUN_UTC=2026-10-07T00:53:14.588685+00:00
+PID=41032
+PROBE_SHA256=bf6292f3318961a2f0690a8c0311f4a3936ec43684895071709391d754c5bf9c
+VITEST_EXIT=0
+✓ src/pages/__ra08_delete3.test.ts > RA-08 删除手工条目：只影响目标记录 > D1 删掉目标手工条目，来源条目逐条仍在（不靠 revision 证明） 593ms
+✓ src/pages/__ra08_delete3.test.ts > RA-08 删除手工条目：只影响目标记录 > D2 删除只影响记录、不改变准入判断：删除后 E0 与零 dispatch 仍成立 376ms
+✓ src/pages/__ra08_delete3.test.ts > RA-08 双模式均有内容时往返切换 > S1 来源 2 条 + 手工 2 条：切到写死→切回动态，两侧 ID 逐条都在 625ms
+✓ src/pages/__ra08_delete3.test.ts > RA-08 双模式均有内容时往返切换 > S2 往返切换全程 dispatch 为零：无任何非目录请求 512ms
+SUMMARY: Test Files  1 passed (1)
+SUMMARY: Tests  4 passed (4)
+SUMMARY: Duration  2.74s (tests 81%, setup 12%, transform 4%, import 2%)
+TEMP_LEFT=True

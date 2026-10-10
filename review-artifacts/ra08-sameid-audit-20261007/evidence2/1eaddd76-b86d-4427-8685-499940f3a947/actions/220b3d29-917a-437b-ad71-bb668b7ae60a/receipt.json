@@ -1,0 +1,36 @@
+{
+  "task": "ra08-sameid2",
+  "round": "1eaddd76-b86d-4427-8685-499940f3a947",
+  "project": "sameid2",
+  "action": "220b3d29-917a-437b-ad71-bb668b7ae60a",
+  "argv": [
+    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+    "-NoProfile",
+    "-NonInteractive",
+    "-File",
+    "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\private\\run-probe.ps1"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947",
+  "pid": 55260,
+  "startedUtc": "2026-10-07T01:42:19.259501+00:00",
+  "start_ns": 1791337339259510500,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [],
+  "endedUtc": "2026-10-07T01:42:21.866445+00:00",
+  "end_ns": 1791337341866461100,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947\\actions\\220b3d29-917a-437b-ad71-bb668b7ae60a\\stdout",
+      "sha256": "3bed06b6308c7d37df882fbf9527254af9ff7dfcd32c8bbe84a21ae5b6523a9d",
+      "mtime_ns": 1791337341825385700
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra08-sameid-audit-20261007\\evidence2\\1eaddd76-b86d-4427-8685-499940f3a947\\actions\\220b3d29-917a-437b-ad71-bb668b7ae60a\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791337339259237500
+    }
+  ]
+}

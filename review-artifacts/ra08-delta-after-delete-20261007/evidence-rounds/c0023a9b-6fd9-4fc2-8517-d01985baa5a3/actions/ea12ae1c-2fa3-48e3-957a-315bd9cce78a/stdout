@@ -1,0 +1,10 @@
+RUN_UTC=2026-10-07T01:16:31.368159+00:00
+PID=15212
+PROBE_SHA256=5f2395a41989607fb2e2bf8489a300ee92b17103859f7dfa897e1353a0124862
+VITEST_EXIT=0
+✓ src/pages/__ra08_delta.test.ts > 负控 NEG：只删手工条目 → 刷新后 delta 必须零增删 > NEG1 删手工条目后刷新动态来源：目录 ID 逐条不变，摘要无任何「消失」 588ms
+✓ src/pages/__ra08_delta.test.ts > 正控 POS：来源确实少一条 → delta 必须计入消失 > POS1 来源从 2 条变 1 条：摘要必须报「消失 1 / 保持 1」 577ms
+SUMMARY: Test Files  1 passed (1)
+SUMMARY: Tests  2 passed (2)
+SUMMARY: Duration  1.78s (tests 70%, setup 20%, transform 7%, import 3%)
+TEMP_LEFT=True

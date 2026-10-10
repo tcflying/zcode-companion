@@ -1,0 +1,21 @@
+{
+  "task": "business-v97b-20261007",
+  "round": "163e7a95-df48-4b19-8a3e-dc660529d521",
+  "status": "success",
+  "projects": {
+    "companion-log-export": {
+      "actions": [
+        "258aadb7-3e54-4d5c-aab6-ea586b88609a",
+        "d98586ff-5fc8-4e85-aa13-95b95211ab85",
+        "e4563fd6-a1b5-474a-8c1b-3d4511325a72",
+        "52487394-4edc-4051-8a65-9261f0a3545c",
+        "d74789c0-d0d7-418e-858d-a4bdd466bad7",
+        "5b3b4e5a-fb49-4754-979d-45d9ceb496c9"
+      ],
+      "explanation": "本轮（round 163e7a95-df48-4b19-8a3e-dc660529d521）替换作废的 eedfb710-40a8-4f38-bdba-f6f715ba3c32：那一轮两个动作 exit=1，红因是调用姿势（gate 强制 cwd 在 round 内，而 stage-gate 按仓库根解析配置），已加 `private/run-stage-gate.mjs` 把 cwd 纠正并原样透传退出码。作废轮原样保留未覆盖。\n**本轮做了什么**：把「脱敏导出」这条链从无到有补齐到可单测的纯函数 + 一个 IPC 通道 + 一个界面区，范围严格限于 `:386/:445/:554/:876` 要求的预览/脱敏/字节上限/本地目标/hash，不重造已有原料（环形缓冲、已登记机密、桌面桥都是现成的）。\nA1 packages 类型检查：pid=50512 exit=0 startUTC=2026-10-07T08:01:56.183937+00:00 endUTC=2026-10-07T08:01:56.368173+00:00 timeout=False。tsc --noEmit 零错误。\nA2 apps（含 TSX）类型检查：pid=5344 exit=0 startUTC=2026-10-07T08:01:56.481547+00:00 endUTC=2026-10-07T08:01:56.903579+00:00 timeout=False。stage-gate typecheck:apps 零错误。\nA3 类型归属检查：pid=53784 exit=0 startUTC=2026-10-07T08:01:57.007025+00:00 endUTC=2026-10-07T08:01:57.425792+00:00 timeout=False。`typecheck:desktop` 整体**仍然是红的**，但红因与本轮无关：错误行 10 条**全部**落在 `apps/desktop/lib/journal.cjs`（早轮产物，本轮未改）。本轮触碰的 6 个文件里错误数为 0（见 stdout 的 ERROR_LINES_IN_ROUND_FILES=0）。之所以不把该检查原样当 action 跑：非零退出会让整轮无法申报 success，而红因与本轮无关——那是把证据变成噪声。判定口径因此明确写成「本轮文件零错误」而不是「全绿」。\nA4 桌面侧单测（导出 + journal 回归）：pid=56424 exit=0 startUTC=2026-10-07T08:01:57.518952+00:00 endUTC=2026-10-07T08:01:57.758470+00:00 timeout=False。18 条全绿（TESTS_TOTAL=18 / TESTS_PASSED=18 / TESTS_FAILED=0 / CLASS=all_passed）。其中导出模块 13 条覆盖：已登记合成 canary 零出现、凭据形状四类、**反向对照（干净文本必须 0 命中且逐字不变）**、证据指纹/64 位哈希不被误洗、字节上限按行截断且实际字节不超限、非法输入如实拒绝、hash 可复算、只读旁路不改入参。\nA5 UI 测试：pid=29780 exit=0 startUTC=2026-10-07T08:01:57.866620+00:00 endUTC=2026-10-07T08:01:59.313344+00:00 timeout=False。5 文件 176 条全绿（test:ui）。导出区未破坏既有页面行为。\nA6 变异验证（全绿不等于有区分力）：pid=53380 exit=0 startUTC=2026-10-07T08:01:59.407230+00:00 endUTC=2026-10-07T08:01:59.842216+00:00 timeout=False。3 个变异体全部被抓住，红因都是**预期的那条断言**（每个 fail=1）：E1 去掉已登记机密脱敏 ⇒ canary 泄漏用例变红；E2 把 Bearer 规则挪到键值规则之后 ⇒ 令牌幸存用例变红；E3 去掉**两道**字节上限防线 ⇒ 截断用例变红。",
+      "unverified": "**未测（本轮最大缺口）**：真实 Electron 下的保存对话框交互与 GUI 呈现——本轮不启真实宿主，所以 `dialog.showSaveDialog` 的实际选择、取消、落盘都**没有**在真实运行时验证过。已单测的是纯函数（脱敏/上限/hash/非法输入）与输入校验；IPC handler 的分支（取消/在途/写盘失败）是**代码审读 + 类型检查**，不是实测。\n非凭据形状的合成 canary 无法被形状规则识别。本模块对此**如实记录能力边界**（有单测钉住「不假装洗掉」），真正的防线是上游不把正文写进日志——已结构化核对 `packages/api/src/server.ts` 全部 24 处 logger 调用确认无正文，但**那条不变量目前没有测试钉住**，将来任何一行日志加了正文就会静默外带。\n`typecheck:desktop` 仍红（journal.cjs 10 行早轮遗留）。本轮未修：那是已被前轮验收过的文件，改它超出「最小根因改动」边界。需要父审决定是否单开一轮清这笔债。\nT16（换 API key 穿透同会话 unknown）仍未裁定，本轮未动其语义，跨用户隔离保持原样。\nIPC 载荷面：新增的导出返回体只含统计与前 4096 字符预览，但**未**对 preload 通道做越权测试（渲染进程能否绕过 preview 直接要到全文）——`preview` 只回前 N 字符这一点目前只有代码保证。\n本轮新增/改动 6 个产品文件 + 1 个测试文件 + 3 个私有脚本；未做任何 git 写操作。\n**不得据本轮结论宣称 RA-09 通过**：`:874` 的真实预览交互、ACL、HTML 渲染边界仍未执行。",
+      "nextstep": "请父审裁定：是否单开一轮清理 journal.cjs 的 10 行类型债；是否把「上游日志不含正文」补成回归守卫；以及 T16 的 key 语义。",
+      "diagnosis": ""
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "279b4dfd-12d3-4691-aa12-b60f796e1f04",
+  "status": "failure",
+  "projects": {
+    "zcc-auth": {
+      "actions": [
+        "eb4cd36c-a0d8-4536-b7ac-3911891d74ab",
+        "8e244fcc-dfa5-4370-a61b-c9c617a240db",
+        "17439b15-34cb-418b-93ce-b5e7533df503",
+        "4e6de70e-2d36-4fac-9341-2ec6862c3dd3",
+        "852b3c93-493a-4d88-8dd8-b45e9f4b0a1a",
+        "fe9dfbfc-531f-4dc3-8eb9-87a78136b6d0"
+      ],
+      "explanation": "修复阶段（关联诊断 round ebd1d8c0-436c-4acf-a9f6-fcf81a3e26cb）。修复前的四次尝试全部失败并如实保留：eb4cd36c exit=3221226505，脚本 ReferenceError: out is not defined（我自己的作用域 bug，config 未变）；8e244fcc exit=0 但 verdict=ABORT_TMP_NOT_SAME_DIR，Windows 路径分隔符导致我误判同目录判定（config 未变）；17439b15 与 4e6de70e 均 exit=3221226505，helper 的 [File]::Replace 传 $null 绑定成空串抛 ArgumentException 'The path is empty.'（config 未变，各留下一个 14976 字节 temp）。852b3c93 exit=0 且真实写入成功：唯一变更 custom_provider.zcc-companion.options.baseURL 由 http://127.0.0.1:8790/v1 改为 http://127.0.0.1:8791/v1，整文件 SHA 由 13a33ef1… 变为 1b66ad97…，allowedLeafChanged=true、otherBytesIdentical=true，atomic 全项 true（aclMatch/attributesMatch/casMatch/renamed/postAclMatch/postAttributesMatch），temp 被 Replace 消耗且未产生 backup，无 fallback；写后 8791 认证目录 GET 返回 200 与 10 个 model ID。fe9dfbfc 由 root 亲跑官方 mcode provider test，进程 exit=0 但正文 success=false，low/high/max 三档全部 timeout 10000ms —— exit 0 不等于业务通过。结论：路由修复成立，但真实模型生成未通过，ZCC 故障未闭环。",
+      "diagnosis": "配置路由已修复且认证目录可用，但官方 provider test 三档 effort 全部 10000ms 超时，实际模型调用仍失败，故本 round status=failure。证据完整性：root 实际 validate 本 round 为 exit=2 invalid（log/input changed）—— action eb4cd36c 绑定的 repair-route.cjs 在冻结 SHA 8efad6bfe0cf 后又被修改。该 action 本身是已记录的 exit=3221226505 失败记录，故不掩盖任何通过结论。成功 action 852b3c93 的 inputs 经单独核对与冻结 SHA 一致，但整 round 无效，不可单独当作可接受的通过证据。seal 与 receipt 未被修改，旧文件未恢复洗白。原始工具实测证据与 collector invalid 判定并列保留，不合并。",
+      "blockers": [
+        {
+          "condition": "provider test 对 account:bigmodel-individual-coding-plan::GLM-5.3-Flash 的 low/high/max 三档各生成一次并全部成功返回",
+          "gap": "三档全部 timeout 10000ms，正文 success=false；配置路由与认证目录虽已正常，真实生成仍不可用",
+          "action": "fe9dfbfc-531f-4dc3-8eb9-87a78136b6d0",
+          "observed": "low=timeout high=timeout max=timeout, success=false",
+          "required": "三档均返回实际生成结果且 success=true",
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\279b4dfd-12d3-4691-aa12-b60f796e1f04\\actions\\fe9dfbfc-531f-4dc3-8eb9-87a78136b6d0\\stdout",
+            "sha256": "7995c5e9acc66732b7a0985778aaa7e25231cd76faea359315cba7f149aecdc6",
+            "pointer": ["success"]
+          }
+        }
+      ],
+      "unverified": "无 GUI/webui 实测；8791 是否为本 provider 应有模型源（其目录为 GLM/zai 套餐，非 MiniMax M3）未验证；8790 期望 key 来源与修复路径未知（CIM 权限不足，未绕行）；Desktop 端到端聊天可用性未验证。",
+      "nextstep": "由 root 决定后续探查方向；本代理不发起模型请求、不重试。残留两个含密钥的 temp 需人工或授权后清理。"
+    }
+  }
+}

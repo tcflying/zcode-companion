@@ -1,0 +1,40 @@
+{
+  "task": "ZCC-AUTH-20261008",
+  "round": "3b44cceb-0272-4733-929b-ed8e1a3a0696",
+  "project": "zcc-auth",
+  "action": "604ae829-162b-4537-9e49-8fbcb536330e",
+  "argv": [
+    "C:/Program Files/nodejs/node.exe",
+    "G:/zcode-project/zcode-companion/review-artifacts/zcc-auth-repair-20261008/live-canary-nonstream-v2.cjs",
+    "--execute"
+  ],
+  "cwd": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\3b44cceb-0272-4733-929b-ed8e1a3a0696",
+  "pid": 47764,
+  "startedUtc": "2026-10-07T22:27:57.504410+00:00",
+  "start_ns": 1791412077504426400,
+  "exit": 0,
+  "timeout": false,
+  "interrupted": false,
+  "inputs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\live-canary-nonstream-v2.cjs",
+      "sha256": "76e1de6ff66f3f2168540763a3812040f1d86b7b0c9f57da7b63e7613b853adf",
+      "mtime_ns": 1791411935314073600
+    }
+  ],
+  "endedUtc": "2026-10-07T22:28:04.452793+00:00",
+  "end_ns": 1791412084452811200,
+  "artifacts": [],
+  "logs": [
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\3b44cceb-0272-4733-929b-ed8e1a3a0696\\actions\\604ae829-162b-4537-9e49-8fbcb536330e\\stdout",
+      "sha256": "75139f5c9f2ab2f8e991b2641367f990879f7f786fe5e900bd2cf698fbcedaa1",
+      "mtime_ns": 1791412084410303400
+    },
+    {
+      "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\zcc-auth-repair-20261008\\evidence-rounds\\3b44cceb-0272-4733-929b-ed8e1a3a0696\\actions\\604ae829-162b-4537-9e49-8fbcb536330e\\stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "mtime_ns": 1791412077504440100
+    }
+  ]
+}

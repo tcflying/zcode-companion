@@ -1,0 +1,33 @@
+{
+  "task": "ra09-realhook",
+  "round": "f0038b70-39be-4981-be9b-022ff01d5273",
+  "status": "blocked",
+  "projects": {
+    "realhook": {
+      "actions": [
+        "365ebc8b-1c7e-49da-9fed-1f2f56307a84",
+        "8bf8aa37-a08e-4a06-bf0c-cc88710ee9a1",
+        "fbf8e4bf-644f-47c6-b394-e83b6248ab1c"
+      ],
+      "explanation": "RA-09 真实 useAppState hook 接线轮，只补 L4 一项，不重复其余绿。定案 365ebc8b：pid 632，exit 0，2026-10-07T04:04:50Z-04:04:52Z，VITEST_EXIT=0 / CLASS=all_passed / Tests 2 passed (2) / Duration 971ms，且封存 stdout 首行 STRAY_FILES_IN_APPS_UI_SRC=0 证明探针未在 apps/ui/src 落任何文件。L4R：组件内直接调用真实 useAppState()，探针不构造 log/clearLogs；先用真实 hook 自带的引导日志（useAppState.ts:50-61，含『界面壳已加载』文案）证明它不是空替身；随后调用**真实** hook.log() 连写 250 条，state.logs 被 useAppState.ts:40 自己的 slice(0,200) 截断为恰好 200，保留条目均来自本轮 src.realhook，最早那条含 canary 的已被淘汰，canary 原值既不在真实 state 也不在 DOM，页面显示『界面缓冲 200 / 200』、DOM 表 200 行，三通道零调用。L4R2：真实 clearLogs() 清空至 0 并显示空态面板，重复清空幂等不抛错，零网络。静态对照 8bf8aa37（pid 28740，exit 0）给出本轮关键反证：PROBE_HAS_slice_200=False、PROBE_HAS_slice_any=False、PROBE_HAS_makeLogEntry_import=False、PROBE_SETS_log_manual=False、PROBE_SETS_clearLogs_manual=False，而 PROBE_IMPORTS_useAppState=True、PROBE_CALLS_useAppState_hook=True、APSTATE_log_slice_200=True、APSTATE_log_uses_makeLogEntry=True、APSTATE_clearLogs=True —— 即 200 上限确实且仅存在于产品 hook 中，探针只触发不实现。四个正式文件 hash 与本轮开始前逐字节一致（useAppState 9a1d110e…、LogsPage c6cd6d72…、logger 0a957bdd…）。fbf8e4bf 把封存 stdout 转录为结构化裁定 JSON 产物（generated=True，sha256 9e48c400a48d761b51cf2f49f2fe225d32bdac0f1ba118fdfce06feec58ad4d0）。正式源码零改动，未提交未推送。",
+      "blockers": [
+        {
+          "condition": "真实 hook 接线在无真实浏览器、无真实 desktop 通道的合成环境下取得，且 RA-09 主体（journal 淘汰）属另一层面，故只能记为未完成签收",
+          "gap": "happy-dom 20.11.6 非真实浏览器；DesktopState 为替身（不启动真实 Electron 主进程、不读真实日志），故真实拉取行为未验；网络只观测 fetch/XMLHttpRequest/WebSocket 三通道，IPC 仅静态未动态验证且**未制造不存在的 IPC 接口**；canary 为公开合成常量，不能替代真实凭据在真实链路上的泄漏测试；未知操作/未知模型/AI 改坏行为的 journal 淘汰、密钥 ACL、OS 级加密存储、后台自动上转链路全部未测",
+          "action": "fbf8e4bf-644f-47c6-b394-e83b6248ab1c",
+          "observed": "NOT_SIGNED",
+          "required": "SIGNED",
+          "evidence": {
+            "path": "G:\\zcode-project\\zcode-companion\\review-artifacts\\ra09-realhook-audit-20261007\\evidence\\f0038b70-39be-4981-be9b-022ff01d5273\\realhook-verdict.json",
+            "sha256": "9e48c400a48d761b51cf2f49f2fe225d32bdac0f1ba118fdfce06feec58ad4d0",
+            "pointer": ["ra09_overall"],
+            "observed": "NOT_SIGNED"
+          }
+        }
+      ],
+      "diagnosis": "本轮 status=blocked 的唯一原因是 RA-09 整体未签收，不是日志页缺陷。真实 hook 接线的两项子集在零失败动作的干净证据链上 2/2 全绿。**同时撤回上一轮 ra09-loggate 的两条表述**：(1)『真实 log() 通路连写 250 条，state 恰好截断到 200』不成立——那一轮的 mountPage 与 L4 自定义了 log 并自己写 [makeLogEntry(...), ...entries].slice(0,200)，属于以复刻实现证明产品行为；(2) 凡依赖该复刻 log 的上限结论一并撤回。本轮改用组件内真实 useAppState()，静态侧 PROBE_HAS_slice_any=False / PROBE_HAS_makeLogEntry_import=False / PROBE_SETS_log_manual=False 独立证实探针只触发产品 hook、不复刻其逻辑。保留上一轮仍成立的局部结果：LogsPage + 真实 makeLogEntry 的 canary 脱敏（L1/L2）与 desktop unavailable 边界及 refreshLogs 计数正控（L5/L6/L7），本轮不重复。另如实说明上一轮落盘事实：apps/ui/src/__ra09loggate.probe.test.ts 曾由 runner 的 Copy-Item 真实写入磁盘、跑完由 Remove-Item 删除（git status CLEAN、git log 无该路径、目录扫描为空），即**已清理干净但做法本身违规**；本轮改为 root=仓库根 + include 绝对路径指向 review-artifacts，runner 每次先断言 STRAY_FILES_IN_APPS_UI_SRC=0 再跑，apps/ui/src 全程零写入。",
+      "unverified": "happy-dom 20.11.6 非真实浏览器；DesktopState 为替身故真实 desktop 拉取行为未验；网络仅三通道可观测，IPC 静态未动态验证且未制造不存在接口；canary 为公开合成常量不能替代真实凭据测试；RA-09 主体（journal 淘汰策略、密钥 ACL、OS 级加密存储、后台自动上转链路）全部未测，**不冒称 RA-09 整体通过**；未使用 git、未启动服务、未调用记忆工具。",
+      "nextstep": "日志页 200 上限与 clearLogs 的真实 hook 接线已闭合，等主上裁决是否签收。上一轮 ra09-loggate 的 L1/L2/L5/L6/L7 仍成立但其 L4 表述需按本轮撤回结论阅读。RA-09 剩余（journal 淘汰策略、密钥 ACL、后台上转链路）与 RA-08 剩余页面仍待覆盖。"
+    }
+  }
+}
