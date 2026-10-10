@@ -327,7 +327,64 @@ export function resolveIdempotencyOptIn(
   const clientId = sanitizeIdempotencyToken(headers[CLIENT_ID_HEADER]);
   const sessionId = sanitizeIdempotencyToken(headers[SESSION_ID_HEADER]);
   if (clientId === null && sessionId === null) return { kind: 'none' };
-  const client = clientId ?? 'default-client';
-  const session = sessionId ?? 'default-session';
+  const client = clientId ?? DEFAULT_CLIENT_ID;
+  const session = sessionId ?? DEFAULT_SESSION_ID;
   return { kind: 'identity', clientId: client, sessionId: session, scope: idempotencyScope(client, session, keyFingerprint) };
+}
+
+/** 缺省客户端 / 会话维度。与 {@link resolveIdempotencyOptIn} 共用，避免两边漂移。 */
+const DEFAULT_CLIENT_ID = 'default-client';
+const DEFAULT_SESSION_ID = 'default-session';
+
+/**
+ * 一次请求的**会话身份**，与幂等 opt-in **完全独立**地解析。
+ *
+ * ## 为什么必须独立解析（929.md:347 / :853 / :916）
+ *
+ * `resolveIdempotencyOptIn` 在 `Idempotency-Key` 在场时**立刻返回** `kind:'key'`，
+ * 两个 `x-zcc-*` 会话头**根本没被读**。于是同一个客户端的同一个会话里，
+ * 换一个 `Idempotency-Key` 重试（OpenAI 客户端失联后的**默认**行为）就换了一个
+ * 作用域，作用域级的 unknown 守卫打不中——同会话的「结果不可知」就这样被新键穿透了。
+ *
+ * 条款的原话：
+ *  - `:347`「外部客户端默认新key重试也不能穿透同会话unknown保护」
+ *  - `:853`「尝试同key、新key和同session新输入，均不得新增dispatch」
+ *  - `:916`「同sessionunknown用新key发请求仍拒」
+ *
+ * ## 缺身份就返回 `null`，绝不假造
+ *
+ * 两个 `x-zcc-*` 头都没发（或不合形状）时返回 `null`：我们**不知道**这次请求属于
+ * 哪个会话，替它编一个会话号会让「会话锁定」变成全局锁定，把所有互不相干的客户端
+ * 一起冻住。`null` 的语义是「本端无从判断」，不是「没有风险」。
+ */
+export interface SessionIdentity {
+  readonly clientId: string;
+  readonly sessionId: string;
+  /**
+   * `clientId + sessionId + keyFingerprint` 的规范化哈希。
+   *
+   * 复用 {@link idempotencyScope}——同一套身份维度与同一套规范化，
+   * 所以「幂等作用域（identity 形态）」与「会话闸门」对同一会话算出同一个键，
+   * 不会各算各的。不含请求正文。
+   */
+  readonly sessionKey: string;
+}
+
+/**
+ * 从请求头解析会话身份。**不读** `Idempotency-Key`。
+ *
+ * @param headers Node 的入站请求头（只需读取两个 `x-zcc-*` 键）
+ * @param keyFingerprint 已通过认证的 key 指纹
+ * @returns 会话身份；客户端**没有**声明会话时返回 `null`
+ */
+export function resolveSessionIdentity(
+  headers: Readonly<Record<string, string | string[] | undefined>>,
+  keyFingerprint: string
+): SessionIdentity | null {
+  const clientId = sanitizeIdempotencyToken(headers[CLIENT_ID_HEADER]);
+  const sessionId = sanitizeIdempotencyToken(headers[SESSION_ID_HEADER]);
+  if (clientId === null && sessionId === null) return null; // 缺身份 ⇒ 不假造
+  const client = clientId ?? DEFAULT_CLIENT_ID;
+  const session = sessionId ?? DEFAULT_SESSION_ID;
+  return { clientId: client, sessionId: session, sessionKey: idempotencyScope(client, session, keyFingerprint) };
 }

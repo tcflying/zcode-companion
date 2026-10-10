@@ -388,8 +388,30 @@ describe('API01 入口：COMPAT1/C4 权限档位与工具应答策略（启动�
       'ZCC_HOST_REASONING',
       'ZCC_HOST_PERMISSION_MODE',
       'ZCC_HOST_TOOL_POLICY',
-      'ZCC_HOST_DEBUG'
+      'ZCC_HOST_DEBUG',
+      // 2026-10-07 因 929.md:875 新增。不登记进这个闭集的**直接后果**是：
+      // 设了 `ZCC_JOURNAL_DIR` 的机器会拿到 `UNKNOWN_ENV_KEY` 而**起不来**——
+      // 这正是「宿主 spawn 时必然下发这个键」所必须的（见下方 journalDir 用例）。
+      'ZCC_JOURNAL_DIR'
     ]);
+  });
+
+  it('`ZCC_JOURNAL_DIR`：桌面 spawn 路径默认接通；缺省仍是不落盘', () => {
+    // 宿主把**既有** settings 目录经 env 交进来时，journal 落到那个目录。
+    const withEnv = parseEntryOptions([], { ZCC_API_KEY: TEST_KEY, ZCC_JOURNAL_DIR: 'C:/profiles/web' });
+    expect(withEnv.journalDir).toBe('C:/profiles/web');
+
+    // CLI 覆盖 env（优先级 CLI > env > 缺省，与其余键同一条规则）。
+    const withFlag = parseEntryOptions(['--journal-dir', 'C:/from-flag'], {
+      ZCC_API_KEY: TEST_KEY,
+      ZCC_JOURNAL_DIR: 'C:/from-env'
+    });
+    expect(withFlag.journalDir).toBe('C:/from-flag');
+
+    // 缺省 = 不启用持久化（纯内存 journal，容量拒绝照样生效）。
+    expect(parseEntryOptions([], { ZCC_API_KEY: TEST_KEY }).journalDir).toBeUndefined();
+    // 空白等价于没给，不当成路径 ''。
+    expect(parseEntryOptions([], { ZCC_API_KEY: TEST_KEY, ZCC_JOURNAL_DIR: '   ' }).journalDir).toBeUndefined();
   });
 
   it('`ZCC_HOST_PERMISSION_MODE`：缺省 `yolo`，闭集内透传，闭集外**启动即拒**并指名', () => {

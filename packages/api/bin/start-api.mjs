@@ -83,6 +83,7 @@ export const ENTRY_DEFAULT_SHUTDOWN_GRACE_MS = 5_000;
  * | `ZCC_HOST_PERMISSION_MODE` | official-host 下发给官方 `session/create` 的 `mode`，闭集 `plan\|build\|edit\|yolo\|auto`，缺省 `yolo`（官方逐字 "Yolo mode bypasses permission prompts"）。闭集外**启动即拒**。 |
  * | `ZCC_HOST_TOOL_POLICY` | official-host 遇到 `interaction/requestPermission` 时的应答策略，闭集 `allow\|deny`，缺省 `allow`（工作区在隔离临时目录）。闭集外**启动即拒**。 |
  * | `ZCC_HOST_DEBUG` | official-host 诊断行开关，闭集 `0\|1`，缺省 `0`；闭集外**启动即拒**（HOSTFIX6）。 |
+ * | `ZCC_JOURNAL_DIR` | 操作 journal 落盘目录（929.md:875）。**桌面宿主 spawn 时自动下发**它已在用的 settings 目录，所以产品路径下默认就是开的；缺省 = 纯内存不落盘。 |
  */
 export const ENTRY_ENV_KEYS = Object.freeze([
   'ZCC_API_KEY',
@@ -92,7 +93,11 @@ export const ENTRY_ENV_KEYS = Object.freeze([
   'ZCC_HOST_REASONING',
   'ZCC_HOST_PERMISSION_MODE',
   'ZCC_HOST_TOOL_POLICY',
-  'ZCC_HOST_DEBUG'
+  'ZCC_HOST_DEBUG',
+  // 929.md:875：操作 journal 落盘目录。**闭集里必须登记**——
+  // 本入口对任何未登记的 `ZCC_*` 键直接拒绝启动（UNKNOWN_ENV_KEY），
+  // 漏登记会让「设了这个变量就起不来」而不是「忽略它」。
+  'ZCC_JOURNAL_DIR'
 ]);
 
 /**
@@ -237,7 +242,7 @@ function parseIntegerOption(raw, flag) {
  *
  * @param {readonly string[]} argv
  * @param {Readonly<Record<string, string | undefined>>} env
- * @returns {{ readonly port: number; readonly driver: string; readonly apiKey: string; readonly shutdownGraceMs: number, readonly hostReasoning?: string, readonly hostPermissionMode?: string, readonly hostToolPolicy?: string, readonly hostDebug: string }}
+ * @returns {{ readonly port: number; readonly driver: string; readonly apiKey: string; readonly shutdownGraceMs: number, readonly hostReasoning?: string, readonly hostPermissionMode?: string, readonly hostToolPolicy?: string, readonly hostDebug: string, readonly journalDir?: string }}
  * @throws {EntryConfigError}
  */
 export function parseEntryOptions(argv, env) {
@@ -253,7 +258,7 @@ export function parseEntryOptions(argv, env) {
     }
   }
 
-  const knownFlags = ['--port', '--driver', '--api-key', '--shutdown-grace-ms', '--help'];
+  const knownFlags = ['--port', '--driver', '--api-key', '--shutdown-grace-ms', '--journal-dir', '--help'];
   for (const token of argv) {
     if (token.startsWith('--') && !knownFlags.includes(token)) {
       throw new EntryConfigError('UNKNOWN_FLAG', `本入口不认识参数 ${token}（已知：${knownFlags.join(' ')}）`);
@@ -270,6 +275,22 @@ export function parseEntryOptions(argv, env) {
       : parseIntegerOption(graceRaw, '--shutdown-grace-ms / ZCC_SHUTDOWN_GRACE_MS');
 
   const driver = (readFlag(argv, '--driver').value ?? env['ZCC_DRIVER'] ?? 'none').trim();
+
+  /**
+   * 操作 journal 落盘目录（929.md:875）。优先级 `--journal-dir` > `ZCC_JOURNAL_DIR` > 缺省。
+   *
+   * 缺省即**不启用持久化**——journal 仍生效（容量不足照常拒新发），只是不落盘。
+   *
+   * 走 env 的这一路**不是让用户手填的**：桌面主进程 spawn 本入口时，会把它**已经
+   * 在用的 settings 目录**塞进来（见 `apps/desktop/lib/spawn-spec.cjs`）。所以正常
+   * 产品路径下 journal 天然落在与 settings 同根的位置，用户不需要额外学一个开关；
+   * `--journal-dir` 留给手工调试与自动化测试。
+   *
+   * 本入口**自己不猜目录**：猜一个路径等于替用户决定把操作记录写到哪，那属于越权。
+   * 唯一例外就是上面那条由**真实宿主**显式传进来的路径。
+   */
+  const journalDirRaw = (readFlag(argv, '--journal-dir').value ?? env['ZCC_JOURNAL_DIR'] ?? '').trim();
+  const journalDir = journalDirRaw === '' ? undefined : journalDirRaw;
   if (!ENTRY_DRIVERS.includes(driver)) {
     throw new EntryConfigError(
       'UNKNOWN_DRIVER',
@@ -312,6 +333,7 @@ export function parseEntryOptions(argv, env) {
     apiKey,
     shutdownGraceMs,
     hostDebug,
+    ...(journalDir === undefined ? {} : { journalDir }),
     ...(hostReasoning === null ? {} : { hostReasoning }),
     ...(hostPermissionMode === null ? {} : { hostPermissionMode }),
     ...(hostToolPolicy === null ? {} : { hostToolPolicy })
@@ -447,7 +469,7 @@ export async function run(argv, env, io) {
   if (argv.includes('--help')) {
     io.write(
       [
-        '用法: node packages/api/bin/start-api.mjs [--port <n>] [--driver none|fixture|local-official|official-host] [--shutdown-grace-ms <n>]',
+        '用法: node packages/api/bin/start-api.mjs [--port <n>] [--driver none|fixture|local-official|official-host] [--shutdown-grace-ms <n>] [--journal-dir <路径>]',
         '',
         '环境变量（闭集；出现任何其它 ZCC_* 键即拒绝启动）:',
         '  ZCC_API_KEY             必填。Bearer key 的值。缺失即拒绝启动，不生成默认弱 key。',
@@ -461,6 +483,10 @@ export async function run(argv, env, io) {
         '  ZCC_HOST_DEBUG          official-host 的诊断行开关，闭集 0 | 1，缺省 0；闭集外拒绝启动。'
           + '置 1 时子宿主把零凭据的会话摘要打到它自己的 stderr（父进程只对 stderr 计数，内容从不读取、从不转发）',
         '  ZCC_SHUTDOWN_GRACE_MS   在途请求收束上限，缺省 5000。',
+        '  ZCC_JOURNAL_DIR        操作 journal 落盘目录（929.md:875）。桌面主进程 spawn 时会把它',
+        '                         已在用的 settings 目录塞进来，所以产品路径下**默认就是开的**，',
+        '                         用户无需设置。缺省 = 纯内存不落盘（容量拒绝仍生效）。',
+        '                         仅存结构化操作记录，不存正文、不存凭据。',
         '',
         '优先级: CLI 参数 > 环境变量 > 缺省。绑定地址恒为 127.0.0.1，不暴露为配置。',
         '停止: 向进程发送 SIGINT 或 SIGTERM（优雅、有界收束，不用 process.exit）。'
@@ -498,6 +524,13 @@ export async function run(argv, env, io) {
     throw new Error(`ENTRY_DEFAULT_PORT_DRIFT: 入口 ${ENTRY_DEFAULT_PORT} 与 server.ts ${DEFAULT_API_PORT} 不一致`);
   }
 
+  /**
+   * ZCC-GUI-EVIDENCE-20261008-A：启动时捕获的只读证据。
+   * 两条 driver 分支都接；缺证据/none 保持 null，由端点如实报 evidence_not_captured。
+   * @type {Omit<import('../src/read-status.js').BuildReadStatusOptions, 'now'> | null}
+   */
+  let capturedReadStatus = null;
+
   /** @type {import('../src/chat.js').ChatDriver | undefined} */
   let driver;
   if (options.driver === 'local-official') {
@@ -505,6 +538,15 @@ export async function run(argv, env, io) {
     const { loadLocalOfficialDriver } = await import('../../plansrc/src/index.js');
     const loaded = loadLocalOfficialDriver();
     driver = loaded.driver;
+    // loadLocalOfficialDriver 已经算好 E1Evidence（buildE1Evidence）；这里只是把它接出去，不重读。
+    capturedReadStatus = {
+      driverKind: 'local-official',
+      driverCatalogCount: loaded.driver.catalog.models.length,
+      driverCatalogRevision: loaded.driver.catalog.revision ?? null,
+      servableCount: loaded.driver.models.length,
+      driverStatus: loaded.driver.status === 'ready' ? 'ready' : 'not_attached',
+      evidence: loaded.evidence
+    };
     io.write(
       `zcc-api plansrc source builtin=${loaded.paths.builtinFile} setting=${loaded.paths.settingFile} cache=${loaded.paths.cacheFile}` +
         ` (read-only, credential values never printed)`
@@ -513,10 +555,28 @@ export async function run(argv, env, io) {
     // 官方 bundle 作宿主（子进程隔离）。目录复用 PLANSRC 那份真实 18 条，不重复造。
     // 凭据明文只在**子宿主进程**内存里：父进程连解都不解，因此不经过父子通道。
     const { loadOfficialHostDriver } = await import('../../official-host/src/host-driver.js');
+    const { buildPlanStatuses, buildE1Evidence } = await import('../../plansrc/src/mapper.js');
+    /** @type {Omit<import('../src/read-status.js').BuildReadStatusOptions, 'now'> | null} */
+    let hostCaptured = null;
     driver = await loadOfficialHostDriver({
       reasoning: options.hostReasoning ?? ENTRY_DEFAULT_HOST_REASONING,
-      diagnostics: (line) => io.write(`zcc-api official-host ${line}`)
+      diagnostics: (line) => io.write(`zcc-api official-host ${line}`),
+      // 复用 host-driver 内**同一次** readPlanSources 的结果构造证据：零二次 I/O。
+      onSourceEvidence: ({ sources, catalog, servableCount }) => {
+        // buildPlanStatuses + buildE1Evidence 是 PLANSRC 既有函数，这里精确复用，不重造。
+        const plans = buildPlanStatuses({ sources, catalog });
+        hostCaptured = {
+          driverKind: 'official-host',
+          // 同层：driver 的目录总数（= catalog.models.length），不是 servable 子集。
+          driverCatalogCount: catalog.models.length,
+          driverCatalogRevision: catalog.revision ?? null,
+          servableCount,
+          driverStatus: servableCount > 0 ? 'ready' : 'not_attached',
+          evidence: buildE1Evidence(sources, catalog, plans)
+        };
+      }
     });
+    if (hostCaptured !== null) capturedReadStatus = hostCaptured;
     io.write(
       `zcc-api official-host reasoning=${options.hostReasoning ?? ENTRY_DEFAULT_HOST_REASONING} (闭集 low|high|max；不猜)` +
         ` host_debug=${options.hostDebug}` +
@@ -532,8 +592,15 @@ export async function run(argv, env, io) {
     port: options.port,
     apiKeys: [options.apiKey],
     shutdownGraceMs: options.shutdownGraceMs,
+    // 929.md:875：journalDir 缺省 = 不落盘；显式指定才启用跨重开保留。
+    ...(options.journalDir === undefined ? {} : { journalDir: options.journalDir }),
     // allowedOrigins 缺省 = 空数组 = 带 Origin 的请求全拒。CORS 永不开启。
     ...(driver === undefined ? {} : { driver }),
+    // ZCC-GUI-EVIDENCE-20261008-A：把启动时捕获的证据交给 /v1/zcc/readstatus 投影。
+    // 缺省不传 → 端点报 evidence_not_captured，绝不伪造。
+    ...(capturedReadStatus === null
+      ? {}
+      : { readStatus: () => capturedReadStatus }),
     logger: {
       info: (line) => io.write(`zcc-api ${line}`),
       warn: (line) => io.error(`zcc-api ${line}`),

@@ -37,6 +37,12 @@ import { randomUUID } from 'node:crypto';
 import type { AddressInfo, Socket } from 'node:net';
 import { ApiError, toApiError } from './errors.js';
 import {
+  buildReadStatus,
+  type EvidenceLike,
+  type ReadStatusDriverKind
+} from './read-status.js';
+import { createOperationJournal, type JournalState } from './journal-store.js';
+import {
   DEFAULT_RATE_LIMIT,
   HOST_LOOPBACK,
   IDEMPOTENCY_KEY_HEADER,
@@ -45,6 +51,7 @@ import {
   isAllowedHost,
   isAllowedOrigin,
   resolveIdempotencyOptIn,
+  resolveSessionIdentity,
   verifyApiKey,
   type IdempotencyOptIn
 } from './auth.js';
@@ -56,6 +63,7 @@ import {
   deriveModelIsReal,
   emitChunk,
   maxTokensNotForwarded,
+  maxTokensClampDisclosure,
   normalizedRequestHash,
   parseChatRequest,
   sseDone,
@@ -95,6 +103,15 @@ export const FIXTURE_TEST_TOKEN: unique symbol = Symbol('zcc.fixture.test-token'
 /** 扩展目录端点。协调者裁定的形状，UI02 客户端已按此实现。 */
 export const CATALOG_PATH = '/v1/zcc/catalog';
 
+/**
+ * 只读证据状态端点（ZCC-GUI-EVIDENCE-20261008-A）。
+ *
+ * 与 {@link CATALOG_PATH} 分工：catalog 只给模型目录；本端点给"这份目录/资格/选模
+ * 读回到什么程度、还差什么才能定级"的**事实**。它**不做任何 I/O**，只投影启动时
+ * 已在内存捕获的证据——**GET 不会重新制造 fresh，也不会刷新 updatedAt**。
+ */
+export const READ_STATUS_PATH = '/v1/zcc/readstatus';
+
 export interface ApiLogger {
   info(line: string): void;
   warn(line: string): void;
@@ -123,8 +140,18 @@ export const API_SERVER_CONFIG_KEYS = [
   'driver',
   'testOnlyFixtureToken',
   'logger',
-  'now'
+  'now',
+  'journalDir',
+  'journalMaxEntries',
+  'readStatus'
 ] as const;
+
+/**
+ * journal 条目上限缺省值。与幂等表的 `MAX_IDEMPOTENCY_ENTRIES` 同量级，
+ * 但**两者独立**：一个管「重放正文预算」，一个管「操作事实记录」，
+ * 混用会让任一侧的淘汰语义悄悄改变对方的容量语义。
+ */
+export const DEFAULT_JOURNAL_MAX_ENTRIES = 512;
 
 export interface ApiServerConfig {
   /** 缺省关闭。必须显式 `enabled: true` 才会监听。 */
@@ -147,7 +174,40 @@ export interface ApiServerConfig {
   readonly testOnlyFixtureToken?: typeof FIXTURE_TEST_TOKEN;
   readonly logger?: ApiLogger;
   readonly now?: () => number;
+  /**
+   * 操作 journal 的落盘目录（929.md:875「journal不足拒新发而非丢unknown」）。
+   *
+   * **缺省即不启用持久化**：此时 journal 纯内存、容量拒绝仍生效，但不落盘。
+   * 显式传入才会读写 `<journalDir>/journal.json`，且**登记发生在真实副作用
+   * （`driver.stream`）之前**——容量不足或写失败时直接拒绝本次新发，
+   * 驱动器一次都不被调用。
+   */
+  readonly journalDir?: string;
+  /** journal 条目上限；缺省 {@link DEFAULT_JOURNAL_MAX_ENTRIES}。 */
+  readonly journalMaxEntries?: number;
+  /**
+   * 启动时捕获的**只读证据状态**（ZCC-GUI-EVIDENCE-20261008-A）。
+   *
+   * 缺省即"没有证据可报"——`/v1/zcc/readstatus` 此时返回 `evidence: null`
+   * 对应的 `evidence_not_captured` 缺口，而不是伪造一份。**这里不接受任何文件路径**，
+   * 调用方传什么就只是什么；真正的读源发生在驱动器构造期，不在本端点。
+   */
+  readonly readStatus?: ReadStatusProvider;
 }
+
+/**
+ * readstatus 的证据提供者。**纯函数、无 I/O**：
+ * 由启动入口在读源之后构造一次，此后每次 GET 只调用它投影，不重新读盘。
+ */
+export type ReadStatusProvider = () => {
+  readonly driverKind: ReadStatusDriverKind;
+  readonly driverCatalogCount: number | null;
+  /** 同层目录 revision；与 evidence 的 catalogRevision 同 scope 可比。null = 未知。 */
+  readonly driverCatalogRevision: string | null;
+  readonly servableCount: number | null;
+  readonly driverStatus: 'ready' | 'not_attached' | 'unavailable';
+  readonly evidence: EvidenceLike | null;
+};
 
 export interface ApiStartResult {
   readonly started: boolean;
@@ -237,6 +297,10 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     );
   }
   const rateLimiter = new RateLimiter({ ...DEFAULT_RATE_LIMIT, ...(config.rateLimit ?? {}) });
+  // 操作 journal（929.md:875）。`journalDir` 缺省 = 纯内存、不落盘；
+  // 容量拒绝语义两种模式下都生效，持久化只是额外的跨重开保障。
+  const operationJournal = createOperationJournal(config.journalDir);
+  const journalMaxEntries = config.journalMaxEntries ?? DEFAULT_JOURNAL_MAX_ENTRIES;
 
   const operations = new Map<string, StoredOperation>();
   const sockets = new Set<Socket>();
@@ -306,6 +370,54 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       ...rateLimitHeaders(verdict)
     });
 
+  /**
+   * `journal.reserve` 的拒绝原因 → 具体 `ApiError`。
+   *
+   * 每个原因给**自己的**错误码与文案，不合并：
+   * 客户端按 `code` 做的处置完全不同（清理容量 / 看坏原件 / 换会话），
+   * 把它们糊成一个「写入失败」会让运维照着错的处置走。
+   *
+   * 五种情况的共同点只有一条：**驱动器一次都不会被调用，本次请求未提交上游**。
+   */
+  const journalRejection = (reason: string | undefined, operationId: string): ApiError => {
+    const r = String(reason ?? 'unknown');
+    const detail = { journal_rejected: true, reason: r, operation_id: operationId, driver_called: false };
+    if (r === 'journal_capacity_exceeded') {
+      return new ApiError(
+        'journal_capacity_exceeded',
+        '操作 journal 已满且无可淘汰条目：本次新发被拒，不会丢弃任何 unknown 记录。清理后重试。',
+        detail
+      );
+    }
+    if (r === 'journal_corrupt') {
+      return new ApiError(
+        'journal_corrupt',
+        '操作 journal 原件读不懂：本次新发被拒（驱动器未被调用）。坏原件已原样保留、未被覆盖，请人工检查后再恢复发送。',
+        detail
+      );
+    }
+    if (r === 'operation_outcome_unknown') {
+      return new ApiError(
+        'upstream_outcome_unknown',
+        '该 operationId 已有结果不可知的记录：拒绝再次发送，避免对同一件事重复提交上游。',
+        detail
+      );
+    }
+    if (r === 'operation_in_progress') {
+      return new ApiError(
+        'idempotency_in_progress',
+        '该 operationId 仍在途：拒绝并发执行第二次。',
+        detail
+      ).withHeaders({ 'retry-after': '1' });
+    }
+    // 含 `journal_write_failed: <原始错误>` 的落盘失败，以及任何未预期的拒绝原因。
+    return new ApiError(
+      'journal_write_failed',
+      `操作 journal 落盘失败，本次新发被拒（驱动器未被调用，未发出任何请求）：${r}`,
+      detail
+    );
+  };
+
   const zccBlock = (usageMethod: string, parsed: ParsedChatRequest): Record<string, unknown> => ({
     fixture: driver.fixture,
     driver: driver.name,
@@ -330,6 +442,9 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     // 上限那一条**按驱动器能力**追加，并**逐字用客户端发来的键名**（`max_completion_tokens`
     // 就报 `max_completion_tokens`）——报成别的名字等于告诉客户端一件与它无关的事。
     parameters_not_forwarded: [...parsed.parametersNotForwarded, ...maxTokensNotForwarded(parsed, driver.enforcesMaxTokens)],
+    // 上限超额被钳制时披露原值与上限（键**缺席**=未钳制）："接受了但缩小到上限"
+    // 与"收下但没进驱动"（parameters_not_forwarded）语义不同，不共用一张表。
+    ...maxTokensClampDisclosure(parsed),
     // **COMPAT3**：本次请求里被**折叠**进 prompt 上下文的指令 role（`system` /
     // `developer`）。恒在场（无折叠时是 `[]`），口径与 `parameters_not_forwarded` 一致：
     // 客户端要知道"你的系统提示词被并进了 prompt 上下文"，而不是靠猜产出里那个
@@ -497,6 +612,60 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
   };
 
   /* ------------------------------------------------------------------ */
+  /* GET /v1/zcc/readstatus                                              */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * 只读证据状态（ZCC-GUI-EVIDENCE-20261008-A）。三条硬规则：
+   *  1. **不做任何 I/O。** 证据在启动时由驱动器读源后捕获；本处理器只投影。
+   *     GET **不会**重新读盘、不会刷新 `readAt`/`updatedAt`——它是历史读取的呈现，
+   *     不是"现在仍然有效"的证明。
+   *  2. **不定级。** 响应里恒有 `gradedByServer: false` 与 `validityWindowKnown: false`，
+   *     并列出具名缺口。E1 规范由 I06 定义，不由这个端点擅自满足。
+   *  3. **复用既有守卫。** 方法、身份认证、Origin/Host、限流、错误形状全部照
+   *     {@link handleCatalog}；不开放 CORS、不扩任何闭集。
+   */
+  const handleReadStatus = (req: http.IncomingMessage, res: http.ServerResponse): void => {
+    if (req.method !== 'GET') {
+      throw new ApiError('method_not_allowed', `${READ_STATUS_PATH} 只接受 GET`, { method: req.method ?? '' }, 'method');
+    }
+    const identity = authenticate(req, res);
+    if (identity === null) return;
+    const verdict = rateLimiter.tryAcquire(identity.keyFingerprint);
+    if (!verdict.ok) throw rateLimitError(verdict);
+    try {
+      const captured = config.readStatus?.() ?? {
+        driverKind: driver.name === 'local-official'
+          ? ('local-official' as const)
+          : (driver.name === 'official-host' ? ('official-host' as const) : ('none' as const)),
+        driverCatalogCount: driver.catalog?.models?.length ?? null,
+        driverCatalogRevision: driver.catalog?.revision ?? null,
+        servableCount: null,
+        driverStatus: 'not_attached' as const,
+        evidence: null
+      };
+      const payload = buildReadStatus({
+        driverKind: captured.driverKind,
+        driverCatalogCount: captured.driverCatalogCount,
+        driverCatalogRevision: captured.driverCatalogRevision,
+        servableCount: captured.servableCount,
+        driverStatus: captured.driverStatus,
+        evidence: captured.evidence,
+        // GET **不重读源**；now 只用于判断源时间戳是否荒谬（未来/负数/NaN）。
+        now: (config.now ?? Date.now)()
+      });
+      send(res, 200, 'application/json; charset=utf-8', JSON.stringify(payload), {
+        // 本端点只读且不含个人可识别内容；仍不缓存，避免界面拿旧事实当当前。
+        'cache-control': 'no-store',
+        'x-zcc-read-status-e1-blocking': String(payload.e1Blocking.length),
+        ...rateLimitHeaders(verdict)
+      });
+    } finally {
+      rateLimiter.release();
+    }
+  };
+
+  /* ------------------------------------------------------------------ */
   /* POST /v1/chat/completions                                           */
   /* ------------------------------------------------------------------ */
 
@@ -573,6 +742,110 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       return;
     }
 
+    /**
+     * **跨重启**的幂等守卫（父审 v90/v91：不能只靠随机 operationId）。
+     *
+     * 内存 `operations` 表随进程一起消失。重启后同一个幂等键再来一次，
+     * 若只看内存表就会把它当成**全新操作**再发一次——那是对同一次用户意图
+     * 的重复投递，可能重复扣上游额度。所以持久 journal 里额外记了
+     * `scope` 与 `bodyHash`（**只存哈希，不存正文**），重启后据此判断：
+     *
+     *  - 哈希不同 ⇒ 同键异体，`idempotency_conflict`。
+     *  - `in_flight` / `unknown` ⇒ 崩溃前那次发出去了、结果不可知，
+     *    自动重发可能重复提交，拒绝（`upstream_outcome_unknown`）。
+     *  - `done` / `failed` ⇒ 已结算，但**正文没有持久化**，
+     *    拿不到可重放的 2xx 响应 ⇒ `idempotency_replay_unavailable`。
+     *
+     * **只在 journal 真的落盘时启用。** 没有 `journalDir` 就没有跨重启这回事，
+     * 此时内存表就是全部真相——必须保持与加 journal 之前**逐字一致**，否则会
+     * 顶掉 F02 明确要求的「重放预算淘汰后，同键作为全新操作重新执行」。
+     * （实测：不加这个条件，`tests/unit/api-replay-budget-inflight.test.mjs`
+     * 会从 200 退化成 409。）
+     *
+     * 边界如实说明：**跨重启的「原样重放正文」没有实现**，因为那要求把响应
+     * 正文写进 journal，与「journal 不存正文」这条硬要求冲突。
+     * 这里保证的是**不重复发送**（安全性），不是**跨重启重放**（便利性）。
+     */
+    if (existing === undefined && scope !== null && operationJournal.persistent()) {
+      const persisted = operationJournal.lookupScope(scope);
+      if (persisted !== undefined) {
+        if (persisted.bodyHash !== undefined && persisted.bodyHash !== bodyHash) {
+          throw new ApiError(
+            'idempotency_conflict',
+            '同一 幂等键/客户端身份+会话 在上一次进程运行中已用不同请求体提交过；重启后仍拒绝静默改写',
+            { body_hash_conflicts: true, idempotency_kind: identity.idempotency.kind, survived_restart: true }
+          ).withHeaders({ 'x-zcc-operation-id': persisted.operationId });
+        }
+        if (persisted.state === 'in_flight' || persisted.state === 'unknown') {
+          throw new ApiError(
+            'upstream_outcome_unknown',
+            '该幂等作用域在重启前有一次结果不可知的操作；自动重发可能重复提交上游，本次拒绝发送。请人工确认后换新会话。',
+            {
+              idempotency_kind: identity.idempotency.kind,
+              survived_restart: true,
+              persisted_state: persisted.state,
+              auto_resend_allowed: false
+            }
+          ).withHeaders({ 'x-zcc-operation-id': persisted.operationId });
+        }
+        throw new ApiError(
+          'idempotency_replay_unavailable',
+          '该幂等作用域的操作在重启前已完成；响应正文不持久化，无法跨重启重放。请开启新会话。',
+          { replayable: false, survived_restart: true }
+        ).withHeaders({ 'x-zcc-operation-id': persisted.operationId });
+      }
+    }
+
+    /**
+     * **会话级闸门**（929.md:347 / :853 / :916）——本轮补的唯一原需求缺口。
+     *
+     * 上面那个守卫只管「同一个键」。但外部客户端在失联后的**默认**行为是换一个
+     * `Idempotency-Key` 重试（`:347`：「外部客户端默认新key重试也不能穿透同会话
+     * unknown保护」）。换键 ⇒ 新作用域 ⇒ 作用域级守卫打不中 ⇒ 同会话那条
+     * 「结果不可知」的记录被穿透，又发一次上游。这正是 `:853` 明令禁止的
+     * 「同session新输入新增dispatch」。
+     *
+     * 判定只看 `unknown`：会话锁定针对的是「已发出、结果不可知」。
+     * **不看 `in_flight`**——那会把一个会话里的正常并发也一起冻住；
+     * 同一键的并发重复另有 `idempotency_in_progress` 兜底。
+     *
+     * 位置在**任何登记与发送之前**：被拒的请求不写幂等表、不写 journal、
+     * 驱动器零调用。跨重建同样生效（会话身份哈希已随记录落盘）。
+     *
+     * 缺会话身份（客户端没发 `x-zcc-*`）时 `resolveSessionIdentity` 返回 `null`，
+     * 这条闸门**不做任何判定**——我们不知道它属于哪个会话，编一个会话号会把
+     * 会话锁定变成全局锁定。该边界在交付报告里如实列为未覆盖。
+     */
+    const session = resolveSessionIdentity(req.headers, identity.keyFingerprint);
+    if (session !== null) {
+      const pending = operationJournal.lookupSessionUnknown(session.sessionKey);
+      if (pending !== undefined) {
+        // 日志只写**指纹**，绝不写 client/session 原值。
+        // 原值是客户端自报的标识，落进日志就等于把一份可关联的原始身份复制到盘上，
+        // 而 `929.md:876` 要求的是可审计的拒绝码，不是可复原的原始身份。
+        // `session.sessionKey` 就是 client+session+keyFingerprint 的规范化哈希，
+        // 与会话闸门判重用的是**同一把键**，所以定位能力不变，原始值不再外流。
+        //
+        // 刻意**不动**下面 throw 出去的 detail：`client_id`/`session_id` 是回给
+        // 「提交这两个头的那同一个已认证调用方」的，不构成外带；改它会扩大本轮修复面。
+        logger.warn(
+          `event=session_locked key=${identity.keyFingerprint} session_key=${session.sessionKey} pending_operation=${pending.operationId} new_key=${String(identity.idempotency.kind)}`
+        );
+        throw new ApiError(
+          'upstream_outcome_unknown',
+          '该会话存在结果不可知的在途操作：换用新幂等键或新输入都不能绕过同会话保护，本次拒绝发送。请先人工核销上一条结果。',
+          {
+            session_locked: true,
+            client_id: session.clientId,
+            session_id: session.sessionId,
+            pending_operation_id: pending.operationId,
+            auto_resend_allowed: false,
+            driver_called: false
+          }
+        ).withHeaders({ 'x-zcc-operation-id': pending.operationId, 'retry-after': '1' });
+      }
+    }
+
     // 无上游：fail-closed。不返回任何模型内容，也不登记幂等表——无额度不是一次
     // "已完成的操作"，登记下来会把临时状态固化成永久重放。
     if (driver.status !== 'ready') {
@@ -590,6 +863,33 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
         : { operationId, bodyHash, state: 'in_flight', replay: null, contentType: 'application/json; charset=utf-8', bytes: 0 };
     if (scope !== null && stored !== null) operations.set(scope, stored);
 
+    /**
+     * 真实副作用**之前**的强制登记（929.md:875）。
+     *
+     * 位置是关键：必须在下面 `driver.stream(...)` 之前完成登记。
+     * 容量不足、原件损坏、写盘失败、或这个 operationId 已经有在途/未知记录
+     * ⇒ 直接抛错，**驱动器一次都不会被调用**——这就是条款要的「不足拒新发」，
+     * 而不是先发出去再补记录。
+     *
+     * `scope` / `bodyHash` 一并登记：它们是**跨重启**识别「这个幂等键已经发过」
+     * 的唯一依据（只存哈希，不存正文，见 journal-store.ts 的说明）。
+     */
+    const reserved = operationJournal.reserve({
+      operationId,
+      ...(scope === null ? {} : { scope }),
+      bodyHash,
+      ...(session === null ? {} : { sessionKey: session.sessionKey }),
+      at: now(),
+      maxEntries: journalMaxEntries
+    });
+    if (!reserved.ok) {
+      // 拒新发：把刚登记的幂等登记一并撤掉，避免留下「在途却没发」的幽灵条目。
+      if (scope !== null) operations.delete(scope);
+      throw journalRejection(reserved.reason, operationId).withHeaders({
+        'x-zcc-operation-id': operationId
+      });
+    }
+
     const controller = new AbortController();
     const onGone = (): void => controller.abort();
     req.on('aborted', onGone);
@@ -606,12 +906,33 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       signal: controller.signal
     });
     try {
-      if (parsed.stream) {
-        await writeSseStream(res, events, parsed, operationId, scope, stored);
-      } else {
-        await writeJsonCompletion(res, events, parsed, operationId, scope, stored);
+      const delivery = parsed.stream
+        ? await writeSseStream(res, events, parsed, operationId, scope, stored)
+        : ((await writeJsonCompletion(res, events, parsed, operationId, scope, stored)), 'completed' as const);
+
+      /**
+       * 客户端中途断开：流被掐断，**上游结果不可知**。
+       *
+       * 记 `done` 会让 journal 声称「这次操作成功完成」，而我们只知道它没送达到客户端，
+       * 上游有没有做完**无从判断**。按 929.md:875 记 `unknown`——它受淘汰豁免保护、
+       * 跨重开保留，正是这张表存在的意义。
+       *
+       * 幂等表那边**故意维持原状**（仍置 `done`）：此时 `replay === null`，
+       * 同键重试会拿到 `idempotency_replay_unavailable`（409）。若改成 `in_flight`，
+       * 这个作用域会永远卡在「处理中」，因为再没有任何东西会去结算它——那才是真 bug。
+       */
+      if (delivery === 'client_gone') {
+        if (stored !== null) stored.state = 'done';
+        operationJournal.settle(operationId, 'unknown', 'client_disconnected_midstream');
+        logger.warn(
+          `event=operation key=${identity.keyFingerprint} operation=${operationId} status=client_gone stream=${String(parsed.stream)} idempotency=${idempotencyLabel(scope)}`
+        );
+        return;
       }
+
       if (stored !== null) stored.state = 'done';
+      // 终态写 journal：已成功是**确定结果**，不占「不可知」的豁免额度。
+      operationJournal.settle(operationId, 'done');
       // 每个 operation 恰好一条带指纹的日志：key 只以 zcc-fp:* 形式出现。
       logger.info(
         `event=operation key=${identity.keyFingerprint} operation=${operationId} status=200 stream=${String(parsed.stream)} fixture=${String(driver.fixture)} idempotency=${idempotencyLabel(scope)}`
@@ -624,6 +945,29 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
         stored.replay = null;
       }
       if (scope !== null) releaseOperation(scope);
+      /**
+       * 终态结算（929.md:875 的「不丢 unknown」落在这里）。
+       *
+       * 分流**读错误表里的投递语义**（`err.delivery`），不按码名字典序判断。
+       * 原先写死 `err.code === 'upstream_outcome_unknown'`，漏掉了同样属于
+       * `outcome_unknown` 的 `upstream_timeout`：一次超时会被记成 `failed`
+       *（可淘汰），那条本该永久保留的「结果不可知」于是能被容量压力静默清掉——
+       * 正是条款禁止的那件事。语义在 `errors.ts` 的表里，调用方不重复维护名单。
+       *
+       * `unknown`（结果不可知）vs `failed`（确定失败）：把两者混为一谈，
+       * 要么让 `unknown` 混进可淘汰里被清掉，要么让明确失败永久占着容量。
+       */
+      const settlement: JournalState = err.delivery === 'outcome_unknown' ? 'unknown' : 'failed';
+      const settled = operationJournal.settle(
+        operationId,
+        settlement,
+        settlement === 'unknown' ? `outcome_unknown: ${err.code}` : err.code
+      );
+      if (!settled) {
+        // 结算写盘失败：如实报出来。该条会停在 in_flight（不可淘汰、不会丢），
+        // 但运维需要知道「终态没记上」，否则会以为它已经结算过了。
+        logger.warn(`event=journal_settle_failed operation=${operationId} code=${err.code} state=${settlement}`);
+      }
       if (res.headersSent) {
         // 流已开始，改不了状态码：如实销毁连接，不静默截断成"看起来成功"。
         res.destroy();
@@ -703,6 +1047,14 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
   /**
    * 流式：逐 delta 转发成 SSE。**首帧在驱动器产出结束前就写出去**——这是真流，
    * 不是把一段完整结果切片假装流式。
+   *
+   * 返回值是**投递结果**，不是产出结果，两者不可混为一谈：
+   *  - `'completed'`：驱动器产出走完，客户端拿到了完整流。
+   *  - `'client_gone'`：客户端中途断开（`:806`）。驱动器是被 `events.return()`
+   *    **中途掐断**的，上游到底有没有把这次操作做完——**我们不知道**。
+   *
+   * 调用方靠这个返回值决定结算：把被掐断的流记成 `done` 等于替一件我们
+   * 确知不了的事背书，那正是 929.md:875 要防的「丢 unknown」。
    */
   const writeSseStream = async (
     res: http.ServerResponse,
@@ -711,7 +1063,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     operationId: string,
     scope: string | null,
     stored: StoredOperation | null
-  ): Promise<void> => {
+  ): Promise<'completed' | 'client_gone'> => {
     const created = Math.floor(now() / 1000);
     const ctx = {
       id: operationId,
@@ -759,9 +1111,20 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       // 客户端断开时立刻收掉产出，不让它继续空转。
       if (clientGone || res.destroyed) await events.return(undefined);
     }
-    if (clientGone) {
+    /**
+     * 循环结束后**必须再查一次** `res.destroyed`，不能只看 `clientGone`。
+     *
+     * `clientGone` 只在「循环体内某一轮开头发现已断开」时才置位。存在一条完全
+     * 绕开它的路径：客户端在上一轮写完之后、驱动器产出收尾的那段时间断开——
+     * 此时循环**正常走完**（`clientGone` 始终为 false），驱动器的 `finally`
+     * 已经在上面看到 `res.destroyed` 并收掉了产出，但下面这行若只判 `clientGone`
+     * 就会走进「completed」分支：对一个**早已不存在的连接**记 `status=200`、
+     * 结算 `done`、还 `push` 一个完成帧。客户端什么都没收到，我们却宣称成功——
+     * 这正是 journal 存在的意义要防的那类假账。
+     */
+    if (clientGone || res.destroyed) {
       logger.info(`event=sse_aborted operation=${operationId} frames=${frames.length}`);
-      return;
+      return 'client_gone';
     }
     push(emitChunk(ctx, [{ index: 0, delta: {}, finish_reason: finishReason }]));
     if (parsed.includeUsage) {
@@ -788,6 +1151,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     // idempotency_replay_unavailable，而不是假装能原样重放。
     if (!res.destroyed) res.end();
     logger.info(`event=sse operation=${operationId} frames=${frames.length} fixture=${String(driver.fixture)}`);
+    return 'completed';
   };
 
   /* ------------------------------------------------------------------ */
@@ -941,13 +1305,17 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
           handleCatalog(req, res);
           return;
         }
+        if (urlPath === READ_STATUS_PATH) {
+          handleReadStatus(req, res);
+          return;
+        }
         if (urlPath === '/v1/chat/completions') {
           await handleChat(req, res);
           return;
         }
         throw new ApiError(
           'not_found',
-          `未知路径 ${urlPath}：本机 API 只提供 /v1/models、${CATALOG_PATH} 与 /v1/chat/completions`,
+          `未知路径 ${urlPath}：本机 API 只提供 /v1/models、${CATALOG_PATH}、${READ_STATUS_PATH} 与 /v1/chat/completions`,
           { path: urlPath }
         );
       } catch (e) {
