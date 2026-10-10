@@ -747,6 +747,8 @@ zcc-api event=rejected path=/v1/chat/completions code=unsupported_parameter stat
 
 **子宿主墙钟**：`ZCC_HOST_TURN_TIMEOUT_MS`（毫秒，1..86400000，缺省 300000）。此前**两层**各写死 5 分钟（父进程 runHostSession + 子宿主内 session-drive 的会话墙钟），长编码任务到点被截断，客户端报 `net::ERR_INCOMPLETE_CHUNKED_ENCODING`。现在两层同读这一个键（2026-10-10 深夜：只调父层不够，子宿主内的 300 s 会先到点，实录请求仍在 ~301 s 截断）。长任务场景调大它（Servy 部署在 SERVY_ENVIRONMENT_VARIABLES 里加一条即可，改后重启服务）。
 
+**思考流回声剥离（2026-10-11）**：客户端按 OpenAI 惯例把上一轮 assistant 消息原样回传，历史里带着我们产出的 `reasoning_content`——此前 422（实录 `messages[69].reasoning_content`，会话从第二轮起永久被拒）。现在接受并剥离（同轮正文完整在场，旧思考全文是冗余上下文）。
+
 **多会话并发（2026-10-11 版）**：客户端断开（重试/放弃）时，该请求的官方子宿主**立即收束**（CHILD_ABORTED 路径），不再遗留孤儿 turn 跑到自然结束——3-4 个并发会话 × 客户端 5 次重试的旧世界里，每次重试都遗留一路官方 app-server 互相争账号配额，形成越重试越慢的雪崩。另：SSE 帧只为幂等重放而存，超重放预算即停存（内存常驻封顶）。**已知边界**：多个并发会话共享同一个隔离 workspace 目录（保证同一会话跨轮的文件连续性），不同会话的文件工具写同名文件时会互相覆盖——多会话并行写代码时留意同名文件。
 
 **思考流外发 + SSE 心跳**（2026-10-10 深夜版）：官方深思考期持续产 `reasoning_delta`，此前被丢弃——思考期客户端零字节，mmx 判“任务进程停滞”断开重试（70-90 s）。现在：思考流以 DeepSeek 风格外发（流式 `delta.reasoning_content`、非流式 `message.reasoning_content`），另加 15 s 一拍的 SSE 注释行心跳（`: keep-alive`，规范客户端忽略）兜住其它静默段。

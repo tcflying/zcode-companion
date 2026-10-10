@@ -527,9 +527,23 @@ const MESSAGE_REJECTED: Readonly<Record<string, string>> = {
   name: '本端点不实现具名消息（会改变对话身份语义）',
   function_call: '本端点不实现函数调用',
   refusal: '本端点不产生 refusal 字段',
-  audio: '本端点不实现音频',
-  reasoning_content: '本端点不接收 reasoning_content'
+  audio: '本端点不实现音频'
 };
+
+/**
+ * 消息级**回声字段**（2026-10-11）：**接受并剥离**，不再 422。
+ *
+ * `reasoning_content` 是**本端点自己产出**的思考流（SSE `delta.reasoning_content` /
+ * 非流式 `message.reasoning_content`）——真客户端按 OpenAI 惯例把上一轮 assistant
+ * 消息**原样回传**，历史里于是带着它（实录：`messages[69].reasoning_content` 422，
+ * 整条请求被拒）。拒绝自己产出的形状等于会话从第二轮起永久 422。
+ *
+ * 剥离不占位：同一条 assistant 消息的 `content`（正文结论）完整在场，旧思考全文
+ * 对后续轮次是冗余上下文（且动辄几十 KB，并进 prompt 只会推高每轮固定开销）。
+ * 与 {@link MESSAGE_TOOL_TRACE_FIELDS} 的分界：那边是"历史工具痕迹"、这边是
+ * "本端点产出的回声"，同走接受+剥离，但理由各自成立。
+ */
+export const MESSAGE_ECHO_FIELDS = ['reasoning_content'] as const;
 
 /**
  * 消息级**工具痕迹**字段（COMPAT5）：**接受并剥离**，不再 422。
@@ -1503,6 +1517,8 @@ function parseMessage(entry: unknown, index: number): ParsedMessage {
     // 未知字段表。它们是"历史里的工具痕迹"，不是"这一轮要工具行为"（见
     // {@link MESSAGE_TOOL_TRACE_FIELDS} 的两条理由分界）。
     if ((MESSAGE_TOOL_TRACE_FIELDS as readonly string[]).includes(key)) continue;
+    // 本端点思考流的**回声**（客户端回传的上一轮 reasoning_content）：同款接受+剥离。
+    if ((MESSAGE_ECHO_FIELDS as readonly string[]).includes(key)) continue;
     if ((MESSAGE_REJECTED as Record<string, string>)[key] !== undefined) {
       throw new ApiError(
         'unsupported_parameter',

@@ -384,13 +384,28 @@ describe('COMPAT5 · 顶层参数拒绝语义未被顺带放宽', () => {
     expect(parseJson(ok.text).zcc.reasoning_effort_applied).toBe('high');
   });
 
-  it('回归 · 其它消息级拒绝字段一条没被顺带放宽（name / function_call / refusal / audio / reasoning_content）', async () => {
+  it('回声 · messages[].reasoning_content 接受并剥离（2026-10-11：本端点思考流的回传）', async () => {
+    // 客户端按 OpenAI 惯例把上一轮 assistant 消息原样回传，历史里带着我们产出的
+    // reasoning_content（实录 messages[69] 422）。剥离不占位：同轮 content 完整在场。
+    const res = await postUnique({
+      model: FIXTURE_MODEL_ID,
+      messages: [
+        { role: 'assistant', content: '上轮正文', reasoning_content: '上轮思考全文……' },
+        { role: 'user', content: '继续' }
+      ]
+    });
+    expect(res.status).toBe(200);
+    const zcc = parseJson(res.text).zcc;
+    // 剥离是接受不是未转发参数：不该出现在披露表里（参数表只管顶层参数）。
+    expect(zcc.parameters_not_forwarded).not.toContain('reasoning_content');
+  });
+
+  it('回归 · 其它消息级拒绝字段一条没被顺带放宽（name / function_call / refusal / audio）', async () => {
     for (const [key, value] of /** @type {Array<[string, unknown]>} */ ([
       ['name', 'bob'],
       ['function_call', { name: 'f' }],
       ['refusal', null],
-      ['audio', { id: 'a' }],
-      ['reasoning_content', 'x']
+      ['audio', { id: 'a' }]
     ])) {
       const res = await postUnique({
         model: FIXTURE_MODEL_ID,
