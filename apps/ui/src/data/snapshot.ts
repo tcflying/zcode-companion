@@ -15,7 +15,7 @@ export const PRODUCT_DISCLAIMER = '独立软件 · 非 ZCode 官方';
 export const PRODUCT_VERSION = '0.1.0';
 export const BUILD_TAG = 'I10 桌面程序（主进程托管本机反代）';
 
-/** 证据等级：来自 929 §11.4。当前一律 E0。 */
+/** 证据等级：来自 929 §11.4。 */
 export type EvidenceLevel = 'E0' | 'E1' | 'E2' | 'E3';
 
 export const EVIDENCE_SUMMARY: Record<EvidenceLevel, string> = {
@@ -25,6 +25,20 @@ export const EVIDENCE_SUMMARY: Record<EvidenceLevel, string> = {
   E3: '消费/活动已观测：权威桶或账单、前后读数、时间与并行活动限制记录完整'
 };
 
+/**
+ * **发送门基线等级（静态常量，恒为 E0）** —— 不是"当前证据强度"。
+ *
+ * ZCC-ACCOUNT-EVIDENCE-20261009 起，产品里有**两个**不同的问题，答案不同：
+ *  1. "证据强度到几级了？" → **计算值**，见 `evidence.ts` 的
+ *     `computeEvidenceLevel(catalogState)`。总览页页头徽章、「账号与权益」卡、
+ *     证据等级说明与侧栏 chip 全部消费它。
+ *  2. "发送门解开了吗？" → 本常量。它是**结构性关闭**的事实：本产品界面上
+ *     不存在任何可点击的发送入口（dispatch = 0），会话页 / 模型页 / 写死条目
+ *     的禁用标签统一引用它。目录读回成 E1 **不会**改变它，也不允许改变。
+ *
+ * 因此本常量保持 E0 是刻意的，不是没接上证据。改它等于宣称"可以发送了"，
+ * 而那需要 E2/E3 的真实请求与权威桶证据，本轮都不存在。
+ */
 export const CURRENT_EVIDENCE: EvidenceLevel = 'E0';
 
 /**
@@ -40,15 +54,19 @@ export const SEND_GATE_UNLOCK_CONDITION =
 export const SEND_DISABLED_LABEL = `不可发送（${CURRENT_EVIDENCE}）`;
 
 /**
- * 额度现状（UI02）。普通套餐与 Start Plan 当前都没有额度，
+ * 额度现状（UI02）。权威桶读数未观测，
  * 因此界面上任何"可用性"位置只能显示"未验证"，不得出现看起来像真实可用套餐的名称或数值。
  * 本常量是唯一口径：总览页字段说明、模型页额度卡与写死条目提示都引用它。
  */
-export const NO_CREDIT_LABEL = '无可用额度';
+/**
+ * 额度现状标签。**不宣称用户没有额度** —— 我们没有权威桶读数，
+ * 那是「未观测」而不是「为零」。读回口径见 readStatus.ts 的 usageWarnings。
+ */
+export const NO_CREDIT_LABEL = '未观测';
 
 export const NO_CREDIT_NOTICE =
-  '额度现状：普通套餐与 Start Plan 当前都没有可用额度。界面不显示任何看起来像真实可用套餐的名称、余额或剩余量；' +
-  '所有条目的可用性一律显示「未验证」。';
+  '额度现状：**未观测**。本产品没有读到权威桶/账单读数，因此既不显示余额，也不宣称「没有额度」——' +
+  '两者都不是事实。权威桶与消费记录属于 E3 观测项，未观测不阻塞 E1 资格判定。';
 
 export type BillingClass = 'subscription' | 'promotion' | 'metered_api' | 'unknown';
 
@@ -150,14 +168,14 @@ export const RUNTIME_SECTIONS: SectionSpec[] = [
   {
     id: 'runtime',
     title: '连接状态 · app-server 运行时',
-    description: '本轮不启动、不连接任何官方运行时。下列字段是接通后的结构位，当前一律未接入。',
+    description: '历史驱动事实由只读状态提供；当前官方进程、监听与心跳未观测。',
     fields: [
       { label: '运行时状态', value: { kind: 'pending', value: NOT_CONNECTED } },
       { label: '进程 PID', value: { kind: 'pending', value: NOT_CONNECTED } },
-      { label: '监听地址', value: { kind: 'pending', value: NOT_CONNECTED }, note: '本机 API 未实现，无监听' },
+      { label: '监听地址', value: { kind: 'pending', value: NOT_CONNECTED }, note: '此处未观测官方运行时监听；本机反代状态见上方独立卡片' },
       { label: '协议版本', value: { kind: 'pending', value: NOT_CONNECTED } },
       { label: '最近心跳', value: { kind: 'pending', value: NOT_CONNECTED } },
-      { label: '本次启动已发请求数', value: { kind: 'local', value: '0' }, note: '本轮硬约束：零网络请求' }
+      { label: '模型发送', value: { kind: 'text', value: '发送门关闭（E0）' }, note: '不把手动只读 GET 统计成模型发送；历史驱动不解锁发送' }
     ]
   },
   {
@@ -176,13 +194,13 @@ export const RUNTIME_SECTIONS: SectionSpec[] = [
   {
     id: 'account',
     title: '账号与权益',
-    description: '未做任何账号握手、未读取任何凭据值。资格、通道、额度全部未确认。',
+    description: '当前账号握手未证明；历史资格源不代表当前资格，额度为未观测而非为零。',
     fields: [
-      { label: '账号状态', value: { kind: 'pending', value: NOT_CONNECTED } },
+      { label: '账号状态', value: { kind: 'text', value: '当前账号握手未证明' } },
       { label: '套餐资格', value: { kind: 'pending', value: NOT_CONNECTED } },
       { label: '可用 provider', value: { kind: 'unknown', value: UNKNOWN } },
-      { label: '权威桶读数', value: { kind: 'nocredit', value: NO_CREDIT_LABEL }, note: 'tokens 与积分/余额单位不可互换；当前无可用额度' },
-      { label: '活动优惠', value: { kind: 'pending', value: NOT_CONNECTED }, note: '无活动资格不并入普通订阅；当前无可用额度' },
+      { label: '权威桶读数', value: { kind: 'nocredit', value: NO_CREDIT_LABEL }, note: 'tokens 与积分/余额单位不可互换；未观测（不宣称为零）' },
+      { label: '活动优惠', value: { kind: 'pending', value: NOT_CONNECTED }, note: '无活动资格不并入普通订阅；未观测（不宣称为零）' },
       { label: '证据等级', value: { kind: 'text', value: CURRENT_EVIDENCE }, note: EVIDENCE_SUMMARY[CURRENT_EVIDENCE] }
     ]
   }
@@ -203,7 +221,7 @@ export const USAGE_SOURCES: UsageSource[] = [
     title: '本软件请求 token 统计',
     unit: 'token',
     source: '本软件自身计数',
-    note: '仅统计由本软件发起的请求；当前请求数为 0（未接入读数）'
+    note: '仅统计由本软件发起的模型请求；当前 token 读数未观测'
   },
   {
     id: 'authoritative-bucket',

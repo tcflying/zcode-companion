@@ -1,4 +1,57 @@
-/* 页面专属样式：指标卡、额度三源卡、对话线程、输入区。 */
+/* 页面专属样式：总览标签页、指标卡、额度三源卡、对话线程、输入区。 */
+
+/* ---------- 总览：标签页（复用 .btn/.btn--tiny 的既成交互形态，不引新依赖） ---------- */
+
+.tabbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elev);
+}
+
+.tabbar__btn {
+  flex: 0 1 auto;
+}
+
+.tabbar__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+/* 总览页整体收紧：1280×800 下每个标签内容尽量不滚动。 */
+.page--overview {
+  gap: var(--sp-3);
+}
+
+.page--overview .section__head {
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
+}
+
+.page--overview .section__body {
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.page--overview .field-list {
+  gap: var(--sp-2) var(--sp-4);
+}
+
+.page--overview .metric-row {
+  gap: var(--sp-2);
+}
+
+.page--overview .metric {
+  padding: var(--sp-2) var(--sp-3);
+}
 
 /* ---------- 总览：指标卡 ---------- */
 
