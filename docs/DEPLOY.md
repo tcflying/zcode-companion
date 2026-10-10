@@ -723,6 +723,24 @@ zcc-api event=rejected path=/v1/chat/completions code=unsupported_parameter stat
 
 ---
 
+### 7.10 接口行为：生成上限的超额钳制（自 2026-10-10 晚间版本起）
+
+**背景**：真客户端 mcode 对 BYOK 模型条目**不读 `limit.output`**——抓包实测（2026-10-10）：条目里写 `output: 32000`，请求仍带 `max_completion_tokens: 128000`。mcode 按它自家对这些模型 ID 的认知构造上限，**在客户端界面改"最大输出"救不了**。早期版本对超 32768 的值一律 400，等于这条客户端线整个不可用。
+
+**现行为（`packages/api/src/chat.ts` 的 `parseMaxTokens` / `assertMaxTokens`）**：
+
+| 请求值 | 处理 |
+| --- | --- |
+| `max_completion_tokens`（或 `max_tokens`）**> 32768** | **钳到 32768 放行**；响应 `zcc.max_tokens_clamped_from`（客户端原值）+ `zcc.max_tokens_clamped_to`（32768）成对披露 |
+| **负数 / 非整数 / 字符串** | 仍 400 `invalid_request`，错误文本带**实际收到值**（如 `…（实际收到 128000）`） |
+| 两键同发且值不同 | 仍 422 `unsupported_parameter` |
+
+**排障用法**：看到 400 错误里的"实际收到 X"，就是客户端真实发送的上限值——判断"改了配置为什么还错"时，先看这个数有没有变。钳制发生时 `zcc.max_tokens_clamped_from` 是唯一权威证据。
+
+**另一个真客户端事实**：`limit.output` / 界面里的"最大输出"**不影响** mcode 实际发送的 `max_completion_tokens`（它发 128000 是常量级行为）；配置里的 `limit` 字段只影响客户端自己的展示与预估。
+
+---
+
 ## 8. 通道与档位预期
 
 ### 8.1 通道
