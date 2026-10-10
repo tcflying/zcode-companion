@@ -605,14 +605,18 @@ describe('API01 本机 API · 请求体 schema', () => {
     }
   });
 
-  it('不支持的 role 返回 422 且不得被压成 user 字符串（COMPAT3：`system`/`developer` 已移出本用例，见下一 describe）', async () => {
+  it('不支持的 role 返回 422 且不得被压成 user 字符串（COMPAT3：`system`/`developer` 已移出本用例；COMPAT5：`tool` 也已移出）', async () => {
     const h = await startServer({ driver: createFixtureDriver() });
     try {
       // **COMPAT3 的裁定变更**：`system` / `developer` 不再 422（协调者 2026-10-02 裁定：
       // 接受并折叠进 prompt 上下文 + 如实披露 `zcc.roles_folded`）。真客户端 mcode
       // **必然**发 `developer`（`ke()` off 10416 + 缺省 `supportsDeveloperRole:true`），
-      // 继续硬拒等于端到端不可用。这条断言因此**只**覆盖仍然被拒的那两个 role。
-      for (const role of ['tool', 'function']) {
+      // 继续硬拒等于端到端不可用。这条断言因此**只**覆盖仍然被拒的那几个 role。
+      // **COMPAT5 的裁定变更**：`tool`（工具结果轮）也不再 422——改走"接受 + 转写成
+      // 带前缀的 user 轮"，钉在 tests/unit/api-chat-message-tool-trace.test.mjs。
+      // **旧式 `functions` / `function_call` 参数面仍逐条拒**：消息侧放行 `function`
+      // 就与 {@link TOP_LEVEL_REJECTED} 里那批同族键自相矛盾，所以本用例仍钉它。
+      for (const role of ['function']) {
         const res = await post(h, { model: FIXTURE_MODEL_ID, messages: [{ role, content: 'x' }] });
         expect(res.status, `role=${role}`).toBe(422);
         const parsed = parseJson(res.text);
@@ -624,7 +628,8 @@ describe('API01 本机 API · 请求体 schema', () => {
       const ok = await post(h, { model: FIXTURE_MODEL_ID, messages: [{ role: 'user', content: 'x' }] });
       expect(ok.status).toBe(200);
       // 保持"不接受的一律逐条指名"：大小写变体、空串、未知 role 仍然 422。
-      for (const role of ['Tool', 'System', 'Developer', '', 'user ', 'assistant ', 'model']) {
+      // `Tool`（首字母大写）**不在** COMPAT5 的放开范围内——闭集逐字匹配，不是前缀匹配。
+      for (const role of ['Tool', 'TOOL', 'System', 'Developer', '', 'user ', 'assistant ', 'model']) {
         const res = await postUnique(h, { model: FIXTURE_MODEL_ID, messages: [{ role, content: 'x' }] });
         expect(res.status, `role=${JSON.stringify(role)}`).toBe(422);
         expect(errorCode(parseJson(res.text)), role).toBe('unsupported_role');
@@ -857,18 +862,52 @@ describe('API01 本机 API · 请求体 schema', () => {
       expect(parsed.error.message).toContain('max_completion_tokens');
       // 越界与非整数**逐条**按各自分支报错：形状非法是 400 `invalid_request`
       // （与既有 `max_tokens` 行为逐字一致，不为新键换一套错误码）。
+      // 2026-10-10 起超额（>32768）不再 400 而是钳制+披露（见下一条用例），本循环只留真畸形。
       for (const [key, value] of /** @type {Array<[string, unknown]>} */ ([
         ['max_completion_tokens', 1.5],
         ['max_completion_tokens', -1],
-        ['max_completion_tokens', 32_769],
         ['max_completion_tokens', '8'],
-        ['max_tokens', 32_769]
       ])) {
         const res = await postUnique(h, { ...base, [key]: value });
         expect(res.status, `${key}=${JSON.stringify(value)}`).toBe(400);
         expect(errorCode(parseJson(res.text)), key).toBe('invalid_request');
         expect(parseJson(res.text).error.param, key).toBe(key);
       }
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('COMPAT2：上限超额**钳制到 32768** 并经 `zcc.max_tokens_clamped_*` 披露（mcode 不尊重 limit.output 的真客户端兼容）', async () => {
+    /** @type {Array<number | null>} */
+    const seen = [];
+    const inner = createFixtureDriver();
+    const driver = {
+      ...inner,
+      /** @param {import('../../packages/api/src/chat.js').DriverRequest} req */
+      stream(req) {
+        seen.push(req.maxTokens);
+        return inner.stream(req);
+      }
+    };
+    const h = await startServer({ driver });
+    try {
+      const base = { model: FIXTURE_MODEL_ID, messages: [{ role: 'user', content: 'x' }] };
+      // 真客户端实测（2026-10-10 抓包）：mcode 对 BYOK 条目忽略 `limit.output`，
+      // 按 128000 发 `max_completion_tokens` → 钳到 32768 放行，驱动收到的就是 32768。
+      const res = await postUnique(h, { ...base, max_completion_tokens: 128_000 });
+      expect(res.status).toBe(200);
+      expect(seen).toEqual([32_768]);
+      const zcc = parseJson(res.text).zcc;
+      expect(zcc.max_tokens_clamped_from).toBe(128_000);
+      expect(zcc.max_tokens_clamped_to).toBe(32_768);
+      // 未钳制 → 两个键**缺席**（不是 null）。
+      const plain = parseJson((await postUnique(h, { ...base, max_completion_tokens: 8 })).text).zcc;
+      expect('max_tokens_clamped_from' in plain).toBe(false);
+      expect('max_tokens_clamped_to' in plain).toBe(false);
+      // 旧键同样享受钳制（同一槽位）；中间的 8 证明未超额不动。
+      expect((await postUnique(h, { ...base, max_tokens: 65_536 })).status).toBe(200);
+      expect(seen).toEqual([32_768, 8, 32_768]);
     } finally {
       await h.server.stop();
     }
@@ -1990,22 +2029,39 @@ describe('API01 本机 API · COMPAT4 工具声明接受与未转发披露', () 
       expect(zcc.tools_received).toBe(26);
       expect(zcc.tools_forwarded).toBe(0);
       expect(zcc.tool_choice_received).toBe('auto');
-      // 接受工具声明**没有**顺带让 `tool` / `tool_calls` 消息轮也被接受：
-      // 那是"工具结果轮"，压成 user 会静默改变语义，仍然逐条 422。
-      const toolRole = await postUnique(h, {
+      // 接受工具声明**没有**顺带让 `tools_forwarded` 变成非 0：产出里依然一个
+      // 工具调用都没有。COMPAT5 起，**消息级**工具痕迹（`tool_calls` / `role:"tool"`）
+      // 改走"接受 + 剥离/转写"（钉在 tests/unit/api-chat-message-tool-trace.test.mjs），
+      // 但那两条**不改变**任何顶层拒绝语义：`tools` 畸形仍逐条指名 422，
+      // `tools_received` / `tools_forwarded` 的口径一个字没动。
+      const badTools = await postUnique(h, {
         model: FIXTURE_MODEL_ID,
-        messages: [{ role: 'tool', content: 'r', tool_call_id: 'c' }],
+        messages: [{ role: 'user', content: 'x' }],
+        tools: 1
+      });
+      expect(badTools.status).toBe(422);
+      expect(errorCode(parseJson(badTools.text))).toBe('unsupported_parameter');
+      expect(parseJson(badTools.text).error.param).toBe('tools');
+      const requiredChoice = await postUnique(h, {
+        model: FIXTURE_MODEL_ID,
+        messages: [{ role: 'user', content: 'x' }],
+        tool_choice: 'required'
+      });
+      expect(requiredChoice.status).toBe(422);
+      expect(parseJson(requiredChoice.text).error.param).toBe('tool_choice');
+      // `tools` 声明的计数口径未被消息级剥离牵动。
+      const counted = await postUnique(h, {
+        model: FIXTURE_MODEL_ID,
+        messages: [
+          { role: 'user', content: 'x' },
+          { role: 'assistant', content: null, tool_calls: [{ id: 'c', type: 'function', function: { name: 'f' } }] },
+          { role: 'tool', content: 'r', tool_call_id: 'c' }
+        ],
         tools
       });
-      expect(toolRole.status).toBe(422);
-      expect(parseJson(toolRole.text).error.param).toBe('messages[0].tool_call_id');
-      const bareToolRole = await postUnique(h, {
-        model: FIXTURE_MODEL_ID,
-        messages: [{ role: 'tool', content: 'r' }],
-        tools
-      });
-      expect(bareToolRole.status).toBe(422);
-      expect(errorCode(parseJson(bareToolRole.text))).toBe('unsupported_role');
+      expect(counted.status).toBe(200);
+      expect(parseJson(counted.text).zcc.tools_received).toBe(26);
+      expect(parseJson(counted.text).zcc.tools_forwarded).toBe(TOOLS_FORWARDED_NONE);
     } finally {
       await h.server.stop();
     }
@@ -2910,7 +2966,12 @@ describe('API01 本机 API · fixture 隔离（生产配置开不了假模型）
       'driver',
       'testOnlyFixtureToken',
       'logger',
-      'now'
+      'now',
+      'journalDir',
+      'journalMaxEntries',
+      // ZCC-GUI-EVIDENCE-20261008-A：新增只读证据状态出口，**显式登记**。
+      // 缺省即「无证据可报」，端点返回 evidence_not_captured 而不是伪造一份。
+      'readStatus'
     ]);
     // 表里唯一与 fixture 有关的键必须是需要 symbol 的那一把。
     const fixtureish = API_SERVER_CONFIG_KEYS.filter((k) => k.toLowerCase().includes('fixture'));

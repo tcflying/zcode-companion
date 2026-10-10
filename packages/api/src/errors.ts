@@ -51,6 +51,31 @@ export const API_ERROR_CODES = [
   'upstream_unavailable',
   'upstream_timeout',
   'upstream_outcome_unknown',
+  /**
+   * 929.md:875「journal不足拒新发而非丢unknown」。
+   * 507：容量不足时，**驱动器未被调用**，本次新发被拒。
+   * 刻意不用 2xx 也不降级成「先发后补记」——那正是条款要禁止的。
+   */
+  'journal_capacity_exceeded',
+  /**
+   * 同一条款的另一半：journal **落盘失败**时同样拒新发。
+   *
+   * 与容量不足**分成两个码**，因为两者的处置完全不同（清理容量 vs 修权限/磁盘），
+   * 而客户端看到的 `code` 是它做决策的唯一依据。
+   *
+   * 为什么不复用 `internal_error`：`internal_error` 的 `delivery` 是
+   * `outcome_unknown`（「上游结果不可知」）。而这条路径上驱动器**根本没被调用**，
+   * 投递结果明确为「未提交」。冒充 `internal_error` 会让契约字段替我们
+   * 声称一件我们**确知为假**的事——客户端按 `outcome_unknown` 处理会白白重试。
+   */
+  'journal_write_failed',
+  /**
+   * 盘上 journal 原件**读不懂**（损坏 JSON / 形状非法 / 读不到）。
+   *
+   * 与 `journal_write_failed` 分开是因为处置完全不同：写失败要修权限或磁盘，
+   * 原件损坏要**先把原件拿给人看**。而这一条的核心是——**绝不覆盖坏原件**。
+   */
+  'journal_corrupt',
   'internal_error'
 ] as const;
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
@@ -119,6 +144,26 @@ export const API_ERROR_SPECS: Readonly<Record<ApiErrorCode, ApiErrorSpec>> = {
   upstream_timeout: { status: 504, contractCode: 'upstream_timeout', delivery: 'outcome_unknown', type: 'api_error' },
   // 驱动器在产出过程中抛错：结果不可知，且**不允许**被内部重试掩盖。
   upstream_outcome_unknown: { status: 502, contractCode: 'operation_outcome_unknown', delivery: 'outcome_unknown', type: 'api_error' },
+  /**
+   * 507 Insufficient Storage：本次新发被拒，**驱动器未被调用**。
+   * contractCode 复用契约里既有的 `operation_not_submitted`：
+   * 请求根本没有提交给上游，语义完全一致，**不为此新增契约码**。
+   * delivery 同为 `not_submitted` —— 既不是 `outcome_unknown`，
+   * 也不该被下游误读成「上游结果未知」。
+   */
+  journal_capacity_exceeded: { status: 507, contractCode: 'operation_not_submitted', delivery: 'not_submitted', type: 'server_error' },
+  /**
+   * 507 同上：**驱动器未被调用**，投递结果同样是「未提交」。
+   *
+   * 与容量不足共用 507 与同一个契约码，但内部 `code` 不同，
+   * 所以「status|code」唯一性检查与客户端分诊都不受影响。
+   */
+  journal_write_failed: { status: 507, contractCode: 'operation_not_submitted', delivery: 'not_submitted', type: 'server_error' },
+  /**
+   * 507：盘上原件不可信，本次新发被拒，**驱动器未被调用**，坏原件原样保留。
+   * 与写失败共用 507 与同一契约码，内部 `code` 不同以便客户端分诊。
+   */
+  journal_corrupt: { status: 507, contractCode: 'operation_not_submitted', delivery: 'not_submitted', type: 'server_error' },
   internal_error: { status: 500, contractCode: 'internal_error', delivery: 'outcome_unknown', type: 'server_error' }
 };
 
@@ -194,6 +239,21 @@ export class ApiError extends Error {
   /** 只读拷出附加头。`send` 不会看到 `extraHeaders` 本身。 */
   headers(): Record<string, string> {
     return { ...this.extraHeaders };
+  }
+
+  /**
+   * 投递确定性，直接来自本码的错误表。
+   *
+   * 存在的理由：**调用方要按语义分流，不能按码名字典序猜。**
+   * 原先 `runChat` 写死 `err.code === 'upstream_outcome_unknown' ? 'unknown' : 'failed'`，
+   * 漏掉了同样属于 `outcome_unknown` 的 `upstream_timeout`——把一次超时
+   * 记成 `failed`（可淘汰），于是那条本该永久保留的「结果不可知」记录
+   * 会被容量压力静默清掉，正是 929.md:875 要禁止的事。
+   * 语义在表里，调用方只读语义，不重复维护一份「哪些码算未知」的名单。
+   */
+  get delivery(): DeliveryCertainty {
+    const spec = API_ERROR_SPECS[this.code] ?? API_ERROR_SPECS.internal_error;
+    return spec.delivery;
   }
 
   toCompanionError(observedAt: string): CompanionError {

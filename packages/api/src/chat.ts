@@ -41,15 +41,19 @@
  *     {@link TOP_LEVEL_ACCEPTED} 里、也解析了，但驱动器侧**从来没有对应槽位**，
  *     而此前 `zcc.parameters_not_forwarded` 只列了 `temperature` / `top_p`。
  *     披露表推广成通用机制后，这两个键**恒在场**被披露。
- *  4. **role 有三条互不越界的处置（COMPAT3 裁定）。**
+ *  4. **role 有四条互不越界的处置（COMPAT3 建立、COMPAT5 再收敛一条）。**
  *     - `user` / `assistant` = 对话轮，原样透传给驱动器；
  *     - `system` / `developer` = 客户端的**指令载体**，被 {@link foldMessagesToPrompt}
  *       **折叠**进 prompt 上下文（与既有多轮折叠**同一条机制**、**同一种行格式**），
  *       并在响应 `zcc.roles_folded` 里**逐名披露**折叠了哪些角色——"接受 + 折叠 +
  *       如实披露"而不是"拒掉真客户端"或"压成 user 却不吭声"；
- *     - `tool` / `function` / 其它一切仍 422 `unsupported_role` 并指名
- *       `messages[i].role`：把工具结果轮压成 user 会**静默改变**语义，这条路在代码里
- *       根本不存在。
+ *     - `tool`（**COMPAT5 起**）= 历史里的**工具结果轮**，被**接受并转写**成
+ *       `user` + {@link TOOL_RESULT_CONTENT_PREFIX} 前缀；同轮的
+ *       {@link MESSAGE_TOOL_TRACE_FIELDS} 一并**剥离**。改写**在文本里可见**，
+ *       消息**不删**、条数与顺序不变（见 {@link parseMessage}）；
+ *     - `function` / 其它一切仍 422 `unsupported_role` 并指名 `messages[i].role`：
+ *       旧式 `functions` / `function_call` 与 {@link TOP_LEVEL_REJECTED} 里那批
+ *       同族键是**同一套参数面**，消息侧放行就与逐条钉死的顶层 422 自相矛盾。
  *     折叠**保持原始顺序**（不把末尾的 system 轮偷偷提到前面）：顺序即语义，提序也是一种
  *     静默改写。客户端按 OpenAI 惯例把指令轮放在开头，折叠后它自然就是 prompt 前缀上下文。
  *  5. **"是不是真实模型"由驱动器能力推导，不硬编码。** `deriveModelIsReal()` 是
@@ -171,6 +175,13 @@ export interface ParsedChatRequest {
    * 等于告诉它一件与它无关的事。
    */
   readonly maxTokensSource: MaxTokensSource | null;
+  /**
+   * 上限超额被**钳到** {@link MAX_MAX_TOKENS} 时，客户端原本发的值；未钳制为 `null`。
+   * 披露经 `zcc.max_tokens_clamped_from` / `zcc.max_tokens_clamped_to`（见
+   * {@link maxTokensClampDisclosure}）：钳制是"替客户端缩小预算"的动作，
+   * 不披露就是静默改参。
+   */
+  readonly maxTokensClampedFrom: number | null;
   readonly metadata: Readonly<Record<string, string | number | boolean>> | null;
   readonly user: string | null;
   /**
@@ -514,13 +525,60 @@ export const MCODE_FIELD_SOURCES: Readonly<Record<string, string>> = Object.free
 const MESSAGE_ACCEPTED = ['role', 'content'] as const;
 const MESSAGE_REJECTED: Readonly<Record<string, string>> = {
   name: '本端点不实现具名消息（会改变对话身份语义）',
-  tool_calls: '本端点不实现工具调用',
-  tool_call_id: '本端点不实现工具调用',
   function_call: '本端点不实现函数调用',
   refusal: '本端点不产生 refusal 字段',
   audio: '本端点不实现音频',
   reasoning_content: '本端点不接收 reasoning_content'
 };
+
+/**
+ * 消息级**工具痕迹**字段（COMPAT5）：**接受并剥离**，不再 422。
+ *
+ * 这两个键**不是** {@link MESSAGE_REJECTED} 的一员，但也不是 {@link MESSAGE_ACCEPTED}
+ * 的一员——它们在 {@link parseMessage} 里被**单独识别**后直接跳过（既不报
+ * `unsupported_parameter`，也不报 `unknown_field`），随后不再进入
+ * {@link ParsedMessage}（那条形状只有 `role` + `content`，所以 `tool_call_id`
+ * 天然随之消失）。
+ *
+ * ## 为什么"剥离"在这里是正确的，而顶层 `tools` 仍然 422
+ * 二者要的东西**根本不同**：
+ *  - **顶层 `tools` / `tool_choice` / `parallel_tool_calls`** 是"**这一轮**要工具
+ *    行为"的请求参数。`required` / 具名指定那几档要的是"**必然**产生一个工具
+ *    调用"，本端点做不到（驱动器契约上没有工具槽位，见 {@link DriverRequest}），
+ *    收下再忽略会让客户端等一个**永远不会来的** `tool_calls` → 如实 422。
+ *    这条理由**一个字都没被本轮改动碰到**。
+ *  - **消息里的 `tool_calls` / `role:"tool"`** 是"**过去某一轮**发生过工具调用"的
+ *    **历史事实**。本端点**这一轮恒为纯文本**，客户端在剥离后**不会等任何东西**
+ *    （它等的东西本就不存在），所以剥离不制造挂起；而拒绝它会让 MiniMax Code
+ *    这类 BYOK 客户端对**任何**带工具历史的会话完全不可用（实弹：整条请求 422，
+ *    `messages[1].tool_calls 本端点不实现`）。这是"披露能力边界，不打断真客户端"
+ *    与 {@link parseToolDeclarations} **同一条**底层逻辑，只是作用面从"这一轮的
+ *    声明"移到"历史里的痕迹"。
+ *
+ * ## 剥离不是静默改写（这是与旧裁定唯一的语义分歧）
+ * 旧裁定拒绝 `role:"tool"` 的理由是"压成 user 会**静默**改变语义"。压成 user 确实
+ * 改变 role，但现在**这个改变被写进了上下文里**（见 {@link TOOL_RESULT_CONTENT_PREFIX}
+ * 与 {@link TOOL_TRACE_PLACEHOLDER_CONTENT}），模型与客户端都看得见"这是一条工具
+ * 结果 / 这条 assistant 只发了工具调用"，不再是凭空改写一条 user 轮。
+ */
+export const MESSAGE_TOOL_TRACE_FIELDS = ['tool_calls', 'tool_call_id'] as const;
+
+/**
+ * assistant 轮剥掉 `tool_calls` 后 content 为空时的**占位文本**（COMPAT5）。
+ *
+ * 为什么要有占位而不是**删掉那条消息**：删消息会改变 `messages` 条数与角色序列，
+ * 那是比"改写 role"更重的一种静默改写（顺序即语义，见 {@link foldMessagesToPrompt}
+ * 的注释）。占位把痕迹留在原位、留在上下文里，客户端与模型都能看见。
+ */
+export const TOOL_TRACE_PLACEHOLDER_CONTENT = '[此前调用了工具，内容未纳入上下文]';
+
+/**
+ * `role:"tool"` 转成 `role:"user"` 后的 **content 前缀**（COMPAT5）。
+ *
+ * 尾随空格是**逐字**的一部分：它把标记与原文分开，避免"标记文字"与"工具输出"
+ * 粘连成一团不可分辨的文本。
+ */
+export const TOOL_RESULT_CONTENT_PREFIX = '[工具结果] ';
 
 /* -------------------------------------------------------------------------- */
 /* 驱动器契约                                                                  */
@@ -980,7 +1038,7 @@ export function parseChatRequest(raw: unknown): ParsedChatRequest {
     throw new ApiError('invalid_request', 'stream 必须是布尔值', { param: 'stream' }, 'stream');
   }
 
-  const { value: maxTokens, source: maxTokensSource } = parseMaxTokens(raw);
+  const { value: maxTokens, source: maxTokensSource, clampedFrom: maxTokensClampedFrom } = parseMaxTokens(raw);
 
   let includeUsage = false;
   const streamOptions = raw['stream_options'];
@@ -1038,6 +1096,7 @@ export function parseChatRequest(raw: unknown): ParsedChatRequest {
     includeUsage,
     maxTokens,
     maxTokensSource,
+    maxTokensClampedFrom,
     metadata,
     user,
     reasoning,
@@ -1158,13 +1217,24 @@ function parseToolDeclarations(raw: Record<string, unknown>): {
  * **同时给两个**：值**相同** → 接受（不猜、不折中，两边说的是同一件事）；
  * 值**不同** → 422 `unsupported_parameter` 并指名两个键——静默挑一个就是替用户做决定。
  *
+ * **超额钳制**：值超过 {@link MAX_MAX_TOKENS} 不再 400，钳到上限并在
+ * `clampedFrom` 里记下原值（响应经 `zcc.max_tokens_clamped_from` / `_to` 披露）。
+ * 依据见 {@link assertMaxTokens} 注释：真客户端发的上限是它自认的模型能力，
+ * 不是它能接受的生成预算——钳制是两边语义的交集，拒收则一线不可用。
+ *
  * **它到底生不生效，不由这里决定**（见 {@link ChatDriver.enforcesMaxTokens} 与
  * {@link maxTokensNotForwarded}）：API 层只负责**校验**与**记住客户端用的键名**。
  *
  * @param raw 已通过顶层键白名单的原始请求体
- * @returns 生效的上限 + 客户端用的键名；两个键都没发时两者都是 `null`
+ * @returns 生效的上限 + 客户端用的键名 + 钳制前原值（未钳制为 `null`）；两个键都没发时 `value`/`source` 为 `null`
  */
-function parseMaxTokens(raw: Record<string, unknown>): { readonly value: number | null; readonly source: MaxTokensSource | null } {
+function parseMaxTokens(raw: Record<string, unknown>): {
+  readonly value: number | null;
+  readonly source: MaxTokensSource | null;
+  readonly clampedFrom: number | null;
+} {
+  const clamp = (v: number): { readonly value: number; readonly clampedFrom: number | null } =>
+    v > MAX_MAX_TOKENS ? { value: MAX_MAX_TOKENS, clampedFrom: v } : { value: v, clampedFrom: null };
   const legacy = raw['max_tokens'];
   const modern = raw['max_completion_tokens'];
   const hasLegacy = legacy !== undefined && legacy !== null;
@@ -1182,17 +1252,20 @@ function parseMaxTokens(raw: Record<string, unknown>): { readonly value: number 
     }
     // 两个键都发且相同：**记下先出现的那个**（`max_tokens` 是旧名，客户端多半是
     // "补了一个新键"而不是"换了个新键"），披露给客户端它一定认得的那个。
-    return { value: legacy as number, source: 'max_tokens' };
+    const c = clamp(legacy as number);
+    return { value: c.value, source: 'max_tokens', clampedFrom: c.clampedFrom };
   }
   if (hasModern) {
     assertMaxTokens(modern, 'max_completion_tokens');
-    return { value: modern as number, source: 'max_completion_tokens' };
+    const c = clamp(modern as number);
+    return { value: c.value, source: 'max_completion_tokens', clampedFrom: c.clampedFrom };
   }
   if (hasLegacy) {
     assertMaxTokens(legacy, 'max_tokens');
-    return { value: legacy as number, source: 'max_tokens' };
+    const c = clamp(legacy as number);
+    return { value: c.value, source: 'max_tokens', clampedFrom: c.clampedFrom };
   }
-  return { value: null, source: null };
+  return { value: null, source: null, clampedFrom: null };
 }
 
 /**
@@ -1213,12 +1286,38 @@ export function maxTokensNotForwarded(
   return parsed.maxTokensSource === null ? [] : [parsed.maxTokensSource];
 }
 
+/**
+ * 上限被**钳制**时的披露片段（工单 COMPAT2 的姊妹机制）。
+ *
+ * 钳制与"未转发"是两回事：前者是**接受了但缩小到端点上限**（值仍生效，只是变小），
+ * 后者是**收下但没进驱动**。两者都必须可机读，但混在一张表里会让客户端读错语义——
+ * 所以钳制走独立键：`zcc.max_tokens_clamped_from`（客户端原值）+
+ * `zcc.max_tokens_clamped_to`（端点上限 {@link MAX_MAX_TOKENS}）。
+ *
+ * @param parsed 已解析的请求
+ * @returns 未钳制时为空对象（键**缺席**，不是 `null`——与 `zcc.host` 的"缺省缺席"口径一致）
+ */
+export function maxTokensClampDisclosure(
+  parsed: Pick<ParsedChatRequest, 'maxTokensClampedFrom'>
+): Record<string, number> {
+  return parsed.maxTokensClampedFrom === null
+    ? {}
+    : { max_tokens_clamped_from: parsed.maxTokensClampedFrom, max_tokens_clamped_to: MAX_MAX_TOKENS };
+}
+
 function assertMaxTokens(value: unknown, name: string): void {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > MAX_MAX_TOKENS) {
+  // 形状校验只拦**真畸形**（非整数 / 负数）。上限超额不再 400：真客户端 mcode 对 BYOK
+  // 模型条目**不尊重 `limit.output`**（2026-10-10 抓包实测：条目已写 32000，请求仍带
+  // `max_completion_tokens: 128000`——mcode 按自家模型认知构造上限），拒绝等于整个客户端
+  // 不可用。超额值由 parseMaxTokens 钳到 MAX_MAX_TOKENS，并经 `zcc.max_tokens_clamped_*`
+  // 披露——"接受了但缩小到端点上限"必须可机读，不许静默。
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+    // 实际收到值随错误披露：参数值本就来自请求方，指出来才能定位"客户端到底发了多少"。
+    const received = typeof value === 'number' ? String(value) : typeof value === 'string' ? JSON.stringify(value) : String(value);
     throw new ApiError(
       'invalid_request',
-      `${name} 必须是 0..${MAX_MAX_TOKENS} 之间的整数`,
-      { param: name },
+      `${name} 必须是 0..${MAX_MAX_TOKENS} 之间的整数（实际收到 ${received}）`,
+      { param: name, received: value === undefined ? null : value },
       name
     );
   }
@@ -1395,6 +1494,10 @@ function parseMessage(entry: unknown, index: number): ParsedMessage {
     throw new ApiError('invalid_request', `${path} 必须是对象`, { param: path }, path);
   }
   for (const key of Object.keys(entry)) {
+    // COMPAT5：`tool_calls` / `tool_call_id` 被**接受并剥离**——既不进拒绝表也不进
+    // 未知字段表。它们是"历史里的工具痕迹"，不是"这一轮要工具行为"（见
+    // {@link MESSAGE_TOOL_TRACE_FIELDS} 的两条理由分界）。
+    if ((MESSAGE_TOOL_TRACE_FIELDS as readonly string[]).includes(key)) continue;
     if ((MESSAGE_REJECTED as Record<string, string>)[key] !== undefined) {
       throw new ApiError(
         'unsupported_parameter',
@@ -1411,6 +1514,11 @@ function parseMessage(entry: unknown, index: number): ParsedMessage {
   if (typeof role !== 'string') {
     throw new ApiError('invalid_request', `${path}.role 必须是字符串`, { param: `${path}.role` }, `${path}.role`);
   }
+  // COMPAT5：`tool` 轮**不再** 422，转成 `user` 并在 content 前缀
+  // {@link TOOL_RESULT_CONTENT_PREFIX}——改写**在文本里可见**，不是静默压平。
+  if (role === 'tool') {
+    return { role: 'user', content: parseToolResultContent(entry['content'], path) };
+  }
   if (!(SUPPORTED_ROLES as readonly string[]).includes(role)) {
     // 明确拒绝，绝不压成 user 字符串：那会静默改变消息语义。
     //
@@ -1418,11 +1526,15 @@ function parseMessage(entry: unknown, index: number): ParsedMessage {
     // 是 true（`chunk-HVP63X6W.js` off 15435），于是它**必然**把系统提示词发成
     // `role:"developer"`（`ke()` off 10416）。这两个 role 已按协调者裁定改为
     // **接受 + 折叠**（见 {@link FOLDED_PROMPT_ROLES} / {@link foldMessagesToPrompt}，
-    // 披露在响应 `zcc.roles_folded`）。剩下仍拒的是**工具/函数结果轮**与一切别的 role：
-    // 把它们压成 user 同样会静默改变语义，而"不实现工具调用"是我们如实报出来的事实。
+    // 披露在响应 `zcc.roles_folded`）。
+    //
+    // **COMPAT5 收敛**：只剩**旧式函数调用**轮（`function`）与一切别的 role。
+    // `tool` 那一档已改为"接受 + 前缀转写"（上一段）；`function` **仍然拒**——
+    // 旧式 `functions` / `function_call` 是另一套**参数面**的同族键，而那套在
+    // {@link TOP_LEVEL_REJECTED} 里是逐条钉死的 422，消息侧若放行就与它自相矛盾。
     const hint =
-      role === 'tool' || role === 'function'
-        ? '；本端点不实现工具/函数调用，请把工具结果并进 user content 或用它的纯文本内容另起一轮 user'
+      role === 'function'
+        ? '；本端点不实现函数调用，请把函数结果并进 user content 或用它的纯文本内容另起一轮 user'
         : '';
     throw new ApiError(
       'unsupported_role',
@@ -1431,19 +1543,60 @@ function parseMessage(entry: unknown, index: number): ParsedMessage {
       `${path}.role`
     );
   }
+  // COMPAT5：`tool_calls` 被剥离后，若这条 assistant 的 content 为空/null，
+  // 用 {@link TOOL_TRACE_PLACEHOLDER_CONTENT} 占位——**消息不删、条数与顺序不变**
+  // （删消息比改写 role 更重地改变语义）。
+  if (Object.prototype.hasOwnProperty.call(entry, 'tool_calls') && isBlankContent(entry['content'])) {
+    return { role: role as SupportedRole, content: TOOL_TRACE_PLACEHOLDER_CONTENT };
+  }
   return { role: role as SupportedRole, content: parseContent(entry['content'], path) };
+}
+
+/**
+ * 这条消息的 content 是否"空"到需要占位（COMPAT5）。
+ *
+ * 只认三种形状，其余交给 {@link parseContent} 原样判定：
+ * 字段**缺席**、显式 `null`、以及**零长度字符串**（OpenAI 允许 `content:""`）。
+ * 内容分段数组（哪怕拼出来是空串）**不**走占位——它仍是客户端明确给出的形状。
+ */
+function isBlankContent(content: unknown): boolean {
+  if (content === undefined || content === null) return true;
+  return typeof content === 'string' && content.length === 0;
+}
+
+/**
+ * `role:"tool"` 的 content → 带 {@link TOOL_RESULT_CONTENT_PREFIX} 前缀的纯文本。
+ *
+ * 三条规则，逐条都有理由：
+ *  - **字符串原样**：工具输出本来就是纯文本，加前缀即可，**不重排、不截断语义**；
+ *  - **非字符串 → JSON 文本化**（`JSON.stringify`）：真客户端会把结构化工具结果
+ *    直接放进 content。文本化保证内容**一个字都不丢**（不丢比不漂亮重要）；
+ *  - **缺席 / `null` → 空串**（只留前缀）：不凭空造内容，也不报错。
+ *
+ * 结果仍走 {@link assertContentLength}：上限**不因转换而放宽**。
+ */
+function parseToolResultContent(content: unknown, path: string): string {
+  if (content === undefined || content === null) return TOOL_RESULT_CONTENT_PREFIX;
+  const text = typeof content === 'string' ? content : JSON.stringify(content);
+  const out = `${TOOL_RESULT_CONTENT_PREFIX}${text === undefined ? '' : text}`;
+  assertContentLength(out.length, path);
+  return out;
+}
+
+function assertContentLength(chars: number, path: string): void {
+  if (chars > MAX_CONTENT_CHARS) {
+    throw new ApiError(
+      'payload_too_large',
+      `${path}.content 超过 ${MAX_CONTENT_CHARS} 字符上限`,
+      { chars },
+      `${path}.content`
+    );
+  }
 }
 
 function parseContent(content: unknown, path: string): string {
   if (typeof content === 'string') {
-    if (content.length > MAX_CONTENT_CHARS) {
-      throw new ApiError(
-        'payload_too_large',
-        `${path}.content 超过 ${MAX_CONTENT_CHARS} 字符上限`,
-        { chars: content.length },
-        `${path}.content`
-      );
-    }
+    assertContentLength(content.length, path);
     return content;
   }
   if (!Array.isArray(content)) {

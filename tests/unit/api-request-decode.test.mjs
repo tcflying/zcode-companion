@@ -268,9 +268,12 @@ describe('ZC-12 · F01 非法百分号编码路径不得终止 API 进程', () =
     expect(companion.retry.requiresExplicitHumanDecision).toBe(true);
   });
 
-  it('接口约束：400 复用既有 invalid_request，不新增 errors.ts 的 code', async () => {
-    // 逐条相等，而不是「至少包含」：卡上写死「不新增 errors.ts 的 code」，
-    // 有人往 API_ERROR_CODES 里塞新码必须让本钉变红。
+  it('接口约束：错误码表逐条钉死，新增 code 必须让本钉变红并写明理由', async () => {
+    // 逐条相等，而不是「至少包含」：本钉就是「新增 errors.ts 的 code」的唯一拦路石。
+    // 历史：400 曾要求复用既有 invalid_request 不新增码；2026-10-07 因
+    // 929.md:875 拒新发条款新增 `journal_capacity_exceeded` 与 `journal_write_failed`
+    // 两个码——**两者都复用契约既有码 `operation_not_submitted`，未新增契约码**，
+    // 仍满足「不扩 I04 契约面」这条原始约束。
     expect([...API_ERROR_CODES]).toEqual([
       'host_not_allowed',
       'origin_not_allowed',
@@ -293,6 +296,10 @@ describe('ZC-12 · F01 非法百分号编码路径不得终止 API 进程', () =
       'upstream_unavailable',
       'upstream_timeout',
       'upstream_outcome_unknown',
+      // 929.md:875：journal 不足/落盘失败时拒新发，驱动器未被调用。
+      'journal_capacity_exceeded',
+      'journal_write_failed',
+      'journal_corrupt',
       'internal_error'
     ]);
     expect(API_ERROR_SPECS.invalid_request.status).toBe(400);
