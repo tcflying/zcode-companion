@@ -1238,20 +1238,39 @@ describe('API01 本机 API · 请求体 schema', () => {
     }
   });
 
-  it('message 上的未知字段与不支持的多模态 part 各自 422', async () => {
-    const h = await startServer();
+  it('message 上的未知字段 422；多模态 part 改占位放行（2026-10-10，附件会话不再死锁）', async () => {
+    const h = await startServer({ driver: createFixtureDriver() });
     try {
-      const named = await post(h, { model: FIXTURE_MODEL_ID, messages: [{ role: 'user', content: 'x', name: 'bob' }] });
+      const named = await postUnique(h, { model: FIXTURE_MODEL_ID, messages: [{ role: 'user', content: 'x', name: 'bob' }] });
       expect(named.status).toBe(422);
       expect(errorCode(parseJson(named.text))).toBe('unsupported_parameter');
       expect(parseJson(named.text).error.param).toBe('messages[0].name');
 
-      const image = await post(h, {
+      // image_url / input_image 分段 → 占位文本进 prompt，请求放行（200）。
+      // 原值（data URL 等）绝不进占位——只留类型名，且文本里可见"图没进上下文"。
+      const image = await postUnique(h, {
         model: FIXTURE_MODEL_ID,
-        messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'x' } }] }]
+        messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] }]
       });
-      expect(image.status).toBe(422);
-      expect(errorCode(parseJson(image.text))).toBe('unsupported_content_type');
+      expect(image.status).toBe(200);
+      const seen = parseJson(image.text).choices?.[0]?.message?.content;
+      expect(typeof seen === 'string' ? seen : '').toContain('image_url 未纳入上下文');
+
+      // 混合分段：text 保留、占位插在原位。
+      const mixed = await postUnique(h, {
+        model: FIXTURE_MODEL_ID,
+        messages: [{ role: 'user', content: [{ type: 'text', text: '看图：' }, { type: 'input_image', image_url: 'x' }] }]
+      });
+      expect(mixed.status).toBe(200);
+      expect(parseJson(mixed.text).choices[0].message.content).toContain('看图：[input_image 未纳入上下文：本端点为纯文本，该分段已省略]');
+
+      // type 非字符串（畸形）仍 422——占位只救合法形态。
+      const broken = await postUnique(h, {
+        model: FIXTURE_MODEL_ID,
+        messages: [{ role: 'user', content: [{ type: 7 }] }]
+      });
+      expect(broken.status).toBe(422);
+      expect(errorCode(parseJson(broken.text))).toBe('unsupported_content_type');
     } finally {
       await h.server.stop();
     }
@@ -1260,14 +1279,14 @@ describe('API01 本机 API · 请求体 schema', () => {
   it('结构性错误（缺 model / messages 非数组 / stream 非布尔）返回 400 invalid_request', async () => {
     const h = await startServer();
     try {
-      const noModel = await post(h, { messages: [{ role: 'user', content: 'x' }] });
+      const noModel = await postUnique(h, { messages: [{ role: 'user', content: 'x' }] });
       expect(noModel.status).toBe(400);
       expect(errorCode(parseJson(noModel.text))).toBe('invalid_request');
 
-      const badMessages = await post(h, { model: 'm', messages: 'hi' });
+      const badMessages = await postUnique(h, { model: 'm', messages: 'hi' });
       expect(badMessages.status).toBe(400);
 
-      const badStream = await post(h, { model: 'm', messages: [{ role: 'user', content: 'x' }], stream: 'yes' });
+      const badStream = await postUnique(h, { model: 'm', messages: [{ role: 'user', content: 'x' }], stream: 'yes' });
       expect(badStream.status).toBe(400);
       expect(parseJson(badStream.text).error.param).toBe('stream');
 

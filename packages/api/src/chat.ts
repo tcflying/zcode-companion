@@ -1594,6 +1594,11 @@ function assertContentLength(chars: number, path: string): void {
   }
 }
 
+/** 非 text 分段的占位文本。原值（图片 data URL 等）**绝不**进占位——只留类型名。 */
+function omittedPartPlaceholder(type: string): string {
+  return `[${type} 未纳入上下文：本端点为纯文本，该分段已省略]`;
+}
+
 function parseContent(content: unknown, path: string): string {
   if (typeof content === 'string') {
     assertContentLength(content.length, path);
@@ -1610,7 +1615,15 @@ function parseContent(content: unknown, path: string): string {
     }
     const type = part['type'];
     if (type !== 'text') {
-      // 多模态不压成纯文本：图片/音频会被丢掉一半语义。
+      // 2026-10-10 起非 text 分段（image_url / input_image / file …）不再 422：
+      // 真客户端 mmx 的附件会话（attachment:true）历史里**每轮**都带图片分段，
+      // 422 让整个会话死锁（重发永远被拒）。改为占位文本放行——占位在 prompt
+      // 里可见，模型与客户端都知道"这里有过一张图、图没进上下文"，与
+      // MESSAGE_TOOL_TRACE_FIELDS 的占位同哲学；**不静默**（原值从不进 prompt）。
+      if (typeof type === 'string' && type.length > 0 && type.length <= 64) {
+        out += omittedPartPlaceholder(type);
+        return;
+      }
       throw new ApiError(
         'unsupported_content_type',
         `${partPath}.type=${String(type)} 本端点只支持 text 分段`,

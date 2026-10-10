@@ -392,7 +392,10 @@ describe('API01 入口：COMPAT1/C4 权限档位与工具应答策略（启动�
       // 2026-10-07 因 929.md:875 新增。不登记进这个闭集的**直接后果**是：
       // 设了 `ZCC_JOURNAL_DIR` 的机器会拿到 `UNKNOWN_ENV_KEY` 而**起不来**——
       // 这正是「宿主 spawn 时必然下发这个键」所必须的（见下方 journalDir 用例）。
-      'ZCC_JOURNAL_DIR'
+      'ZCC_JOURNAL_DIR',
+      // 2026-10-10 长任务截断修复：墙钟可配。只登记不在入口解析——
+      // 值校验在 official-host 驱动构造期（resolveHostTurnTimeoutMs）。
+      'ZCC_HOST_TURN_TIMEOUT_MS'
     ]);
   });
 

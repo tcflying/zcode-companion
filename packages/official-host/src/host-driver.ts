@@ -210,6 +210,42 @@ export function resolveHostToolPolicy(
 }
 
 /**
+ * 子宿主会话墙钟的 env 键（2026-10-10）。缺省见 {@link DEFAULT_HOST_TURN_TIMEOUT_MS}。
+ *
+ * 为什么必须可配：真客户端的长编码任务动辄超过缺省 5 分钟——墙钟到点 SIGKILL 子宿主，
+ * SSE 流被拦腰截断，客户端侧表现为 `net::ERR_INCOMPLETE_CHUNKED_ENCODING`（协调者日志
+ * 实测：两条 `ms=300034/300143` 的"200"正是墙钟收束）。运维按任务形态拉长，如
+ * `ZCC_HOST_TURN_TIMEOUT_MS=1800000`（30 分钟）。
+ */
+export const HOST_TURN_TIMEOUT_ENV_KEY = 'ZCC_HOST_TURN_TIMEOUT_MS';
+
+/** 缺省子宿主会话墙钟（毫秒）。历史行为原值，未配置时一字不变。 */
+export const DEFAULT_HOST_TURN_TIMEOUT_MS = 300_000;
+
+/**
+ * 解析子宿主会话墙钟（毫秒）。**正整数 + 缺省 300000，非法抛错**（理由同
+ * {@link resolveHostPermissionMode}：静默回落缺省会让"配置写了 30 分钟"与
+ * "实际 5 分钟杀进程"分叉——那正是要修的 bug 本身）。
+ *
+ * @param env 环境（可注入，测试用）
+ * @returns 墙钟毫秒数
+ */
+export function resolveHostTurnTimeoutMs(
+  env: Readonly<Record<string, string | undefined>> = process.env as Readonly<Record<string, string | undefined>>
+): number {
+  const raw = env[HOST_TURN_TIMEOUT_ENV_KEY]?.trim();
+  if (raw === undefined || raw === '') return DEFAULT_HOST_TURN_TIMEOUT_MS;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0 || value > 86_400_000) {
+    throw new OfficialHostConfigError(
+      'TURN_TIMEOUT_UNSUPPORTED',
+      `${HOST_TURN_TIMEOUT_ENV_KEY}=${JSON.stringify(raw)} 必须是 1..86400000 之间的整数毫秒：拒绝启动而不是猜一个超时`
+    );
+  }
+  return value;
+}
+
+/**
  * 推理档位 → 官方 `thoughtLevel`。**fail-closed**：不认识就抛错。
  *
  * @param reasoning 请求的 reasoning 档位原值
@@ -242,7 +278,8 @@ export const OFFICIAL_HOST_ERROR_CODES = [
   'STORAGE_ISOLATION_UNSAFE',
   'PROVIDER_CONFIG_NOT_FOUND',
   'PERMISSION_MODE_UNSUPPORTED',
-  'TOOL_POLICY_UNSUPPORTED'
+  'TOOL_POLICY_UNSUPPORTED',
+  'TURN_TIMEOUT_UNSUPPORTED'
 ] as const;
 export type OfficialHostErrorCode = (typeof OFFICIAL_HOST_ERROR_CODES)[number];
 
@@ -1037,7 +1074,8 @@ export async function runHostSession(
     throw new OfficialHostConfigError('BUNDLE_NOT_FOUND', `官方 bundle 不存在：${bundlePath}（只读引用；本驱动不会安装或下载它）`);
   }
   const spawnChild = options.spawnChild ?? defaultSpawnHostChild;
-  const timeoutMs = options.timeoutMs ?? 300_000;
+  // 显式 options 优先；未给时读 env 旋钮（长任务运维拉长），再缺省 300000（历史原值）。
+  const timeoutMs = options.timeoutMs ?? resolveHostTurnTimeoutMs();
 
   const child = spawnChild([resolveHostChildScript(), '--bundle', bundlePath]);
   // stderr 只 drain、只计数。**从不**把内容读进变量：官方 bundle 的 stderr 未经净化。

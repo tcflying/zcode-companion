@@ -97,7 +97,11 @@ export const ENTRY_ENV_KEYS = Object.freeze([
   // 929.md:875：操作 journal 落盘目录。**闭集里必须登记**——
   // 本入口对任何未登记的 `ZCC_*` 键直接拒绝启动（UNKNOWN_ENV_KEY），
   // 漏登记会让「设了这个变量就起不来」而不是「忽略它」。
-  'ZCC_JOURNAL_DIR'
+  'ZCC_JOURNAL_DIR',
+  // 2026-10-10：子宿主会话墙钟（毫秒，正整数，缺省 300000）。**只登记不在入口解析**——
+  // 值的校验与拒绝在 official-host 驱动构造期（resolveHostTurnTimeoutMs），与
+  // ZCC_JOURNAL_DIR「登记+透传」同一模式：入口只管「认识这个键」。
+  'ZCC_HOST_TURN_TIMEOUT_MS'
 ]);
 
 /**
@@ -487,6 +491,9 @@ export async function run(argv, env, io) {
         '                         已在用的 settings 目录塞进来，所以产品路径下**默认就是开的**，',
         '                         用户无需设置。缺省 = 纯内存不落盘（容量拒绝仍生效）。',
         '                         仅存结构化操作记录，不存正文、不存凭据。',
+        '  ZCC_HOST_TURN_TIMEOUT_MS official-host 子宿主会话墙钟（毫秒）。缺省 300000（5 分钟）；',
+        '                         长任务被 5 分钟整截断（ERR_INCOMPLETE_CHUNKED_ENCODING）时',
+        '                         调大它，如 1800000=30 分钟。须为 1..86400000 的整数，否则拒绝启动。',
         '',
         '优先级: CLI 参数 > 环境变量 > 缺省。绑定地址恒为 127.0.0.1，不暴露为配置。',
         '停止: 向进程发送 SIGINT 或 SIGTERM（优雅、有界收束，不用 process.exit）。'

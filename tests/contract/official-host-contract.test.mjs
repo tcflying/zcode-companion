@@ -58,13 +58,16 @@ import {
 import {
   DEFAULT_HOST_PERMISSION_MODE,
   DEFAULT_HOST_TOOL_POLICY,
+  DEFAULT_HOST_TURN_TIMEOUT_MS,
   HOST_TOOL_POLICIES,
+  HOST_TURN_TIMEOUT_ENV_KEY,
   KNOWN_REASONING_LEVELS,
   OFFICIAL_SESSION_MODES,
   REASONING_TO_THOUGHT_LEVEL,
   evaluateChannelPolicy,
   mapReasoningToThoughtLevel,
   resolveHostChildScript,
+  resolveHostTurnTimeoutMs,
   selectServableModels
 } from '../../packages/official-host/src/host-driver.js';
 import { loadLocalOfficialDriver } from '../../packages/plansrc/src/index.js';
@@ -497,6 +500,20 @@ describe('OFFICIAL-HOST 契约 · COMPAT1 跨层闭集一致性', () => {
     expect([...HOST_TOOL_POLICIES].sort()).toEqual(['allow', 'deny']);
     expect(DEFAULT_HOST_TOOL_POLICY).toBe('allow');
     expect(ENTRY_DEFAULT_HOST_TOOL_POLICY).toBe(DEFAULT_HOST_TOOL_POLICY);
+  });
+
+  it('子宿主墙钟旋钮：缺省 300000，正整数生效，非法值抛错（2026-10-10 长任务截断修复）', () => {
+    // 缺省：历史行为原值，一字不变。
+    expect(DEFAULT_HOST_TURN_TIMEOUT_MS).toBe(300_000);
+    expect(resolveHostTurnTimeoutMs({})).toBe(300_000);
+    expect(resolveHostTurnTimeoutMs({ [HOST_TURN_TIMEOUT_ENV_KEY]: '  ' })).toBe(300_000);
+    expect(resolveHostTurnTimeoutMs({ [HOST_TURN_TIMEOUT_ENV_KEY]: '1800000' })).toBe(1_800_000);
+    // 非法：非整数 / 非正数 / 超一天上限——全部拒绝启动而不是猜一个超时。
+    for (const bad of ['abc', '1.5', '0', '-1000', '86400001']) {
+      expect(() => resolveHostTurnTimeoutMs({ [HOST_TURN_TIMEOUT_ENV_KEY]: bad }), `bad=${bad}`).toThrowError(/ZCC_HOST_TURN_TIMEOUT_MS/);
+    }
+    // 入口闭集登记了这个键（设了它不再 UNKNOWN_ENV_KEY 拒启）。
+    expect(ENTRY_ENV_KEYS).toContain('ZCC_HOST_TURN_TIMEOUT_MS');
   });
 
   it('`api` 包**不 import** `official-host`（包边界单向：官方协议只由驱动器那一层碰）', () => {

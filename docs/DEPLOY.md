@@ -741,6 +741,14 @@ zcc-api event=rejected path=/v1/chat/completions code=unsupported_parameter stat
 
 ---
 
+### 7.11 接口行为：附件分段占位 + 子宿主墙钟可配（2026-10-10 晚间版本）
+
+**附件分段（真客户端 mmx 的 attachment 会话）**：mmx 里带图片的会话，历史**每轮**都带 `image_url` / `input_image` 分段。此前一律 422 `unsupported_content_type`，等于**整个会话死锁**（重发永远被拒）。现改为：非 text 分段替换为占位文本（如 `[image_url 未纳入上下文：本端点为纯文本，该分段已省略]`）放行——占位在 prompt 里可见，模型与客户端都知道图没进上下文；**分段原值（data URL 等）从不进 prompt**。非法形态（type 非字符串）仍 422。
+
+**子宿主墙钟**：`ZCC_HOST_TURN_TIMEOUT_MS`（毫秒，1..86400000，缺省 300000）。此前写死 5 分钟，长编码任务到点被 SIGKILL，SSE 流拦腰截断，客户端报 `net::ERR_INCOMPLETE_CHUNKED_ENCODING`。长任务场景调大它（Servy 部署在 SERVY_ENVIRONMENT_VARIABLES 里加一条即可，改后重启服务）。
+
+---
+
 ## 8. 通道与档位预期
 
 ### 8.1 通道
