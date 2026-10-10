@@ -267,20 +267,20 @@ export function SettingsPage({
       <div className="grid grid--two">
         <Section
           title="本机 API"
-          description="UI04 起可在设置页显式开启「连接本机 API」：动态刷新只读 companion 自己的回环目录端点。默认关闭 = 完全零网络。"
+          description="可在设置页显式开启「连接本机 API」：手动刷新只读 companion 自己的回环目录与证据状态端点。默认关闭 = 完全零网络。"
         >
           <div className="setting-row">
             <div className="setting-row__text">
               <div className="setting-row__label">连接本机 API（UI04）</div>
               <div className="setting-row__desc">
                 关闭（默认）时「模型与套餐」的动态刷新按 <span className="mono">transport_not_wired</span>{' '}
-                失败，完全零网络。打开后只向本机回环发起 <span className="mono">GET /v1/zcc/catalog</span>：
-                只读取目录，不发送任何模型请求，条目仍恒为「未验证」且不可发送。
+                失败，完全零网络。打开后手动刷新只向本机回环发起 <span className="mono">GET /v1/zcc/catalog</span> 或 <span className="mono">GET /v1/zcc/readstatus</span>：
+                只读取目录与历史证据状态，不发送任何模型请求；历史读回不证明当前资格，条目仍恒为「未验证」且不可发送。
               </div>
             </div>
             <Toggle
               checked={state.localApiEnabled}
-              label="连接本机 API（只读目录，不发模型请求）"
+              label="连接本机 API（只读目录与证据状态，不发模型请求）"
               onChange={state.setLocalApiEnabled}
             />
           </div>

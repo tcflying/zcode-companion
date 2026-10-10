@@ -74,6 +74,43 @@ export interface SaveSettingsResult {
   settings?: PublicSettings;
 }
 
+/**
+ * 导出结果的统计面（`:876` 要的「脱敏导出 hash」就是 `sha256`）。
+ * 无论 `preview` 还是 `save` 都带这份统计，界面据此显示字节数与截断提示。
+ */
+export interface LogExportSummary {
+  bytes: number;
+  sha256: string;
+  totalLines: number;
+  includedLines: number;
+  droppedLines: number;
+  truncated: boolean;
+  redactedLines: number;
+  /** 非白名单字段被丢弃的条数（计数是人能看到的唯一「有东西被过滤了」信号）。 */
+  droppedFields: number;
+  /** 白名单字段但取值不合文法、被丢弃的条数。 */
+  droppedInvalid: number;
+  maxBytes: number;
+  generatedAt: string;
+}
+
+export interface LogExportResult extends LogExportSummary {
+  ok: boolean;
+  mode?: 'preview' | 'save';
+  /** 仅 `preview` 返回：前若干字符，不是整篇。 */
+  preview?: string;
+  /** 仅 `save` 成功返回：用户自己选定的本地路径。 */
+  path?: string;
+  /** 失败码：`INVALID_INPUT` / `EXPORT_IN_PROGRESS` / `CANCELLED` / `SAVE_FAILED`。 */
+  code?: string;
+  reason?: string;
+}
+
+export interface LogExportInput {
+  mode: 'preview' | 'save';
+  maxBytes?: number;
+}
+
 interface DesktopBridge {
   desktop: boolean;
   getSnapshot(): Promise<ProxySnapshot>;
@@ -89,6 +126,7 @@ interface DesktopBridge {
     driver?: string;
     reasoning?: string;
   }): Promise<SaveSettingsResult>;
+  exportLogs(input: LogExportInput): Promise<LogExportResult>;
 }
 
 declare global {
@@ -185,4 +223,14 @@ export async function saveSettings(next: {
   const bridge = desktopBridge();
   if (bridge === null) return { ok: false, reason: UNAVAILABLE_REASON };
   return bridge.saveSettings(next);
+}
+
+/**
+ * 脱敏日志导出。桌面壳缺席时**不假装成功**——回 `DESKTOP_UNAVAILABLE`，
+ * 界面据此显示「当前环境不支持导出」，而不是弹一个空预览。
+ */
+export async function exportLogs(input: LogExportInput): Promise<LogExportResult | { ok: false; code: string; reason: string }> {
+  const bridge = desktopBridge();
+  if (bridge === null) return { ok: false, code: 'DESKTOP_UNAVAILABLE', reason: UNAVAILABLE_REASON };
+  return bridge.exportLogs(input);
 }

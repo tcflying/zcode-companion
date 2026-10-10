@@ -4,6 +4,7 @@ import { StatePanel } from '../components/StatePanel';
 import { LOG_LEVELS, LOG_LEVEL_LABEL, type LogLevel } from '../lib/logger';
 import { formatStamp } from '../lib/format';
 import { STREAM_LABEL } from '../data/desktopLabels';
+import { exportLogs, type LogExportResult } from '../data/desktopBridge';
 import type { AppState } from '../app/useAppState';
 import type { DesktopState } from '../app/useDesktopState';
 
@@ -18,6 +19,32 @@ export function LogsPage({ state, desktop }: { state: AppState; desktop: Desktop
   const [level, setLevel] = useState<'all' | LogLevel>('all');
   const [source, setSource] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'info' | 'problem'>('all');
+  // 导出（RA-09）。preview 只读不落盘；save 由用户在系统对话框里选本地目标。
+  // 程序**不会**自动上传任何文件，这里也不提供任何上传入口。
+  const [exporting, setExporting] = useState(false);
+  const [exportResult, setExportResult] = useState<LogExportResult | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const runExport = async (mode: 'preview' | 'save') => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const result = await exportLogs({ mode });
+      if (result.ok) {
+        setExportResult(result);
+        return;
+      }
+      // 取消是**正常结局**，不当作错误弹给用户；其他失败码如实显示。
+      setExportResult(null);
+      if (result.code === 'CANCELLED') {
+        setExportError(null);
+        return;
+      }
+      setExportError(`${result.code}：${result.reason}`);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const sources = useMemo(() => {
     const set = new Set<string>();
@@ -244,6 +271,78 @@ export function LogsPage({ state, desktop }: { state: AppState; desktop: Desktop
           证明方式：apps/ui/src/lib/redact.test.ts（14 个用例，含幂等性与不修改入参），运行命令
           <span className="mono"> node node_modules/vitest/vitest.mjs run --config apps/ui/vitest.config.ts</span>。
         </p>
+      </Section>
+
+      <Section
+        title="脱敏导出"
+        description="把上面这份本地日志缓冲导出成一份脱敏文本。先预览再保存；保存位置由你在系统对话框里自选，本程序不会自动上传到任何地方。导出时在写入前再脱敏一次（已登记机密串 + 凭据形状），并受字节上限约束。"
+        actions={
+          <div className="toolbar">
+            <button type="button" className="btn" onClick={() => void runExport('preview')} disabled={!desktop.available || exporting}>
+              生成预览
+            </button>
+            <button type="button" className="btn" onClick={() => void runExport('save')} disabled={!desktop.available || exporting}>
+              保存到…
+            </button>
+            {exporting ? <span className="toolbar__label">导出中…</span> : null}
+          </div>
+        }
+      >
+        {!desktop.available ? (
+          <StatePanel tone="info" title="桌面壳未接入，当前环境不支持导出">
+            导出需要桌面主进程参与（脱敏与字节上限都在主进程侧执行）。浏览器里打开时本功能显式不可用，不做任何假装成功的降级。
+          </StatePanel>
+        ) : (
+          <>
+            {exportError !== null ? (
+              <StatePanel tone="error" title="导出未完成">
+                {exportError}
+              </StatePanel>
+            ) : null}
+            {exportResult !== null ? (
+              <>
+                <ul className="rule-list rule-list--tight">
+                  <li className="rule">
+                    <span className="rule__class">字节</span>
+                    <span className="rule__text mono">{exportResult.bytes} B（上限 {exportResult.maxBytes} B）</span>
+                  </li>
+                  <li className="rule">
+                    <span className="rule__class">SHA-256</span>
+                    <span className="rule__text mono">{exportResult.sha256}</span>
+                  </li>
+                  <li className="rule">
+                    <span className="rule__class">行</span>
+                    <span className="rule__text mono">
+                      共 {exportResult.totalLines} · 导出 {exportResult.includedLines} · 丢弃 {exportResult.droppedLines}
+                      {exportResult.truncated ? '（因字节上限截断，文件内已留标记行）' : ''}
+                    </span>
+                  </li>
+                  <li className="rule">
+                    <span className="rule__class">白名单</span>
+                    <span className="rule__text mono">
+                      非白名单字段丢弃 {exportResult.droppedFields} · 取值不合文法丢弃 {exportResult.droppedInvalid} · 脱敏 {exportResult.redactedLines} 行
+                    </span>
+                  </li>
+                  {exportResult.path !== undefined ? (
+                    <li className="rule">
+                      <span className="rule__class">已保存</span>
+                      <span className="rule__text mono">{exportResult.path}</span>
+                    </li>
+                  ) : null}
+                </ul>
+                {exportResult.preview !== undefined ? (
+                  <div className="table-wrap" role="region" aria-label="导出预览" tabIndex={0}>
+                    <pre className="log-msg">{exportResult.preview}</pre>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <StatePanel tone="empty" title="尚未生成导出">
+                点「生成预览」先看内容与统计，确认无误再「保存到…」。
+              </StatePanel>
+            )}
+          </>
+        )}
       </Section>
     </div>
   );

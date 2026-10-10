@@ -53,6 +53,7 @@ import {
   resolveSourceLoaderForUi
 } from '../data/localApiSource';
 import type { AppState } from '../app/useAppState';
+import { READ_PHASE_LABEL } from '../data/readStatus';
 
 type Filter = 'all' | BillingClass;
 
@@ -155,6 +156,13 @@ function RefreshFailureDetails({ state }: { state: RefreshState }) {
 }
 
 export function ModelsPage({ state }: { state: AppState }) {
+  const readStatusSummary = ((): string => {
+    const s = state.readStatus.snapshot;
+    if (s === null) return '未读到证据状态。';
+    const d = s.driver;
+    return `运行驱动器 ${d.kind} / ${d.status}；E1 阻断 ${s.e1Blocking.length} 项。`
+      + '读取只读事实不构成资格：账号、资格时效、实际选模仍未证明，条目仍不可发送。';
+  })();
   const [mode, setMode] = useState<SourceMode>('dynamic');
   const [transport, setTransport] = useState<SourceTransport>('local_api');
   const [refresh, setRefresh] = useState<RefreshState>(() => createInitialSourceState().refresh);
@@ -588,6 +596,16 @@ export function ModelsPage({ state }: { state: AppState }) {
         <div className="notice notice--danger" role="status">
           <span className="notice__tag">{CURRENT_EVIDENCE}</span>
           <span className="notice__text">{SEND_GATE_CLOSED_NOTICE}</span>
+        </div>
+        {/* ZCC-GUI-EVIDENCE-20261008-A：读取只读事实**不构成资格**，发送门不变。 */}
+        <div className="notice" role="status">
+          <span className="notice__tag">读取态</span>
+          <span className="notice__text">
+            {READ_PHASE_LABEL[state.readStatus.phase]}。
+            {state.readStatus.snapshot === null
+              ? '未读到证据状态，所有可用性一律显示未验证。'
+              : readStatusSummary}
+          </span>
         </div>
       </Section>
 

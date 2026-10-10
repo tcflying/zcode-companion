@@ -45,6 +45,7 @@ import {
   resolveSourceLoader,
   type SourceLoader
 } from './modelSource';
+import { READ_STATUS_PATH } from './readStatus';
 
 /* ------------------------------------------------------------------ *
  * base URL 与回环守卫
@@ -142,6 +143,7 @@ export interface LocalApiRequestInit {
   method: 'GET';
   cache: 'no-store';
   redirect: 'error';
+    credentials?: 'omit';
   /** 只接受 JSON。不带 Authorization / Cookie / X-Api-Key。 */
   headers: { accept: string };
   signal: AbortSignal;
@@ -205,10 +207,9 @@ function abortError(): Error {
  * 头返回后就清掉，正文等待就进入**没有任何应用上限**的挂起，刷新永远停在 busy。
  * 这里不新增计时器——只复用驱动 abort 的那一个，因此预算仍是同一个 `timeoutMs`。
  */
-function readBodyWithinBudget(res: LocalApiResponseLike, signal: AbortSignal): Promise<string> {
-  const text = res.text();
+function waitWithinBudget<T>(text: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) return Promise.reject(abortError());
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
     const onAbort = (): void => reject(abortError());
     signal.addEventListener('abort', onAbort, { once: true });
     text.then(
@@ -222,6 +223,10 @@ function readBodyWithinBudget(res: LocalApiResponseLike, signal: AbortSignal): P
       }
     );
   });
+}
+
+function readBodyWithinBudget(res: LocalApiResponseLike, signal: AbortSignal): Promise<string> {
+  return waitWithinBudget(res.text(), signal);
 }
 
 /* ------------------------------------------------------------------ *
@@ -329,6 +334,86 @@ export function createLocalApiSourceLoader(options: LocalApiSourceOptions = {}):
 }
 
 /* ------------------------------------------------------------------ *
+ * readstatus 执行器（ZCC-GUI-EVIDENCE-20261008-A）
+ * ------------------------------------------------------------------ */
+
+/** readstatus 的请求预算。与目录通道同量级，覆盖「头 + 完整正文」。 */
+export const READ_STATUS_REQUEST_TIMEOUT_MS = CATALOG_REQUEST_TIMEOUT_MS;
+
+/**
+ * 读取 `/v1/zcc/readstatus`。
+ *
+ * 与目录通道**同款守卫、同样零凭据**：
+ *  - 不带 `Authorization` / `Cookie`，不带任何 body；
+ *  - `redirect: 'error'` + `cache: 'no-store'`；
+ *  - 同一超时预算覆盖 fetch 与完整正文，超时中止且**不做部分采纳**；
+ *  - 任何失败都抛 {@link SourceUnavailableError}，**绝不返回半份 JSON**。
+ *
+ * 本函数**不做形状判定**：解析交给 `readStatus.ts` 的严格 parse，
+ * 这样"网络失败"与"形状不合约"在 UI 上是两件可区分的事。
+ */
+export async function fetchReadStatus(
+  baseUrl: string,
+  fetchImpl: LocalApiFetchLike | undefined,
+  timeoutMs: number = READ_STATUS_REQUEST_TIMEOUT_MS
+): Promise<unknown> {
+  const verdict = resolveCatalogUrl(baseUrl);
+  if (!verdict.ok) {
+    throw new SourceUnavailableError('transport_not_wired', verdict.reason, '检查「连接本机 API」的 base URL 是否为同源或本机回环。');
+  }
+  const url = verdict.origin === 'same-origin' ? READ_STATUS_PATH : `${verdict.origin}${READ_STATUS_PATH}`;
+  const doFetch: LocalApiFetchLike =
+    fetchImpl ??
+    ((u, init) => globalThis.fetch(u, init as unknown as RequestInit) as unknown as Promise<LocalApiResponseLike>);
+
+  const controller = new AbortController();
+  const deadline = Date.now() + timeoutMs;
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    let res: LocalApiResponseLike;
+    try {
+      res = await waitWithinBudget(doFetch(url, {
+        method: 'GET',
+        redirect: 'error',
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: { accept: 'application/json' },
+        signal: controller.signal
+      }), controller.signal);
+    } catch (err) {
+      if (timedOut) {
+        throw new SourceUnavailableError('timeout', `读取证据状态超时：${url} 在 ${timeoutMs}ms 内未返回响应头（${errorText(err)}）。超时不做部分采纳。`, REFRESH_FAILURE_INFO.timeout.remedy);
+      }
+      throw new SourceUnavailableError('api_not_running', `本机 API 不可达：${url}（${errorText(err)}）。`, REFRESH_FAILURE_INFO.api_not_running.remedy);
+    }
+    if (timedOut || controller.signal.aborted || Date.now() >= deadline) {
+      throw new SourceUnavailableError('timeout', '证据状态响应头超过读取预算，已拒绝迟到响应。', REFRESH_FAILURE_INFO.timeout.remedy);
+    }
+    if (res.status < 200 || res.status >= 300) {
+      throw new SourceUnavailableError('connection_failed', `证据状态端点返回 HTTP ${res.status}：${url}。`, '确认本机 API 已启动且 key 可用。');
+    }
+    try {
+      const body = await readBodyWithinBudget(res, controller.signal);
+      if (timedOut || controller.signal.aborted || Date.now() >= deadline) {
+        throw new SourceUnavailableError('timeout', '证据状态完整正文超过读取预算，已拒绝迟到响应。', REFRESH_FAILURE_INFO.timeout.remedy);
+      }
+      return body;
+    } catch (err) {
+      if (timedOut || controller.signal.aborted || Date.now() >= deadline || (err instanceof Error && err.name === 'AbortError')) {
+        throw new SourceUnavailableError('timeout', '证据状态正文未在同一读取预算内完成，已中止且不做部分采纳。', REFRESH_FAILURE_INFO.timeout.remedy);
+      }
+      throw new SourceUnavailableError('connection_failed', '证据状态正文读取中断，不做部分采纳。', REFRESH_FAILURE_INFO.connection_failed.remedy);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * 执行器选择（界面真正使用的唯一决策点）
  * ------------------------------------------------------------------ */
 
@@ -367,8 +452,8 @@ export function resolveSourceLoaderForUi(choice: SourceLoaderChoice): SourceLoad
 export const CSP_CONNECT_SRC = `'self' ${LOOPBACK_API_BASE_URL}`;
 
 export const LOCAL_API_NOTICE =
-  `连接本机 API 开启后，「模型与套餐」的动态刷新会向 companion 自己的回环 API 发起 ` +
-  `GET ${SOURCE_ENDPOINT}（只读取目录，不发送任何模型请求）。` +
+  `显式开启连接本机 API 后，手动刷新会向 companion 自己的回环 API 发起 ` +
+  `GET ${SOURCE_ENDPOINT} 或 GET ${READ_STATUS_PATH}（只读取目录与历史证据状态，不发送任何模型请求）。` +
   `请求只允许去本机回环（${LOOPBACK_HOSTNAMES.join(' / ')}）或同源；` +
   `浏览器 CSP 为 default-src 'none' + connect-src ${CSP_CONNECT_SRC}，其他来源一律被拒。` +
   `关闭该开关即回到完全零网络的离线 fixture 路径。`;

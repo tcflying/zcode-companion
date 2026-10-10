@@ -920,7 +920,10 @@ async function zc51PageHarness(payloads: unknown[]) {
     logs: [], log: (_level, _source, message) => { logs.push(message); },
     clearLogs: () => undefined, bootedAt: 0, now: 0, clockBroken: false,
     setClockBroken: () => undefined, localApiEnabled: true,
-    setLocalApiEnabled: () => undefined, localApiBaseUrl: '', setLocalApiBaseUrl: () => undefined
+    setLocalApiEnabled: () => undefined, localApiBaseUrl: '', setLocalApiBaseUrl: () => undefined,
+    // ZCC-GUI-EVIDENCE-20261008-A：证据读取默认 idle（零网络）
+    readStatus: { phase: 'idle', snapshot: null, failure: null, loadedAt: null },
+    refreshReadStatus: () => Promise.resolve()
   };
   const render = () => { cursor = 0; return ModelsPage({ state }); };
   function findRefresh(value: unknown): (() => void) | undefined {

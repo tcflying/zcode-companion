@@ -43,20 +43,27 @@ function catalogProxy(mode: string): Record<string, ProxyOptions> | undefined {
     return undefined;
   }
   const token = (env['ZCC_API_TOKEN'] ?? '').trim();
-  return {
-    '/v1/zcc/catalog': {
-      target,
-      changeOrigin: true,
-      secure: false,
-      configure: (proxy) => {
-        proxy.on('proxyReq', (proxyReq) => {
-          proxyReq.removeHeader('origin');
-          proxyReq.removeHeader('cookie');
-          proxyReq.removeHeader('referer');
-          if (token !== '') proxyReq.setHeader('authorization', `Bearer ${token}`);
-        });
-      }
+  // 同源只读通道闭集。两条路径共用**同一个** loopback target 与**同一份** token 注入，
+  // token 只存在于这个 Node 进程里，不进浏览器、不进构建产物。
+  const readOnlyChannel = (): ProxyOptions => ({
+    target,
+    changeOrigin: true,
+    secure: false,
+    configure: (proxy) => {
+      proxy.on('proxyReq', (proxyReq) => {
+        proxyReq.removeHeader('origin');
+        proxyReq.removeHeader('cookie');
+        proxyReq.removeHeader('referer');
+        if (token !== '') proxyReq.setHeader('authorization', `Bearer ${token}`);
+      });
     }
+  });
+  return {
+    // UI04：模型目录
+    '/v1/zcc/catalog': readOnlyChannel(),
+    // ZCC-GUI-EVIDENCE-20261008-A：只读证据状态。仍是 GET-only 的只读事实通道，
+    // 不新增任何模型请求，也不放宽 loopback 目标。
+    '/v1/zcc/readstatus': readOnlyChannel()
   };
 }
 

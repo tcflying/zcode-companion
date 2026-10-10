@@ -431,7 +431,10 @@ function renderSettingsPage(desktop: DesktopState): string {
     localApiEnabled: false,
     setLocalApiEnabled: () => undefined,
     localApiBaseUrl: '',
-    setLocalApiBaseUrl: () => undefined
+    setLocalApiBaseUrl: () => undefined,
+    // ZCC-GUI-EVIDENCE-20261008-A：证据读取默认 idle（零网络），不发任何请求
+    readStatus: { phase: 'idle', snapshot: null, failure: null, loadedAt: null },
+    refreshReadStatus: () => Promise.resolve()
   };
   const theme = {
     pref: 'light' as const,

@@ -9,6 +9,7 @@ import {
   SEND_GATE_UNLOCK_CONDITION
 } from '../data/snapshot';
 import type { AppState } from '../app/useAppState';
+import { READ_PHASE_LABEL } from '../data/readStatus';
 
 interface Bubble {
   id: string;
@@ -33,6 +34,11 @@ const PLACEHOLDER_TURNS: Bubble[] = [
 
 export function ChatPage({ state }: { state: AppState }) {
   const [draft, setDraft] = useState('');
+  // ZCC-GUI-EVIDENCE-20261008-A：读取态驱动文案。**读状态不改变发送门**——
+  // 按钮恒 disabled、没有 dispatch handler，所以即使读到证据也不构成"可聊天"。
+  const gateReason = state.readStatus.phase === 'loaded' && state.readStatus.snapshot !== null
+    ? ` 已读到证据状态（E1 阻断 ${state.readStatus.snapshot.e1Blocking.length} 项），但账号/时效/实际选模仍未证明，等级不变、发送门仍关闭。`
+    : ' 证据状态尚未读取或读取失败，发送门同样关闭。';
 
   // 仅剩的非发送操作：清空草稿只动本地内存状态，不产生任何请求。
   const handleClearDraft = () => {
@@ -44,12 +50,15 @@ export function ChatPage({ state }: { state: AppState }) {
     <div className="page">
       <PageHeader
         title="会话"
-        subtitle={`对话版式占位。发送门因 ${CURRENT_EVIDENCE} 关闭，本页不存在任何可点击的发送入口；草稿只留在本机内存中。`}
+        subtitle={`对话版式占位。发送门因 ${CURRENT_EVIDENCE} 关闭，本页不存在任何可点击的发送入口；草稿只留在本机内存中。` + gateReason}
         badges={
           <>
             <Chip tone="pending">模型未选择（目录未接入）</Chip>
             <Chip tone="warn">证据等级 {CURRENT_EVIDENCE} · 零 dispatch</Chip>
             <Chip tone="danger">发送门：关闭</Chip>
+            <Chip tone={state.readStatus.phase === 'loaded' ? 'accent' : 'neutral'}>
+              读取态 {READ_PHASE_LABEL[state.readStatus.phase]}
+            </Chip>
           </>
         }
       />
@@ -92,7 +101,7 @@ export function ChatPage({ state }: { state: AppState }) {
             className="composer__input"
             rows={3}
             value={draft}
-            placeholder="输入内容不会离开本机：本轮没有 fetch/XHR/WebSocket，草稿仅存在于内存中。"
+            placeholder="草稿仅存在于本机内存，不发送模型请求；状态只读 GET 需显式开启「连接本机 API」后手动刷新。"
             onChange={(e) => setDraft(e.target.value)}
           />
           <div className="composer__actions">
