@@ -25,3 +25,8 @@ tmp/
 
 # Local mechanical backups taken on this machine (never a source of record)
 AGENTS.md.bak-*
+
+# Local throwaway debugging (capture proxy, one-off probes)
+.tmp-debug/
+# GUI evidence screenshots (75MB+; audit conclusions live in the small review-artifacts dirs)
+review-artifacts/zcc-gui-evidence-*/
