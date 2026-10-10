@@ -331,6 +331,31 @@ export const UNINITIALIZED_BUILTIN_REVISION = 'uninitialized';
 export const SESSION_TIMEOUT_MS = 300_000;
 
 /**
+ * 子宿主内的会话墙钟（毫秒），读 `ZCC_HOST_TURN_TIMEOUT_MS`（与父进程
+ * `host-driver.ts` 的 `resolveHostTurnTimeoutMs` 同键同语义；env 经 `buildChildEnv`
+ * 全量继承到达本进程）。**未设置/空白 → 缺省 300000；非法值 → 抛错**（fail-closed，
+ * 与父层一致：坏配置让请求明确失败，而不是悄悄按 5 分钟掐断长任务）。
+ *
+ * 为什么子进程还要一份：父进程 `runHostSession` 的墙钟管**子进程整生命周期**，
+ * 而本文件的 `deadline`（create 等待与 turn 循环共用）在**子进程内部**先到点——
+ * 父墙钟调大而这里不跟着调，长任务仍会在 300 s 被这里的循环退出并以
+ * `SESSION_TIMEOUT` 杀掉（2026-10-10 实录：`ZCC_HOST_TURN_TIMEOUT_MS=1800000`
+ * 已配，请求仍在 ~301 s 截断）。
+ *
+ * @param {Record<string, string | undefined>} env
+ * @returns {number}
+ */
+export function resolveSessionWallClockMs(env = process.env) {
+  const raw = env['ZCC_HOST_TURN_TIMEOUT_MS']?.trim();
+  if (raw === undefined || raw === '') return SESSION_TIMEOUT_MS;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0 || value > 86_400_000) {
+    throw new Error(`ZCC_HOST_TURN_TIMEOUT_MS=${JSON.stringify(raw)} 必须是 1..86400000 之间的整数毫秒（子宿主侧同样 fail-closed）`);
+  }
+  return value;
+}
+
+/**
  * 官方在 `session/create` 成功应答的 `projection.sessionId` 里放的**字面量诱饵**。
  *
  * 实弹逐字：`"projection":{"activeToolCalls":[],…,"sessionId":"unknown","status":"idle",…}`。
@@ -599,21 +624,31 @@ export function mapOfficialEventToChannel(message) {
 }
 
 /**
- * `model.streaming` → 通道事件。**只有 `text_delta` 是正文**。
+ * `model.streaming` → 通道事件。**只有 `text_delta` 是正文**，`reasoning_delta` 是
+ * 思考流（见函数体：转发成 `reasoning` 事件，API 层落 SSE `delta.reasoning_content`）。
  *
  * 官方投递过滤 `C3e` 逐字（偏移 14416900）：`text_delta`/`reasoning_delta` 要求
  * `!!delta`，其余四种（`tool_input_start|delta|end`、`tool_call`）放行但正文不在这。
- * 所以本函数对**非 `text_delta` 的 kind 一律返回空数组**——由调用方按官方
+ * 所以本函数对**其余 kind** 一律返回空数组——由调用方按官方
  * `type` 计入 unmapped（键是 `model.streaming`，不是某个 kind，不制造第二套键空间）。
  *
  * @param {Record<string, any>} payload 官方 `payload`
  * @returns {ReadonlyArray<Record<string, unknown>>}
  */
 function mapModelStreaming(payload) {
-  if (payload['kind'] !== 'text_delta') return [];
+  const kind = payload['kind'];
   const text = payload['delta'];
-  if (typeof text !== 'string' || text === '') return [];
-  return [{ type: 'delta', text }];
+  if (kind === 'text_delta') {
+    if (typeof text !== 'string' || text === '') return [];
+    return [{ type: 'delta', text }];
+  }
+  if (kind === 'reasoning_delta') {
+    // 思考流外发（2026-10-10）：深思考期官方持续发 `reasoning_delta`，此前被丢弃导致
+    // 真客户端思考期零字节、被判"任务进程停滞"断开重试。空 delta 与官方过滤同判丢弃。
+    if (typeof text !== 'string' || text === '') return [];
+    return [{ type: 'reasoning', text }];
+  }
+  return [];
 }
 
 /**
@@ -1385,7 +1420,7 @@ export async function driveSession({ child, request, port, emit, timeoutMs }) {
   // **边等边扫**：官方对 session/create 的回执可能与账号回执、乃至更早的行挤在
   // 同一次 output 写入里。只"等 outbound 非空再整表扫一遍"会漏——因此这里
   // 逐行消费直到认出 sessionId。
-  const deadline = Date.now() + (timeoutMs ?? SESSION_TIMEOUT_MS);
+  const deadline = Date.now() + (timeoutMs ?? resolveSessionWallClockMs());
   /** @type {string[]} */
   const pending = [];
   /** @type {string | null} */

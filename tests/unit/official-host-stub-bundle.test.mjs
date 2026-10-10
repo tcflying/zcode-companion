@@ -2478,12 +2478,16 @@ describe('OFFICIAL-HOST · HOSTFIX7 官方事件映射与订阅闸门（实弹�
       expect(drive.mapOfficialEventToChannel(wireEvent('part.delta', { delta: 'abc' }))).toEqual([]);
     });
 
-    it('非 `text_delta` 的 kind 一律不产正文（`msr` 闭集逐字 13 项）', () => {
+    it('非 `text_delta` 的 kind 不产正文；`reasoning_delta` 例外产思考流（`msr` 闭集逐字 13 项）', () => {
       expect(drive.OFFICIAL_MODEL_STREAMING_KINDS).toHaveLength(13);
       for (const kind of /** @type {string[]} */ (drive.OFFICIAL_MODEL_STREAMING_KINDS)) {
-        if (kind === 'text_delta') continue;
+        if (kind === 'text_delta' || kind === 'reasoning_delta') continue;
         expect(drive.mapOfficialEventToChannel(wireEvent('model.streaming', { kind, delta: 'abc' }))).toEqual([]);
       }
+      // 2026-10-10：reasoning_delta 外发成 reasoning 事件（思考期零字节曾让真客户端判
+      // 停滞断开）；空 delta 仍丢弃（与官方 C3e 过滤同判）。
+      expect(drive.mapOfficialEventToChannel(wireEvent('model.streaming', { kind: 'reasoning_delta', delta: 'abc' }))).toEqual([{ type: 'reasoning', text: 'abc' }]);
+      expect(drive.mapOfficialEventToChannel(wireEvent('model.streaming', { kind: 'reasoning_delta', delta: '' }))).toEqual([]);
     });
 
     it('缺 `kind` / `delta` 非字符串 / 空串：都不产（官方 `C3e` 对 `text_delta` 要求 `!!delta`）', () => {

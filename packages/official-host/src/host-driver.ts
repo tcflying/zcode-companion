@@ -321,6 +321,7 @@ export type HostChannelRequest =
 export type HostChannelEvent =
   | { readonly type: 'ready'; readonly bundle: string; readonly exports: readonly string[] }
   | { readonly type: 'delta'; readonly text: string }
+  | { readonly type: 'reasoning'; readonly text: string }
   | { readonly type: 'usage'; readonly promptTokens: number | null; readonly completionTokens: number | null; readonly usageMethod: string }
   | { readonly type: 'finish'; readonly reason: 'stop' | 'length' }
   | { readonly type: 'failed'; readonly code: string; readonly detail: string };
@@ -1408,6 +1409,14 @@ export function createOfficialHostDriver(options: CreateOfficialHostDriverOption
           switch (event.type) {
             case 'delta':
               queue.push({ type: 'delta', text: event.text });
+              break;
+            case 'reasoning':
+              // 官方深思考期持续产 `reasoning_delta`（`model.streaming` 的 kind 闭集成员，
+              // 官方过滤 `C3e` 与 `text_delta` 同款要求 `!!delta`）。转发成 API 层的
+              // reasoning 事件 → SSE `delta.reasoning_content`（DeepSeek 风格）：真客户端
+              // mmx 在思考期收不到任何字节会判"任务进程停滞"并断开重试（2026-10-10
+              // 实录 frames=1 → 70-90s client_gone）；思考流外发让流在思考期保持活着。
+              queue.push({ type: 'reasoning', text: event.text });
               break;
             case 'usage':
               // usage 如实透传：官方 `turn.completed.payload.usage` 的

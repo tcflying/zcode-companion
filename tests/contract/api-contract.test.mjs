@@ -2621,6 +2621,43 @@ describe('API01 本机 API · fixture 驱动器', () => {
     }
   });
 
+  it('思考流外发：reasoning 事件 → SSE delta.reasoning_content / 非流式 message.reasoning_content（2026-10-10 停滞修复）', async () => {
+    // 内联驱动：先产思考流再产正文（模拟官方深思考 → 正文的真实次序）。
+    const inner = createFixtureDriver();
+    const driver = {
+      ...inner,
+      async *stream(request) {
+        yield { type: 'reasoning', text: '思考片段一。' };
+        yield { type: 'reasoning', text: '思考片段二。' };
+        for await (const ev of inner.stream(request)) {
+          if (ev.type === 'delta') yield ev;
+          else if (ev.type === 'usage' || ev.type === 'finish') yield ev;
+        }
+      }
+    };
+    const h = await startServer({ driver });
+    try {
+      // 非流式：reasoning 聚合进 message.reasoning_content，content 不被污染。
+      const plain = parseJson((await authed({ port: h.port, headers: { 'x-zcc-session-id': 'rs-a' }, body: body() })).text);
+      expect(plain.choices[0].message.reasoning_content).toBe('思考片段一。思考片段二。');
+      expect(plain.choices[0].message.content).not.toContain('思考片段');
+      // 流式：reasoning 帧按事件次序出现在正文帧之前，key 是 reasoning_content。
+      const res = await authed({ port: h.port, headers: { 'x-zcc-session-id': 'rs-b' }, body: body({ stream: true }) });
+      const frames = res.text.split('\n').filter((l) => l.startsWith('data: ') && l !== 'data: [DONE]').map((l) => JSON.parse(l.slice(6)));
+      const reasoningFrames = frames.filter((f) => typeof f.choices[0]?.delta?.reasoning_content === 'string');
+      expect(reasoningFrames.map((f) => f.choices[0].delta.reasoning_content).join('')).toBe('思考片段一。思考片段二。');
+      const firstReasoningIdx = frames.findIndex((f) => f.choices[0]?.delta?.reasoning_content !== undefined);
+      const firstContentIdx = frames.findIndex((f) => typeof f.choices[0]?.delta?.content === 'string' && f.choices[0].delta.content.length > 0);
+      expect(firstReasoningIdx).toBeGreaterThanOrEqual(0);
+      expect(firstReasoningIdx).toBeLessThan(firstContentIdx);
+      // 正文帧不带 reasoning_content 键，reasoning 帧不带 content 键：两类帧干净分离。
+      for (const f of reasoningFrames) expect(f.choices[0].delta.content).toBeUndefined();
+      // SSE 心跳注释行存在性不在此断言（需 15s 等待）；注释行以 `:` 开头被 data: 过滤天然无扰。
+    } finally {
+      await h.server.stop();
+    }
+  });
+
   it('流式返回标准 SSE chat.completion.chunk 序列并以 data: [DONE] 结束', async () => {
     const h = await startServer({ driver: createFixtureDriver() });
     try {

@@ -999,12 +999,22 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     stored: StoredOperation | null
   ): Promise<void> => {
     let content = '';
+    let reasoning = '';
     let usage: Extract<DriverEvent, { type: 'usage' }> | null = null;
     let finishReason = 'stop';
     let outBytes = 0;
     for await (const event of events) {
       if (event.type === 'delta') {
         content += event.text;
+        outBytes += Buffer.byteLength(event.text, 'utf8');
+        if (outBytes > STREAM_BUFFER_MAX_BYTES) {
+          throw new ApiError('payload_too_large', `响应产出超过 ${STREAM_BUFFER_MAX_BYTES} 字节上限`, {
+            limit_bytes: STREAM_BUFFER_MAX_BYTES
+          });
+        }
+      } else if (event.type === 'reasoning') {
+        // 思考流与正文分开聚合；同受缓冲上限约束（它同样占真实内存）。
+        reasoning += event.text;
         outBytes += Buffer.byteLength(event.text, 'utf8');
         if (outBytes > STREAM_BUFFER_MAX_BYTES) {
           throw new ApiError('payload_too_large', `响应产出超过 ${STREAM_BUFFER_MAX_BYTES} 字节上限`, {
@@ -1022,7 +1032,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       object: 'chat.completion',
       created: Math.floor(now() / 1000),
       model: parsed.model,
-      choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: finishReason }],
+      choices: [{ index: 0, message: { role: 'assistant', content, ...(reasoning === '' ? {} : { reasoning_content: reasoning }) }, finish_reason: finishReason }],
       usage:
         usage === null
           ? null
@@ -1090,6 +1100,16 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     };
     push(emitChunk(ctx, [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }]));
 
+    // SSE 注释行心跳（2026-10-10）：官方深思考期 `reasoning_delta` 之外仍可能有整段
+    // 静默（create/工具执行/网络等待）。真客户端 mmx 的停滞检测在 ~70-90 s 无字节时
+    // 判"任务进程停滞"并断开重试（实录 frames=1 → client_gone）。注释行（`:` 开头）
+    // 是 SSE 规范的合法忽略帧：网络层看到字节流动，内容层不受污染。
+    // 15 s 一拍：远低于实测的 mmx 停滞阈值，也远低于普通代理的 idle 超时。
+    const heartbeat = setInterval((): void => {
+      if (!res.destroyed) res.write(': keep-alive\n\n');
+    }, 15_000);
+    heartbeat.unref?.();
+
     let usage: Extract<DriverEvent, { type: 'usage' }> | null = null;
     let finishReason = 'stop';
     let clientGone = false;
@@ -1101,6 +1121,10 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
         }
         if (event.type === 'delta') {
           push(emitChunk(ctx, [{ index: 0, delta: { content: event.text }, finish_reason: null }]));
+        } else if (event.type === 'reasoning') {
+          // 思考流外发（DeepSeek 风格 `delta.reasoning_content`）：思考期流保持活着，
+          // 支持思考展示的客户端还能把思考过程画出来。
+          push(emitChunk(ctx, [{ index: 0, delta: { reasoning_content: event.text }, finish_reason: null }]));
         } else if (event.type === 'usage') {
           usage = event;
         } else {
@@ -1108,6 +1132,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
         }
       }
     } finally {
+      clearInterval(heartbeat);
       // 客户端断开时立刻收掉产出，不让它继续空转。
       if (clientGone || res.destroyed) await events.return(undefined);
     }

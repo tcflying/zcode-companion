@@ -744,6 +744,11 @@ export interface DriverRequest {
 export type DriverEvent =
   | { readonly type: 'delta'; readonly text: string }
   | {
+      /** 思考流（官方 `reasoning_delta`）。与正文分开携带：SSE 落 `delta.reasoning_content`，非流式落 `message.reasoning_content`。 */
+      readonly type: 'reasoning';
+      readonly text: string;
+    }
+  | {
       readonly type: 'usage';
       readonly promptTokens: number;
       readonly completionTokens: number;
