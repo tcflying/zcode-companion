@@ -20,7 +20,7 @@
 
 'use strict';
 
-const { app, BrowserWindow, Tray, Menu, protocol, net, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, protocol, net, ipcMain, nativeImage, dialog } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -28,6 +28,7 @@ const path = require('node:path');
 
 const { resolveRuntimePaths } = require('./lib/runtime-paths.cjs');
 const { createLogRing } = require('./lib/log-ring.cjs');
+const { createLogExporter } = require('./lib/log-export.cjs');
 const { createProxyManager } = require('./lib/proxy-manager.cjs');
 const { buildSpawnSpec: buildSpecForRuntime } = require('./lib/spawn-spec.cjs');
 const {
@@ -45,6 +46,7 @@ const {
   publicSettings,
   normalizeSettings
 } = require('./lib/settings.cjs');
+const { createJournal, journalFilePath } = require('./lib/journal.cjs');
 const { assessSpawnStep } = require('./lib/verify-contract.cjs');
 
 /**
@@ -100,6 +102,17 @@ const UI_DIST = runtime.uiDist;
 
 const settingsFile = settingsFilePath(app.getPath('userData'));
 const loaded = loadSettings(settingsFile);
+
+/**
+ * 操作 journal（929.md:875「journal不足拒新发而非丢unknown」）。
+ * 与 settings.json 同根：`app.getPath('userData')/journal.json`。
+ * 容量不足时 `append` 返回 `{ ok:false, reason:'journal_capacity_exceeded' }`，
+ * 调用方据此**拒绝这次新发**，而不是让旧条目被静默丢掉。
+ */
+const journalDir = path.dirname(settingsFile);
+const journal = createJournal({ dir: journalDir });
+journal.load(journalDir);
+const journalFile = journalFilePath(journalDir);
 /**
  * 三种运行形态的凭据纪律各不相同：
  *  - `product`：首启引导允许从 `~/.minimax/config.yaml` 读回**本产品自己那把** key。
@@ -123,6 +136,37 @@ let settings = seeded.settings;
 const logRing = createLogRing({ capacity: 600 });
 if (settings.apiKey) logRing.addSecret(settings.apiKey);
 
+/* --- 脱敏日志导出（RA-09）--- */
+
+/** 导出取环里最近多少行。与环容量同量级：导出的对象就是「这一份本地缓冲」。 */
+const EXPORT_TAIL_LINES = 600;
+
+/**
+ * 导出执行器：语义全在 `lib/log-export.cjs`，这里只把三样依赖注进去
+ * （取行、取机密、选目标并落盘）。「重复动作不重复写盘」的在途标志
+ * 由模块内部持有，主进程不再自己维护第二份状态。
+ */
+const exportLogs = createLogExporter({
+  getLines: () => logRing.tail(EXPORT_TAIL_LINES),
+  // 用**环里同一份**机密集，而不是在这里另猜一把 key。
+  getSecrets: () => logRing.secrets(),
+  saveAs: async ({ generatedAt }) => {
+    const saveOptions = {
+      title: '保存脱敏日志导出',
+      defaultPath: `zcc-logs-${generatedAt.replace(/[:.]/g, '-')}.txt`,
+      filters: [{ name: '文本日志', extensions: ['txt', 'log'] }]
+    };
+    // 窗口可能已经关了：对话框没有父窗口时照样能弹，所以按窗口是否可用分支。
+    const window = /** @type {BrowserWindow | null} */ (mainWindow);
+    return window !== null && !window.isDestroyed()
+      ? dialog.showSaveDialog(window, saveOptions)
+      : dialog.showSaveDialog(saveOptions);
+  },
+  writeFile: (filePath, text) => {
+    fs.writeFileSync(filePath, text, 'utf8');
+  }
+});
+
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 /** @type {Tray | null} */
@@ -141,11 +185,13 @@ function logMain(text) {
  * 探测上游是否在监听。`GET /v1/models` 返回 401 或 200 都算「活」：
  * 401 说明服务在、只是这次没带 key——那正是我们启动前想要知道的事实。
  * @param {number} port
+ * @param {AbortSignal} [signal] 启动预算耗尽时由管理器 abort。这里**必须**透传给 `net.fetch`：
+ *   不接信号的话，「取消」只是上层不再等，底层请求照旧挂着（ZC-31/F16）。
  * @returns {Promise<boolean>}
  */
-async function probeApi(port) {
+async function probeApi(port, signal) {
   try {
-    const res = await net.fetch(`http://${UPSTREAM_HOST}:${port}/v1/models`, { method: 'GET' });
+    const res = await net.fetch(`http://${UPSTREAM_HOST}:${port}/v1/models`, { method: 'GET', signal });
     await res.body?.cancel().catch(() => {});
     return res.status === 200 || res.status === 401;
   } catch {
@@ -172,6 +218,10 @@ function buildSpawnSpec() {
     settings,
     node: nodeCommand(),
     parentEnv: process.env,
+    // 929.md:875：journal 落到与 settings **同一个目录**。
+    // 这是「从既有配置路径接」的字面含义——子进程不需要用户另设任何开关，
+    // 它拿到的就是主进程早就在用的那个目录（上面 journalDir 已是它）。
+    journalDir,
     shutdownGraceMs: SHUTDOWN_GRACE_MS
   });
 }
@@ -340,6 +390,20 @@ function pushToRenderer() {
 function registerIpc() {
   ipcMain.handle('zcc:desktop:state', () => snapshotPayload());
   ipcMain.handle('zcc:desktop:log', (_event, limit) => logRing.tail(typeof limit === 'number' ? limit : 200));
+  // journal 只读写**结构化操作记录**（operationId / state / outcome / 时间），
+  // 不含任何凭据、token、邮箱或会话标识。容量不足时如实返回拒绝原因，让渲染层
+  // 能显示「本次新发被拒」而不是假装成功。
+  ipcMain.handle('zcc:journal:list', () => ({
+    entries: journal.list(),
+    problems: journal.listProblems(),
+    file: journalFile,
+    capacity: journal.capacity(),
+    size: journal.size()
+  }));
+  ipcMain.handle('zcc:journal:append', (_event, input) => journal.append(input ?? {}));
+  ipcMain.handle('zcc:journal:cancel', (_event, operationId, reason) =>
+    journal.cancel(String(operationId ?? ''), reason)
+  );
   ipcMain.handle('zcc:desktop:settings:get', () => ({
     settings: publicSettings(settings),
     settingsFile,
@@ -363,6 +427,20 @@ function registerIpc() {
   ipcMain.handle('zcc:desktop:start', () => manager.start());
   ipcMain.handle('zcc:desktop:stop', () => manager.stop());
   ipcMain.handle('zcc:desktop:restart', () => manager.restart());
+
+  /**
+   * 脱敏日志导出（RA-09 `929.md:386/445/554/876`）。
+   *
+   * 三条语义是刻意分开的，报告里必须逐条对得上：
+   *  1. **非法输入如实拒绝**：`planLogExport` 先判，返回具体码，不静默兜底成成功。
+   *  2. **取消保存不是错误**：用户在系统对话框里点取消 ⇒ `CANCELLED`，不写任何文件。
+   *  3. **重复动作不重复写盘**：保存进行中再来一次 ⇒ `EXPORT_IN_PROGRESS`，
+   *     而不是弹第二个对话框或写两次。
+   *
+   * `preview` 模式**只读不落盘**：`:445` 要求「导出有预览」，预览必须先于任何写入。
+   * 脱敏与字节上限都在 `lib/log-export.cjs` 的纯函数里做，那里没有 fs、没有网络，可被完整单测。
+   */
+  ipcMain.handle('zcc:desktop:logs:export', (_event, input) => exportLogs(input));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -624,14 +702,23 @@ app.on('window-all-closed', () => {
 });
 
 let cleanedUp = false;
+let cleanupInFlight = false;
 app.on('before-quit', (event) => {
   if (cleanedUp || RUN_MODE !== 'product') return;
   event.preventDefault();
+  // **收束在途时的第二次 before-quit 只能拦住，绝不能放行**（ZC-33/F06）。
+  // `cleanedUp` 要到 dispose 完成后才置位，所以重复 quit（用户连点退出、
+  // 或 `window-all-closed` 之后又来一次）会在这里再发一次 `dispose()`；
+  // 那一次立刻落定，`.finally()` 于是**在子进程还没退出时**就 `app.quit()`——
+  // 退出被提前放行。真正收束的仍是第一次那条链，它完成后放行一次。
+  if (cleanupInFlight) return;
+  cleanupInFlight = true;
   manager
     .dispose()
     .catch(() => {})
     .finally(() => {
       cleanedUp = true;
+      cleanupInFlight = false;
       tray?.destroy();
       tray = null;
       app.quit();

@@ -3,7 +3,7 @@
  *
  * 硬边界：
  *  1. **不暴露 `ipcRenderer` 本体、不暴露 `require`/`fs`/任何可写通道。** 界面能做的
- *     每一件事都是下面这九个具名方法，主进程侧另有闭集校验。
+ *     每一件事都是下面这十个具名方法，主进程侧另有闭集校验。
  *  2. **凭据不过桥。** `getSettings` 返回的是掩码 + `zcc-fp:*` 指纹，明文 key 永远
  *     不出现在任何跨进程的返回值里（契约见 `apps/desktop/lib/settings.cjs`）。
  *  3. **订阅只回快照与日志尾**，两者都不含凭据。
@@ -48,7 +48,13 @@ const bridge = {
    * 保存设置。`apiKey` 留空或等于掩码表示「不改」，换 key 才提交新值。
    * 返回体同样只含掩码与指纹。
    */
-  saveSettings: (/** @type {unknown} */ next) => ipcRenderer.invoke('zcc:desktop:settings:save', next)
+  saveSettings: (/** @type {unknown} */ next) => ipcRenderer.invoke('zcc:desktop:settings:save', next),
+  /**
+   * 脱敏日志导出（RA-09）。`mode: 'preview'` **只读不落盘**，返回前若干字符与字节数/hash；
+   * `mode: 'save'` 弹系统保存对话框由用户选本地目标，用户取消则回 `CANCELLED`。
+   * 界面拿不到任何未脱敏文本，也拿不到可写路径以外的句柄。
+   */
+  exportLogs: (/** @type {unknown} */ input) => ipcRenderer.invoke('zcc:desktop:logs:export', input)
 };
 
 contextBridge.exposeInMainWorld('zccDesktop', Object.freeze(bridge));

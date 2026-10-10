@@ -266,12 +266,22 @@ describe('不变式：桥面上根本没有 key 这条路', () => {
     // 闭集：新增一个 handler 必须同时登记到这里，否则上面的扫描之外还要过人眼。
     expect(splitIpcHandlers(MAIN_SRC).map((h) => h.channel).sort()).toEqual([
       'zcc:desktop:log',
+      // 2026-10-08 脱敏日志导出（log-export.cjs）：只回导出文件路径与计数，
+      // 载荷经 redactTranscript 脱敏后才落盘；findIpcLeaks 扫描覆盖。
+      'zcc:desktop:logs:export',
       'zcc:desktop:restart',
       'zcc:desktop:settings:get',
       'zcc:desktop:settings:save',
       'zcc:desktop:start',
       'zcc:desktop:state',
-      'zcc:desktop:stop'
+      'zcc:desktop:stop',
+      // 2026-10-07 因 929.md:875（journal不足拒新发而非丢unknown）新增。
+      // 这三个 handler **不返回 settings、不返回 apiKey**：list 只回操作记录
+      // （operationId/state/outcome/at），append/cancel 无返回值。
+      // 上方 findIpcLeaks 扫描同时确认它们没有引入 key 泄漏面。
+      'zcc:journal:append',
+      'zcc:journal:cancel',
+      'zcc:journal:list'
     ]);
     // 明确点名：唯一的出口是 publicSettings。
     expect(MAIN_SRC).toContain('publicSettings(settings)');

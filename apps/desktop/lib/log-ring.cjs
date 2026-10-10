@@ -125,6 +125,18 @@ function createLogRing(options) {
       const limit = typeof n === 'number' && n > 0 ? Math.min(Math.trunc(n), buffer.length) : buffer.length;
       return buffer.slice(buffer.length - limit).map((e) => ({ ...e }));
     },
+    /**
+     * 当前登记的机密串**副本**。
+     *
+     * 存在的理由：脱敏日志导出（`lib/log-export.cjs`）要在导出边界**再脱敏一次**，
+     * 而它必须用**环里同一份**机密集。让导出侧去猜「登记的是哪几串」就是让它有机会漏。
+     * 返回副本而不是内部数组：调用方拿到的副本再排序也污染不到环内状态。
+     *
+     * @returns {string[]}
+     */
+    secrets() {
+      return secrets.slice();
+    },
     clear() {
       buffer = [];
       partial.clear();

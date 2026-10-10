@@ -361,6 +361,8 @@ describe('子进程 env 闭集', () => {
       apiKey: SYNTHETIC_KEY,
       apiPort: 8791,
       reasoning: 'low',
+      // 929.md:875：journal 目录由主进程给出，值来自参数而不是从父进程继承。
+      journalDir: 'C:/profiles/web',
       parentEnv: {
         SystemRoot: 'C:\\Windows',
         PATH: 'C:\\bin',
@@ -369,6 +371,7 @@ describe('子进程 env 闭集', () => {
         ZCC_DRIVER: 'official-host',
         ZCC_HOST_DEBUG: '1',
         ZCC_SHUTDOWN_GRACE_MS: '999',
+        ZCC_JOURNAL_DIR: '父进程里的旧目录',
         ELECTRON_RUN_AS_NODE: '1'
       },
       extra: { ELECTRON_RUN_AS_NODE: '1', ZCC_DRIVER: 'fixture' }
@@ -379,6 +382,7 @@ describe('子进程 env 闭集', () => {
     expect(env.ZCC_API_KEY).toBe(SYNTHETIC_KEY);
     expect(env.ZCC_API_PORT).toBe('8791');
     expect(env.ZCC_HOST_REASONING).toBe('low');
+    expect(env.ZCC_JOURNAL_DIR).toBe('C:/profiles/web');
     expect(env.ZCC_SHUTDOWN_GRACE_MS).toBe('5000');
     // extra 里混进来的 ZCC_* 也进不来。
     expect(env.ZCC_DRIVER).toBeUndefined();
@@ -393,6 +397,18 @@ describe('子进程 env 闭集', () => {
     for (const key of CHILD_ENV_KEYS) {
       expect(entry.ENTRY_ENV_KEYS, `${key} 必须是入口认识的 env 键`).toContain(key);
     }
+  });
+
+  it('journalDir 缺省时不发射该键（子进程保持纯内存，不猜目录）', () => {
+    const env = buildChildEnv({
+      apiKey: SYNTHETIC_KEY,
+      apiPort: 8791,
+      reasoning: 'low'
+    });
+    expect(env.ZCC_JOURNAL_DIR).toBeUndefined();
+    expect(Object.keys(env).filter((k) => k.startsWith('ZCC_')).sort()).toEqual(
+      [...CHILD_ENV_KEYS].filter((k) => k !== 'ZCC_JOURNAL_DIR').sort()
+    );
   });
 });
 

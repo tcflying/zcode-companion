@@ -13,6 +13,8 @@
  *  3. **子进程 env 是闭集。** 只有下表 `CHILD_ENV_KEYS` 里的 `ZCC_*` 键会被带过去；
  *     其余 `ZCC_*` 一律不带（`start-api.mjs` 对未知 `ZCC_*` 是 422 拒启动，带过去等于
  *     让子进程起不来）。另有一小组**操作系统必需**的键按白名单透传，见 `OS_ENV_PASSTHROUGH`。
+ *     注意 `ZCC_JOURNAL_DIR` 是**条件发射**：声明在闭集内，但只有主进程给出了
+ *     journal 目录时才真正写进 env。
  *  4. **key 走 env，不走命令行。** 命令行参数对本机所有进程可见，`--api-key` 等于
  *     把 key 贴在了进程列表上。
  *  5. **停止是有界的。** 先 `SIGINT` 走 API 侧的在途收束（`ZCC_SHUTDOWN_GRACE_MS`），
@@ -36,7 +38,10 @@ const CHILD_ENV_KEYS = Object.freeze([
   'ZCC_API_KEY',
   'ZCC_API_PORT',
   'ZCC_SHUTDOWN_GRACE_MS',
-  'ZCC_HOST_REASONING'
+  'ZCC_HOST_REASONING',
+  // 929.md:875：把主进程已在用的 settings 目录交给子进程的 journal。
+  // **条件发射**：只有 `journalDir` 非空时才带；缺省不带，子进程保持纯内存。
+  'ZCC_JOURNAL_DIR'
 ]);
 
 /**
@@ -69,6 +74,7 @@ const DEFAULT_SHUTDOWN_GRACE_MS = 5_000;
  * @param {string} options.apiKey
  * @param {number} options.apiPort
  * @param {string} options.reasoning
+ * @param {string} [options.journalDir] 操作 journal 落盘目录（与 settings 同根）。
  * @param {number} [options.shutdownGraceMs]
  * @param {Record<string, string | undefined>} [options.parentEnv]
  * @param {Record<string, string>} [options.extra] 额外的非 ZCC 键（如 `ELECTRON_RUN_AS_NODE`）。
@@ -92,6 +98,11 @@ function buildChildEnv(options) {
   env['ZCC_API_PORT'] = String(options.apiPort);
   env['ZCC_SHUTDOWN_GRACE_MS'] = String(options.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS);
   env['ZCC_HOST_REASONING'] = options.reasoning;
+  // 929.md:875：把主进程**已经在用**的目录交给子进程的 journal。
+  // 缺省就不给这个键——子进程据此保持「纯内存、不落盘」，而不是自己猜一个目录。
+  if (typeof options.journalDir === 'string' && options.journalDir !== '') {
+    env['ZCC_JOURNAL_DIR'] = options.journalDir;
+  }
   return env;
 }
 
@@ -137,7 +148,7 @@ function assertState(state, reason) {
  *
  * @param {object} deps
  * @param {(spec: SpawnSpec) => FakeChild} deps.spawnChild
- * @param {(port: number) => Promise<boolean>} deps.probeApi 探测 `/v1/models`；401/200 都算活。
+ * @param {(port: number, signal?: AbortSignal) => Promise<boolean>} deps.probeApi 探测 `/v1/models`；401/200 都算活。`signal` 是启动预算耗尽时的取消口，实现必须把它透传给真正的请求。
  * @param {LogRingLike} deps.logRing
  * @param {() => number} [deps.now]
  * @param {number} [deps.pollIntervalMs]
@@ -176,6 +187,25 @@ function createProxyManager(deps) {
   let stopWaiter = null;
   let intentionalStop = false;
   let disposed = false;
+  /**
+   * **本次启动的代次**（ZC-33/F06）。
+   *
+   * `stop()` / `dispose()` 会**同步**把它推一格，预探在途的启动据此立刻作废。
+   * 没有它，「停止 / 销毁」对预探窗口里的启动**完全无效**：那个窗口里
+   * `child === null`（预探返回前还没 spawn），停止既拿不到句柄、也改不了
+   * `attempt.code`，于是在途启动毫发无损地活过停止，返回后照样 spawn、
+   * 照样报 `STARTED`，把终态写成 running。
+   * @type {number}
+   */
+  let startEpoch = 0;
+  /**
+   * **收束在途**期间的非空收束 Promise（ZC-33/F06）。
+   *
+   * 并发的 `dispose()` 必须共享**同一个对象**并在同一次真实收束上共同落定；
+   * 但 settled 之后必须回到既有幂等 `DISPOSED` 契约，所以它**不能**是永久单飞。
+   * @type {Promise<{ ok: boolean, code: string }> | null}
+   */
+  let disposeInFlight = null;
   /**
    * `start()` 的**同步**在途闸。
    *
@@ -236,6 +266,55 @@ function createProxyManager(deps) {
       timer = setTimeout(done, ms);
       attempt.wake = done;
     });
+  }
+
+  /**
+   * 在**剩余预算**内探测一次；预算耗尽时**真的取消底层探测**。
+   *
+   * 为什么 `Promise.race([probe, timer])` 不够（ZC-31/F16）：
+   * 那只让**上层不再等**，底层那个请求仍然挂着——句柄不释放、连接不关，
+   * 预算耗尽就成了摆设，迟到的一个 `true` 还能把终态偷改成成功。
+   * 所以这里额外持有 `AbortController`：预算一到立刻 `abort()`，并给迟到的
+   * 落定补一个被吞掉的 catch（否则取消会变成 `unhandledRejection`）。
+   *
+   * 剩余预算 ≤ 0 时**根本不发探测**：预算已经用完，再发一次就是明知故犯。
+   *
+   * @param {number} targetPort
+   * @param {number} deadline
+   * @returns {Promise<{ exhausted: boolean, alive: boolean }>}
+   */
+  async function probeWithinDeadline(targetPort, deadline) {
+    const remaining = deadline - now();
+    if (remaining <= 0) return { exhausted: true, alive: false };
+
+    const controller = new AbortController();
+    /** @type {any} */
+    let timer = null;
+    try {
+      const probe = Promise.resolve()
+        .then(() => deps.probeApi(targetPort, controller.signal))
+        .then(
+          (v) => ({ kind: 'probe', alive: v === true }),
+          () => ({ kind: 'probe', alive: false })
+        );
+      const guard = new Promise((resolvePromise) => {
+        timer = setTimeout(() => resolvePromise({ kind: 'budget' }), remaining);
+      });
+      const winner = await Promise.race([probe, guard]);
+      // **probe 先赢 ≠ 它还在预算内。**`await` 让出一次微任务，事件循环在这段时间里
+      // 可能已经越过 deadline——Promise 微任务优先于定时器就是最典型的场景。
+      // 所以这里必须**再核一次时钟**：只有仍在预算内才接受探测结果。
+      // 定时器赢、或 probe 赢但已超时，一律按「预算耗尽」处理并取消底层。
+      if (winner.kind === 'probe' && now() < deadline) return { exhausted: false, alive: winner.alive };
+      // 预算耗尽：**必须**取消底层，否则它会一直挂着直到自己超时。
+      controller.abort();
+      return { exhausted: true, alive: false };
+    } finally {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    }
   }
 
   /**
@@ -416,7 +495,29 @@ function createProxyManager(deps) {
       // 探活在 B 端口打：A 已经就绪也报 `START_TIMEOUT`，B 上有残留服务反而报 `STARTED`。
       const targetPort = port;
       const activeSpec = spawnSpec;
-      const alive = await deps.probeApi(targetPort).catch(() => false);
+      // **一个**启动 deadline，预探与轮询**共用**：预算从 `start()` 进入就起算。
+      // 原实现把 deadline 算在预探与 spawn **之后**，等于预探完全不受预算约束。
+      // **本次启动的代次**（ZC-33/F06）。`stop()` / `dispose()` 会同步把它推一格。
+      const epoch = startEpoch;
+      /** 本次启动是否已被停止 / 销毁作废。 */
+      const invalidated = () => disposed || epoch !== startEpoch;
+      const deadline = now() + startTimeoutMs;
+      const pre = await probeWithinDeadline(targetPort, deadline);
+      // **await 之后必须重查有效性**：这里才是真正要改状态（external / spawn）的地方。
+      // 停止 / 销毁优先于超时分类——用户已经明说「别起了」，再报 START_TIMEOUT 是在说谎。
+      if (invalidated()) return disposed ? { ok: false, code: 'DISPOSED' } : { ok: false, code: 'STOPPED' };
+      // 预探预算耗尽：我们**不知道**端口是否已被占用，因此既不能报 EXTERNAL，
+      // 也不能贸然 spawn 去抢一个可能已被占用的端口。只如实报超时。
+      // **两处都要复核**：helper 内那次管的是 abort 与分类，而 helper 返回到调用方
+      // 还隔着一次微任务边界 —— 真正要改状态（external / spawn）的是这里（ZC-31/F16 P1）。
+      if (pre.exhausted || now() >= deadline) {
+        setState(
+          'failed',
+          `反代预探在 ${startTimeoutMs}ms 内没有在 127.0.0.1:${targetPort} 上得出结论（GET /v1/models）；该探测已被取消，本次未拉起子进程。`
+        );
+        return { ok: false, code: 'START_TIMEOUT' };
+      }
+      const alive = pre.alive;
       if (alive) {
         child = null;
         pid = null;
@@ -466,22 +567,35 @@ function createProxyManager(deps) {
         onExit(spawned, code, signal);
       });
 
-      const deadline = now() + startTimeoutMs;
+      // deadline 已在预探之前起算（与预探共用），这里不再重算。
       // 轮询到「探通」/「子进程先死（含异步 error）」/「超时」三者之一为止。
       for (;;) {
         // 一次性完成保护：error / exit 已经定过终态就立刻交出，绝不再往下走一步，
         // 把真实原因覆盖成 CHILD_EXITED 或 START_TIMEOUT。
         if (attempt.code !== null) return { ok: false, code: attempt.code };
         if (child !== spawned) return { ok: false, code: 'CHILD_EXITED' };
-        const reachable = await deps.probeApi(targetPort).catch(() => false);
+        const polled = await probeWithinDeadline(targetPort, deadline);
         // 探测在途期间抵达的 error / exit 优先于「探不通」：进程都没起来，探通没有意义。
+        // 这条修复了第二个连带缺陷：探测挂起时旧代码**卡在 await 里出不来**，
+        // 于是 error 已经抢到闸、真实原因却永远送不到调用方。
         if (attempt.code !== null) return { ok: false, code: attempt.code };
-        if (reachable) {
-          // **故意不抢闸**：running 之后的意外退出仍必须由 `onExit` 正常落 failed。
-          setState('running', null);
-          return { ok: true, code: 'STARTED' };
-        }
-        if (now() >= deadline) {
+        // **await 之后必须再核一次 child 身份**（ZC-32/F07）。
+        // 原来身份检查只在 await **之前**：子进程在探测在途期间退出，`onExit` 会把
+        // `child` 清成 null；而主动停止时 exit 监听**跳过** claimAttempt，
+        // `attempt.code` 仍是 null —— 上面那道检查根本拦不住。
+        // 后果是「晚到的 true」直接进成功分支：报 STARTED、`child === null` 的坏快照
+        // （owned:false / pid:null），把终态从 stopped/failed 改写成 running，
+        // 之后 start / stop / restart 全部 BUSY（死锁）。
+        // 晚到的 false 不受影响：它会落到循环顶部，那里的身份检查还等着。
+        if (child !== spawned) return { ok: false, code: 'CHILD_EXITED' };
+        // **await 之后重查有效性**（ZC-33/F06），但**必须排在身份检查之后**。
+        // 主动停止已让子进程退出时，`child !== spawned` 先命中，仍按既有语义报
+        // `CHILD_EXITED`（ZC-32/F07 已签收口径）；只有「句柄还在、却已被 stop /
+        // dispose 作废」这一支才由这里接管，迟到 true / false 都不会被采纳。
+        if (invalidated()) return disposed ? { ok: false, code: 'DISPOSED' } : { ok: false, code: 'STOPPED' };
+        // **先判截止，再看探测结果**：helper 返回到调用方之间还隔着一次微任务边界，
+        // 此处若不复核，一个**已经超时**的 true 仍会把状态写成 running（ZC-31/F16 P1）。
+        if (polled.exhausted || now() >= deadline) {
           const reason = `反代子进程在 ${startTimeoutMs}ms 内没有在 127.0.0.1:${targetPort} 上探通（GET /v1/models）。`;
           // **先抢闸再收束**：`stopOwned()` 期间抵达的 error 不得把 failed 改写一次，
           // 那是两个终态。
@@ -491,6 +605,12 @@ function createProxyManager(deps) {
           await stopOwned();
           setState('failed', reason);
           return { ok: false, code: 'START_TIMEOUT' };
+        }
+        // 确认仍在预算内之后，才轮到「探通 ⇒ running」这条成功分支。
+        if (polled.alive) {
+          // **故意不抢闸**：running 之后的意外退出仍必须由 `onExit` 正常落 failed。
+          setState('running', null);
+          return { ok: true, code: 'STARTED' };
         }
         await waitForAttemptTick(pollIntervalMs);
       }
@@ -550,6 +670,11 @@ function createProxyManager(deps) {
   async function stop() {
     if (disposed) return { ok: false, code: 'DISPOSED' };
     if (state === 'external') return { ok: false, code: 'EXTERNAL_NOT_OWNED' };
+    // 停止必须**同步**让在途启动失效（ZC-33/F06）：预探窗口里 `child === null`，
+    // 停止拿不到任何句柄；不推代次那次启动就会继续 spawn。
+    // 推代次必须在 `child === null` 那个早退分支**之前**——那种情况下
+    // 「本来就没什么可停」也仍然必须作废在途启动。
+    startEpoch += 1;
     if (child === null) {
       if (state === 'stopped' || state === 'failed') {
         setState('stopped', lastError);
@@ -571,16 +696,33 @@ function createProxyManager(deps) {
   }
 
   /** 退出收束：幂等，且只碰自己 spawn 的进程。 */
-  async function dispose() {
-    if (disposed) return { ok: true, code: 'DISPOSED' };
+  function dispose() {
+    // **收束在途**：并发调用共享**同一个** pending Promise，在同一次真实收束上
+    // 共同落定；第二次不许自己另起一条（ZC-33/F06）。必须返回同一个对象，所以
+    // 这里刻意**不是 async**——`async function f() { return p; }` 返回的是新包装。
+    if (disposeInFlight !== null) return disposeInFlight;
+    // **已 settled**：回到既有幂等契约，且**不重新清理**。
+    if (disposed) return Promise.resolve({ ok: true, code: 'DISPOSED' });
     disposed = true;
-    if (state === 'external') return { ok: true, code: 'NOT_OWNED' };
-    if (child === null) {
-      // 同 stopOwned：running/starting 却没有句柄 = 所有权自相矛盾，如实报而不是装成功。
-      if (state === 'running' || state === 'starting') return { ok: false, code: 'INCONSISTENT_OWNERSHIP' };
-      return { ok: true, code: 'NOT_OWNED' };
-    }
-    return stopOwned();
+    // 销毁同样必须**同步**作废在途启动。
+    startEpoch += 1;
+    const pending = (async () => {
+      if (state === 'external') return { ok: true, code: 'NOT_OWNED' };
+      if (child === null) {
+        // 同 stopOwned：running/starting 却没有句柄 = 所有权自相矛盾，如实报而不是装成功。
+        if (state === 'running' || state === 'starting') return { ok: false, code: 'INCONSISTENT_OWNERSHIP' };
+        return { ok: true, code: 'NOT_OWNED' };
+      }
+      return stopOwned();
+    })();
+    disposeInFlight = pending;
+    // 清理必须**同步注册**：调用方的 `await` 续行一定排在这条之后，
+    // 于是 settled 之后的调用看到的已经是 `disposeInFlight === null`，走幂等分支。
+    const clear = () => {
+      if (disposeInFlight === pending) disposeInFlight = null;
+    };
+    pending.then(clear, clear);
+    return pending;
   }
 
   return {

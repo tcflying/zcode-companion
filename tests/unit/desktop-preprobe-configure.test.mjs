@@ -159,6 +159,7 @@ describe('ZC-29/F13：预探在途期间保存设置，spawn 与 probe 不得错
     });
 
     const pending = manager.start();
+    await Promise.resolve(); // 预探经 Promise.resolve().then 包装（防同步异常），发起晚一个微任务节拍。
     // 预探在第一个 await 上挂起；此刻 state 仍是 'stopped'（守卫的唯一依据）。
     expect(held.length, 'start 的预探必须已经挂起').toBe(1);
     expect(at(ports, 0), '预探打的是启动瞬间的活动端口').toBe(OLD_PORT);
@@ -195,6 +196,7 @@ describe('ZC-29/F13：预探在途期间保存设置，spawn 与 probe 不得错
     });
 
     const pending = manager.start();
+    await Promise.resolve(); // 预探经 Promise.resolve().then 包装（防同步异常），发起晚一个微任务节拍。
     expect(held.length, 'start 的预探必须已经挂起').toBe(1);
     const outcome = manager.configure({ port: NEW_PORT, spawnSpec: specFor(NEW_PORT) });
     at(held, 0).resolve(false); // 预探答「不活」⇒ 放行 spawn
@@ -226,6 +228,7 @@ describe('ZC-29/F13 负例：既有纪律不许被这条修复顺手改掉', () 
     });
 
     const pending = manager.start();
+    await Promise.resolve(); // 预探经 Promise.resolve().then 包装（防同步异常），发起晚一个微任务节拍。
     at(held, 0).resolve(false); // 预探放行 → spawn → starting
     await tick();
     expect(held.length, '轮询探测必须已经挂起').toBe(2);
@@ -251,6 +254,7 @@ describe('ZC-29/F13 负例：既有纪律不许被这条修复顺手改掉', () 
     const { manager, spawnedPorts, held } = makeManager({ up: () => true, holdCount: 1 });
 
     const pending = manager.start();
+    await Promise.resolve(); // 预探经 Promise.resolve().then 包装（防同步异常），发起晚一个微任务节拍。
     expect(held.length, 'start 的预探必须已经挂起').toBe(1);
     const second = await manager.start();
     expect(second).toEqual({ ok: false, code: 'BUSY' });
@@ -266,6 +270,7 @@ describe('ZC-29/F13 负例：既有纪律不许被这条修复顺手改掉', () 
     const { manager, spawnedPorts, children, held } = makeManager({ up: () => true, holdCount: 1 });
 
     const pending = manager.start();
+    await Promise.resolve(); // 预探经 Promise.resolve().then 包装（防同步异常），发起晚一个微任务节拍。
     at(held, 0).resolve(false);
     expect(await pending).toEqual({ ok: true, code: 'STARTED' });
     // 只收束自己 spawn 的那个句柄。

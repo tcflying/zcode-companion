@@ -35,6 +35,7 @@ const { buildChildEnv } = require('./proxy-manager.cjs');
  * @param {NodeCommand} options.node Node 运行时来源。
  * @param {Record<string, string | undefined>} options.parentEnv
  * @param {number} [options.shutdownGraceMs]
+ * @param {string} [options.journalDir] 子进程操作 journal 落盘目录（= 主进程 settings 所在目录）。
  * @returns {{ command: string, args: string[], env: Record<string, string>, cwd: string, windowsHide: boolean, shell: boolean }}
  */
 function buildSpawnSpec(options) {
@@ -47,6 +48,9 @@ function buildSpawnSpec(options) {
       apiKey: options.settings.apiKey,
       apiPort: options.settings.apiPort,
       reasoning: options.settings.reasoning,
+      // 929.md:875：journal 必须落在**既有配置路径**下，不能要求用户另设开关。
+      // 目录不是机密，所以走 env 也满足「key 不进 argv」那条纪律。
+      journalDir: options.journalDir,
       shutdownGraceMs: options.shutdownGraceMs,
       parentEnv: options.parentEnv,
       extra: options.node.extra
