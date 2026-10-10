@@ -793,8 +793,8 @@ npm run ci
 | --- | --- |
 | 根工程测试文件 | 25（`tests/unit/**` + `tests/contract/**`） |
 | 根工程用例 | 884 |
-| `apps/ui` 测试文件 | 4（`npm run test:ui`，走 `apps/ui` 自己的 vitest） |
-| `apps/ui` 用例 | 122 |
+| `apps/ui` 测试文件 | 10（`npm run test:ui`，走 `apps/ui` 自己的 vitest） |
+| `apps/ui` 用例 | 258 |
 | 框架 | vitest 5.0.2 |
 | 超时 | 15s / 用例 |
 

@@ -712,7 +712,7 @@ env | grep ZCC_
 | 许可证 | **无 LICENSE 文件**。私有项目，`README.md` 末尾声明 Proprietary |
 | 治理文档 | `AGENTS.md` 内含**本机绝对路径**（如 `G:/zcode-project/zcode-companion` 与 `G:/zcode-project/zcode-dev/.superpowers/...`）。对外部署者不可直接照搬 |
 | 文档分工 | 本文 = 部署与使用；[`USAGE.md`](USAGE.md) = 深度手册（13 章，含完整 env 闭集、字段四分法、源码索引）。两者互补，本文不复制 USAGE 的深度段落 |
-| 对应基线 | 本文对应远端提交 **`8e3d91e`**。按提交说明，该基线的能力范围 = **基础整改波1**（`8eafe91` 提交列出 ZC-01/01E/02/03/12/13/23/29/30/43/44/45/49/55 已签收卡），HEAD 另含一笔 `wip(zc-51)`（提交说明自述"接管会话工作，**未独立验收**"） |
+| 对应基线 | 本文对应远端提交 **`ea2e9fe`**。按提交说明，该基线的能力范围 = **基础整改波1**（`8eafe91` 提交列出 ZC-01/01E/02/03/12/13/23/29/30/43/44/45/49/55 已签收卡），HEAD 另含一笔 `wip(zc-51)`（提交说明自述"接管会话工作，**未独立验收**"） |
 | 未做 | **ZC-50 … ZC-56 与整体终验未做**。本文不宣称这些能力已具备 |
 | 测试面 | `npm run ci`；`tests/integration` / `mutations` / `e2e` 三个类别**未接线**，其门经 `scripts/stage-gate.mjs` 以 `NOT_IMPLEMENTED` fail-closed（exit 3） |
 

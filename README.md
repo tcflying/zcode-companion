@@ -157,7 +157,7 @@ npm run ci
 
 `ci` = `typecheck` + `typecheck:checkjs` + `typecheck:apps` + `test:ui` + `test`。
 
-**当前状态：29 个测试文件 / 1006 个用例全绿**（vitest 5.0.2）——根工程 25 文件 / 884 用例（`test`），`apps/ui` 4 文件 / 122 用例（`test:ui`，跑 `apps/ui` 自己的 vitest）。测试保持 **provider-free**：不启动官方 app-server、不发模型请求、不碰生产服务或数据库。`tests/integration` / `mutations` / `e2e` 三个类别**未接线**，其门经 `scripts/stage-gate.mjs` 以 `NOT_IMPLEMENTED` fail-closed。详见 [`docs/USAGE.md` §12](docs/USAGE.md#12-测试)。
+**当前状态：29 个测试文件 / 1006 个用例全绿**（vitest 5.0.2）——根工程 25 文件 / 884 用例（`test`），`apps/ui` 10 文件 / 258 用例（`test:ui`，跑 `apps/ui` 自己的 vitest）。测试保持 **provider-free**：不启动官方 app-server、不发模型请求、不碰生产服务或数据库。`tests/integration` / `mutations` / `e2e` 三个类别**未接线**，其门经 `scripts/stage-gate.mjs` 以 `NOT_IMPLEMENTED` fail-closed。详见 [`docs/USAGE.md` §12](docs/USAGE.md#12-测试)。
 
 ---
 
