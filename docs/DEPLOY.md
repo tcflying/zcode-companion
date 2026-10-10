@@ -300,7 +300,7 @@ setx /M ZCODE_CREDENTIAL_SECRET "<上面算出的那串>"
 | 步骤 1 后 | `ls -l /c/ZCode/resources/glm/zcode.cjs` | 文件可读 |
 | 步骤 2 后 | 服务起来后打 catalog | 503 / `cache-file-absent` 消失 |
 | 步骤 3 后 | 发一条最小聊天请求 | 不再是 502 `Credential decrypt failed` |
-| 步骤 4 后 | **重启机器后**重打 §8 全部勾选项 | 全绿（验证自启配置真的生效） |
+| 步骤 4 后 | **重启机器后**重打 §9 全部勾选项 | 全绿（验证自启配置真的生效） |
 
 ---
 
@@ -409,9 +409,209 @@ curl -sS -i http://127.0.0.1:8790/v1/models \
 
 ---
 
-## 7. 通道与档位预期
+## 7. 客户端接入实战
 
-### 7.1 通道
+本节写「反代跑起来之后，怎么把手上任意 OpenAI 兼容客户端接上去」。**字段级规则、`zcc` 扩展块与逐项踩坑在 [`USAGE.md` §6](USAGE.md#6-接线minimax-code-及其它-openai-兼容客户端) 与 §4–§5，本节不复制**，只写接线时真正会栽跟头的两件事：**配置形状**与 **key/端口同步纪律**，最后给一份本机实例现状。
+
+### 7.1 三要素
+
+任何 OpenAI 兼容客户端，接本反代只要填三样：
+
+| 项 | 值 | 核实出处 |
+| --- | --- | --- |
+| baseURL | `http://127.0.0.1:8790/v1` | 本机两份真实客户端配置**逐字一致**：`~/.minimax/config.yaml` 的 `custom_provider.zcc-companion.options.baseURL`、`~/.opencodex/config.json` 的 `providers.zcc-bigmodel.baseUrl` 与 `providers.zcc-start-plan.baseUrl`（本机只读核对，值均为该 URL）。端口缺省见 §5.1 `ENTRY_DEFAULT_PORT = 8790` |
+| apiKey | `<你的本机key>`（占位符）。**本文与所有示例一律不写真实值** | §5.1 `ZCC_API_KEY`：服务端只认这一把，客户端填别的必然 401 |
+| model | **目录原文**，必须含 `account:` 前缀与 `::` 分隔符，形如 `account:bigmodel-start-plan::GLM-5.3-Flash` | §6 末段 + 本机两份真实配置的 `models` 键逐字形态；`account:` 是唯一白名单通道前缀（§8.3） |
+
+**模型名不要自己拼。** 目录条目是「套餐 × 模型」组合：同一个模型在不同套餐下是**不同 id**（`account:bigmodel-start-plan::GLM-5.3-Flash` 与 `account:bigmodel-individual-coding-plan::GLM-5.3-Flash` 是两条独立条目，计费类别也不同）。先 `GET /v1/zcc/catalog` 查，再逐字抄 id。条数随官方 builtin 变化，**以实时返回为准**。
+
+### 7.2 真实形状之一：MiniMax Code（`config.yaml`）
+
+配置文件：`%USERPROFILE%\.minimax\config.yaml` 的 `custom_provider` 段。下面**逐字转录本机真实形状，值全部占位**：
+
+```yaml
+custom_provider:
+  zcc-companion:
+    name: "ZCC Companion"
+    kind: custom
+    enabled: true
+    api: openai-completions
+    options:
+      apiKey: <你的本机key>
+      baseURL: "http://127.0.0.1:8790/v1"
+      authMode: api-key
+    models:
+      "account:bigmodel-start-plan::GLM-5.3-Flash":
+        name: "GLM-5.3-Flash (ZCC Start Plan)"
+        limit:
+          context: 1000000
+          output: 128000
+        reasoning: true
+        tool_call: false
+        thinking:
+          effortOptions:
+            - low
+            - high
+            - max
+        thinking_config:
+          mode: switchable
+          default_value: "true"
+        configuration_source: manual
+        enabled: true
+        attachment: true
+        modalities:
+          input:
+            - text
+          output:
+            - text
+```
+
+| 字段 | 断言 | 核实出处 |
+| --- | --- | --- |
+| `options.apiKey` | **只能明文落盘**。这是本产品那把 key 在 mcode 侧的唯一落盘形态 | 本机 `~/.minimax/config.yaml` 逐字（值已打码核对）；同口径见 [`USAGE.md` §13.5](USAGE.md#135-设置与首启引导) |
+| `options.baseURL` / `options.authMode` | 见 §7.1；`authMode` 为 `api-key` | 本机配置逐字 |
+| `api` | `openai-completions`。**不能写 `openai-responses`** | 本机配置逐字；理由见 [`USAGE.md` §6.2](USAGE.md#62-minimax-code真实用例mcode056) |
+| `models` 的键 | 完整目录 id，含 `account:` 与 `::`。**键整体加引号**——它含 `:`，不加引号的 YAML 解析结果不可靠 | 本机配置逐字（三条 id 均带引号） |
+| `thinking.effortOptions` | **只能 `low` / `high` / `max` 三项**，与本端点 `reasoning_effort` 闭集逐字相等；多一项（如 `medium`）客户端就会发出一个 API 层 422 的值 | 本机配置逐字（恰好三项）+ `packages/api/src/chat.ts:274` `REASONING_EFFORT_LEVELS = ['low','high','max']` + 闭集契约测试 |
+| `tool_call` | `false`。本端点是纯对话形态，`tools_forwarded` 恒 0 | 本机配置逐字；见 [`USAGE.md` §10.2](USAGE.md#102-外部客户端--纯对话形态) |
+| `thinking_config.mode` / `default_value` | `switchable` / `"true"` | 本机配置逐字 |
+
+> **一处与 [`USAGE.md` §6.2–§6.3](USAGE.md#6-接线minimax-code-及其它-openai-兼容客户端) 的差异，如实记录**：`USAGE.md` 的示例里 `thinking` 下还写了 `effort` 与 `defaultEffort`，而**本机当前这份 `config.yaml` 的 `thinking` 下只有 `effortOptions`，`defaultEffort` 不存在**。因此 `USAGE.md` §6.3 记录的「`defaultEffort` 缺失会静默回落到中间档」这个风险，在当前这份配置上是**活的**——排查「明明配了 `low` 却跑高档位」时，先确认 `defaultEffort` 在不在。本节按本机真实形状转录，不替 `USAGE.md` 改口。
+
+### 7.3 真实形状之二：opencodex（`config.json`）
+
+配置文件：`%USERPROFILE%\.opencodex\config.json`。**顶层段名是复数 `providers`**（不是 `provider`），反代相关的是两个段：`zcc-bigmodel`（订阅套餐）与 `zcc-start-plan`（活动额度）。逐字形状（值全占位）：
+
+```json
+{
+  "providers": {
+    "zcc-bigmodel": {
+      "adapter": "openai-chat",
+      "baseUrl": "http://127.0.0.1:8790/v1",
+      "name": "zcc-bigmodel",
+      "authMode": "key",
+      "apiKey": "<你的本机key>",
+      "allowPrivateNetwork": true,
+      "liveModels": true,
+      "contextWindow": 1000000,
+      "models": [
+        "account:bigmodel-individual-coding-plan::GLM-5.3",
+        "account:bigmodel-individual-coding-plan::GLM-5.3-Flash"
+      ],
+      "selectedModels": [
+        "account:bigmodel-individual-coding-plan::GLM-5.3",
+        "account:bigmodel-individual-coding-plan::GLM-5.3-Flash"
+      ],
+      "defaultModel": "account:bigmodel-individual-coding-plan::GLM-5.3",
+      "modelDisplayNames": {
+        "account:bigmodel-individual-coding-plan::GLM-5.3": "GLM-5.3"
+      },
+      "modelContextWindows": {
+        "account:bigmodel-individual-coding-plan::GLM-5.3": 1000000
+      },
+      "modelReasoningEfforts": {
+        "account:bigmodel-individual-coding-plan::GLM-5.3": ["low", "high", "max"]
+      },
+      "modelDefaultReasoningEfforts": {
+        "account:bigmodel-individual-coding-plan::GLM-5.3": "low"
+      }
+    },
+    "zcc-start-plan": {
+      "adapter": "openai-chat",
+      "baseUrl": "http://127.0.0.1:8790/v1",
+      "name": "zcc-start-plan",
+      "authMode": "key",
+      "apiKey": "<你的本机key>",
+      "allowPrivateNetwork": true,
+      "liveModels": true,
+      "contextWindow": 1000000,
+      "models": ["account:bigmodel-start-plan::GLM-5.3-Flash"],
+      "selectedModels": ["account:bigmodel-start-plan::GLM-5.3-Flash"],
+      "defaultModel": "account:bigmodel-start-plan::GLM-5.3-Flash",
+      "modelContextWindows": {
+        "account:bigmodel-start-plan::GLM-5.3-Flash": 1000000
+      },
+      "modelReasoningEfforts": {
+        "account:bigmodel-start-plan::GLM-5.3-Flash": ["low", "high", "max"]
+      },
+      "modelDefaultReasoningEfforts": {
+        "account:bigmodel-start-plan::GLM-5.3-Flash": "low"
+      }
+    }
+  }
+}
+```
+
+| 字段 | 断言 | 核实出处 |
+| --- | --- | --- |
+| `providers.<名>.baseUrl` | 与 §7.1 同一条 URL，**不带尾部 `/`**（`…/v1` 已是完整基址） | 本机 `~/.opencodex/config.json` 两段逐字一致 |
+| `allowPrivateNetwork` | **必须为 `true`**。反代只绑回环，缺这一项客户端侧会先拦下回环地址 | 本机配置两段均为 `true` |
+| `authMode` | `"key"`（**注意与 mcode 的 `api-key` 不是同一个字面量**） | 本机配置逐字 |
+| `adapter` | `"openai-chat"` | 本机配置逐字 |
+| `modelReasoningEfforts` | 值域同样只能是 `low` / `high` / `max` | 本机配置逐字 + `chat.ts:274` |
+| `modelDefaultReasoningEfforts` | 钉住缺省档位，作用**等价于** mcode 侧的 `defaultEffort`（§7.2 末尾的差异说明同样适用于这里） | 本机配置逐字 |
+| `liveModels` | `true` 时按服务端实时返回刷新模型列表 | 本机配置逐字 |
+| `note` | 自由文本备注，不参与请求 | 本机两段均有此键（内容为档位/套餐的口径说明） |
+
+### 7.4 key 与端口的同步纪律（本轮真实踩坑）
+
+**服务端换 key 之后，所有已配置的客户端必须同步更新，否则一律 401。** 本产品**不提供**「一把 key 管多处」的机制：每个客户端各存各的那份明文，服务端只认 `ZCC_API_KEY` 这一把（§5.1）。换 key 的正确顺序：
+
+1. 改服务端。桌面形态在设置页改完**要点「重启」才生效**（§3.2）；服务形态改环境变量后重启服务。
+2. 打开**所有**已配客户端，把 `apiKey` 换成新值。
+3. 逐个发一条最小请求，确认不再是 401。
+
+漏掉第 2 步的症状很有辨识度：**只有部分客户端 401，另一个照常工作**——因为它们各持一份旧值。看到这种"一半好一半坏"就直接查同步，不要去查服务端。
+
+**端口也要盯死：常驻服务一律指 8790。**
+
+| 反代实例 | 端口 | 生命周期 | 客户端该指谁 |
+| --- | --- | --- | --- |
+| 常驻服务（服务化形态，§4） | **8790** | 机器开机即在 | **客户端一律指这个** |
+| 桌面 GUI 托管的那一份 | 由桌面设置 `apiPort` 决定（**可与 8790 不同**） | **跟着 GUI 进程走**：GUI 退出 → 这份一起退出 | **不要指它** |
+
+客户端把 baseURL 指到 GUI 那一侧的症状**很有欺骗性**：GUI 开着的时候一切正常，**GUI 一关就全线失联**（连不上），而常驻服务其实一直在跑。排查顺序永远是**先确认 8790 的服务在不在**，再去看客户端的 baseURL 端口：
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8790/v1/models
+# 期望：401 —— 说明服务活着，且在要求 Bearer（不带 key 打过去必然 401）
+# 得到 000 / 连接失败：服务没在跑，去 §4.6 验启动
+```
+
+### 7.5 本机实例现状
+
+以下为本机实测（2026-10-10）：
+
+| 实例 | 端口 | 形态与生命周期 | 实测依据 |
+| --- | --- | --- | --- |
+| 常驻服务 `zcode-companion` | **8790** | Windows 服务，包装器 `C:\ProgramData\Servy\Servy.Service.CLI.exe`，启动类型 **Automatic**，账号 LocalSystem，状态 Running | `Get-CimInstance Win32_Service`（`PathName` / `StartMode` / `StartName`）；`netstat -ano` 见 `127.0.0.1:8790` LISTENING；无 key 打 `/v1/models` 返回 **401** |
+| 桌面 GUI 托管的那一份 | **8791**（本机 `settings.json` 的 `apiPort` 实配值） | 由 `ZCodeCompanion.exe` 拉起的 `start-api.mjs --driver official-host`；**GUI 进程退出即随之退出** | `netstat -ano` 见 `127.0.0.1:8791` LISTENING，占用进程为 `ZCodeCompanion.exe`；`%APPDATA%\ZCodeCompanion\settings.json` 实配 `apiPort: 8791` |
+
+> 8791 是**本机 `settings.json` 的实配值**，不是产品缺省——缺省仍是 8790（§3.2）。
+
+**两个实例并存、互不干扰**：各占各的端口、各自独立。GUI 侧只把「该端口已有服务」当 `external` 状态**观察**，不会去动不是自己拉起来的进程（§3.3、[`USAGE.md` §13.4](USAGE.md#134-五种状态以及-external-是什么)）。
+
+**桌面 GUI 总览页的现状（一句话口径）**：页面挂载即同源读一次 `GET /v1/zcc/catalog`（壳注入 `Authorization`，**界面侧零模型请求**），据此计算证据等级——
+
+> **E1 = 目录读回成功，且其中至少 1 条 `billingClass ∈ {subscription, promotion}` 的条目；否则一律 E0。**
+
+具体地：未读取 / 读取中 / 读取失败 / 读回成功但 0 条条目 / 读回成功但 0 条订阅通道条目，五种情况全是 `E0`，**失败时显示原因码，不填任何占位值**。判定逻辑在 `apps/ui/src/data/evidence.ts` 的 `computeEvidenceLevel`，"entitled" 的口径在 `apps/ui/src/data/accountCatalog.ts`（**目录侧口径，不是账号握手已证明**）。
+
+E1 在页面上标注「**当前 · 部分满足**」防误读：E1 的完整定义要求「官方登录 / 目录 / 套餐资格 / 实际选模」四项读回成立，而**权威桶读数仍保持未观测**、**发送门结构上关闭**（`dispatch = 0`）。E1 只是证据强度，**不是"可以发"**。
+
+### 7.6 客户端侧排障
+
+| 现象 | 首查 | 判定 |
+| --- | --- | --- |
+| 客户端 **401**，但直接 curl 打 8790 正常 | **先对 key**：客户端存的 `apiKey` 是否与服务端当前这把一致 | 服务端换过 key 就必然 401，§7.4 同步所有客户端。key 确认一致仍 401，才去对启动横幅的 `zcc-fp:*` 指纹 |
+| 客户端**连不上**（GUI 开着时正常、GUI 一关就断） | **再对 baseURL 端口**：常驻服务一律指 **8790** | 指到了 GUI 那一侧 → 改回 8790，§7.4 |
+| 401 / 连不上**之外**的一切 4xx / 5xx | 不是本节范围 | §10 错误码速查 + [`USAGE.md` §11](USAGE.md#11-排障表) |
+
+---
+
+## 8. 通道与档位预期
+
+### 8.1 通道
 
 | 通道形态 | 计费类别 | 预期 |
 | --- | --- | --- |
@@ -421,7 +621,7 @@ curl -sS -i http://127.0.0.1:8790/v1/models \
 
 > **关于 503 原因串的核实口径**：`coding_plan_not_entitled` / `coding_plan_auth_failed` 这两个串**在本仓源码与官方 bundle 内均未 grep 到**（本仓的资格原因闭集是 `packages/official-host/src/entitlement.ts:73-78` 的 `cache-available` / `cache-unavailable` / `cache-status-not-recognized` / `no-cache-entry-for-provider` / `cache-file-absent` / `cache-entries-absent`）。因此上表的两个串属于**部署实测观察到的上游 reason 文本**，机制以官方实现为准。
 
-### 7.2 推理档位
+### 8.2 推理档位
 
 **闭集只有三个：`low` / `high` / `max`**。**没有 `medium`** —— OpenAI 的 `medium` / `minimal` 是官方会拒的值，API 层直接 422 并列出合法值（`packages/api/src/chat.ts:1251-1283`；闭集与驱动器的 `KNOWN_REASONING_LEVELS` 逐字相等，有契约测试守着）。
 
@@ -430,13 +630,13 @@ curl -sS -i http://127.0.0.1:8790/v1/models \
 - 目录里的 `reasoning` 字段是**官方能力**的如实转写，**不等于**本端点的合法闭集。API 层**只查全局闭集**，不与目录按模型求交集。
 - 目录里出现的 `disabled` / `enabled`（某些模型）才是会被 422 的值（闭集外）。
 
-### 7.3 付费通道硬拒
+### 8.3 付费通道硬拒
 
 唯一允许的通道前缀是 `account:`。按量计费通道一律硬拒，错误码区分 `channel_not_allowlisted` 与 `blocked_channel`。判定**在取键之前**、命中**不触网**。
 
 ---
 
-## 8. 部署后验证清单
+## 9. 部署后验证清单
 
 逐条打勾。**任何一条不过，就还没部署完。**
 
@@ -474,7 +674,7 @@ env | grep ZCC_
 
 ---
 
-## 9. 故障排查表
+## 10. 故障排查表
 
 | 现象 | 首查命令 / 动作 | 定位 |
 | --- | --- | --- |
@@ -483,6 +683,7 @@ env | grep ZCC_
 | 启动报 `LISTEN_FAILED`（exit 1） | `netstat -ano \| findstr :8790` | 端口被占 |
 | 启动报 `STORAGE_ISOLATION_UNSAFE` | 检查 `ZCC_HOST_STORAGE_DIR` | 隔离目录落在 ZCode 存储根内，拒绝下发 |
 | 401 但 key 看着没问题 | 核对启动横幅 `zcc-fp:*` | key 与运行中的进程不是同一把 |
+| **只有客户端 401，curl 打 8790 正常** | **先对 key 是否与服务端一致，再对 baseURL 端口** | §7.4：各客户端各存各的明文 key，服务端换过 key 就会「一半客户端 401」；若是指到 GUI 托管的那一侧，则 GUI 一关全线失联。常驻服务一律指 8790 |
 | 403 一律 | 去掉 `Origin`、确认 `Host` | CORS 恒关 + Host 防 rebinding，两道闸门都在 |
 | 404 | `GET /v1/zcc/catalog` | id 必须含 `::`，用目录原文 |
 | 挂死到 300s | 先查 MCP 授权 / 浏览器执行两类反请求 | 官方这两类请求**逐字没有** `timeoutMs`，不答就一直挂。单请求 300s 墙钟是官方 session 驱动硬顶 |
@@ -495,16 +696,16 @@ env | grep ZCC_
 
 ---
 
-## 10. 已知限制与当前状态（如实）
+## 11. 已知限制与当前状态（如实）
 
-### 10.1 本文的核实边界
+### 11.1 本文的核实边界
 
 - 三个服务化坑是**部署实测观察**；其中 `ZCODE_DATA_BASE_DIR` 与 `ZCODE_CREDENTIAL_SECRET` 两个 env 名与其在官方 bundle 中的**推导语义**已 grep 核实，但**官方实现细节以官方为准**，本文不复述其内部算法之外的任何行为。
 - `coding_plan_not_entitled` / `coding_plan_auth_failed` 两个 reason 串**在本仓与官方 bundle 内均未 grep 到**，属观察到的上游文本。
 - 官方安装根写死 `C:\ZCode` 的是**本仓的默认常量**（§4.2 表），不是官方实现——官方 bundle 与 `app.asar` 内该字面量 0 命中。
 - 本仓**不含**服务包装器、注册脚本或 systemd/服务单元。§4.5 的注册命令是**形态说明**，不是可直接复制的脚本。
 
-### 10.2 仓库状态
+### 11.2 仓库状态
 
 | 项 | 状态 |
 | --- | --- |
@@ -515,7 +716,7 @@ env | grep ZCC_
 | 未做 | **ZC-50 … ZC-56 与整体终验未做**。本文不宣称这些能力已具备 |
 | 测试面 | `npm run ci`；`tests/integration` / `mutations` / `e2e` 三个类别**未接线**，其门经 `scripts/stage-gate.mjs` 以 `NOT_IMPLEMENTED` fail-closed（exit 3） |
 
-### 10.3 其它限制（详见 [`USAGE.md` §10](USAGE.md#10-已知边界)）
+### 11.3 其它限制（详见 [`USAGE.md` §10](USAGE.md#10-已知边界)）
 
 - 单请求 **300s 墙钟**硬顶（官方 session 驱动）。
 - 每轮 **~2-4 万 prompt tokens**（官方 agent 自带系统提示的固有开销，每轮都带）。
@@ -542,5 +743,10 @@ env | grep ZCC_
 | 验包端口 / 体积上限 / 超时 | `scripts/verify-package.mjs` |
 | 桌面设置缺省值、掩码语义、userData 路径 | `apps/desktop/lib/settings.cjs` |
 | 桌面子进程 env 闭集、`ELECTRON_RUN_AS_NODE` | `apps/desktop/lib/proxy-manager.cjs`、`apps/desktop/main.cjs` |
+| §7.2 MiniMax Code 的 `custom_provider.zcc-companion` 段**字段形状**（值全部打码，不读取、不输出任何 key 值） | 只读核对：`%USERPROFILE%\.minimax\config.yaml` |
+| §7.3 opencodex 的 `providers.zcc-bigmodel` / `providers.zcc-start-plan` 段**字段形状**（值全部打码） | 只读核对：`%USERPROFILE%\.opencodex\config.json` |
+| §7.2/§7.3 的档位闭集断言（`low`/`high`/`max`，无 `medium`） | `packages/api/src/chat.ts:274` `REASONING_EFFORT_LEVELS` + 契约测试 |
+| §7.5 证据等级 E0/E1 判定、`entitled` 目录侧口径、"部分满足"标注 | `apps/ui/src/data/evidence.ts`（`computeEvidenceLevel`）、`apps/ui/src/data/accountCatalog.ts`、`apps/ui/src/pages/OverviewPage.tsx` |
+| §7.5 本机实例现状（8790 服务 / 8791 GUI、并存、探活 401） | **部署实测观察**：`Get-CimInstance Win32_Service`、`netstat -ano`、`curl http://127.0.0.1:8790/v1/models`（不带 key，期望 401） |
 | 官方 `ZCODE_DATA_BASE_DIR` / `ZCODE_CREDENTIAL_SECRET` 字符串与语义 | 只读 grep：`LC_ALL=C grep -ao '<名字>' "/c/ZCode/resources/glm/zcode.cjs"`（**只取名字与上下文代码，不读取任何凭据值**） |
 | 「官方未写死 `C:\ZCode`」的证伪 | 同上 grep，字面量命中数为 0 |

@@ -163,7 +163,7 @@ npm run ci
 
 ## 详细文档
 
-**[`docs/DEPLOY.md`](docs/DEPLOY.md)** —— 部署与使用指南：三种运行形态选型、从源码安装（嵌套依赖坑）、Windows 服务化分步（`C:\ZCode` 目录联接 / `ZCODE_DATA_BASE_DIR` / `ZCODE_CREDENTIAL_SECRET` 三个坑与服务化安全警告）、配置参考表、curl 速查、验证清单与故障排查表。
+**[`docs/DEPLOY.md`](docs/DEPLOY.md)** —— 部署与使用指南：三种运行形态选型、从源码安装（嵌套依赖坑）、Windows 服务化分步（`C:\ZCode` 目录联接 / `ZCODE_DATA_BASE_DIR` / `ZCODE_CREDENTIAL_SECRET` 三个坑与服务化安全警告）、配置参考表、curl 速查、**客户端接入实战**（三要素 / MiniMax Code 与 opencodex 两个真实配置形状 / key 与端口同步纪律 / 本机实例现状 / 客户端侧排障）、验证清单与故障排查表。
 
 **[`docs/USAGE.md`](docs/USAGE.md)** —— 使用文档全集：13 章，含完整环境变量闭集、端点与 `zcc` 扩展块、请求字段接受/折叠/披露/拒绝四分法、模型选择、真实成本与延迟、完整安全模型、已知边界、排障表、以及逐条事实的**源码索引**。
 
