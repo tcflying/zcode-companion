@@ -54,7 +54,7 @@ import { ApiError } from '../../api/src/errors.js';
 import { redactCredentialText } from '../../contracts/src/errors.js';
 import type { ChatDriver, DriverCatalog, DriverEvent, DriverModel, DriverRequest, DriverStatus } from '../../api/src/chat.js';
 import { foldMessagesToPrompt } from '../../api/src/chat.js';
-import { readPlanSources, type ReadPlanSourcesOptions } from '../../plansrc/src/reader.js';
+import { readPlanSources, type PlanSources, type ReadPlanSourcesOptions } from '../../plansrc/src/reader.js';
 import { mapBuiltinToCatalog, splitOfferingId } from '../../plansrc/src/mapper.js';
 import { evaluateChannelPolicy } from './headers-port.js';
 import { deriveEntitledSnapshotFromDocument, type EntitlementEvidence, type SupportedPlanMode } from './entitlement.js';
@@ -1458,6 +1458,18 @@ export interface LoadOfficialHostOptions extends Partial<HostSessionOptions> {
   /** 受控 workspace 根（B2）。缺省走 {@link resolveHostWorkspaceRoot}，不用 `process.cwd()`。 */
   readonly workspacePath?: string;
   readonly diagnostics?: (line: string) => void;
+  /**
+   * ZCC-GUI-EVIDENCE-20261008-A：**在这一次已经完成的读源之上**把证据交出去。
+   *
+   * 它复用本函数第 1471 行已经 `readPlanSources` 读到的同一份 sources，
+   * **不产生任何二次 I/O、不新增官方配置/凭据/数据库读取**。
+   * 缺省不传 → 完全不构造证据，行为与此前一字不差。
+   */
+  readonly onSourceEvidence?: (evidence: {
+    readonly sources: PlanSources;
+    readonly catalog: DriverCatalog;
+    readonly servableCount: number;
+  }) => void;
 }
 
 /**
@@ -1482,6 +1494,11 @@ export async function loadOfficialHostDriver(options: LoadOfficialHostOptions): 
     `官方 bundle 作宿主（子进程隔离，${bundlePath}）：目录 ${catalog.models.length} 条 / revision ${catalog.revision}，本驱动可服务 ${servableModels.length} 条；` +
     `凭据在子进程内解析，明文不经过父子通道；付费通道白名单 account: 生效；` +
     `会话存储与 workspace 隔离在 ${resolveHostStorageRoot()}，不触碰用户真实 session DB`;
+
+  // ZCC-GUI-EVIDENCE-20261008-A：把**这一次已读**的 sources 交出去，不重读。
+  if (typeof options.onSourceEvidence === 'function') {
+    options.onSourceEvidence({ sources, catalog, servableCount: servableModels.length });
+  }
 
   return createOfficialHostDriver({
     descriptor: { bundlePath, exports: [], detail, models, status: models.length > 0 ? 'ready' : 'not_attached' },

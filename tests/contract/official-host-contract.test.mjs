@@ -735,7 +735,12 @@ describe('OFFICIAL-HOST 契约 · COMPAT1 跨层闭集一致性', () => {
     // **恰好两个**被折叠：多一个（把 user 也折了）或少一个（又变成 422）都立刻红。
     const folded = /** @type {readonly string[]} */ ([...FOLDED_PROMPT_ROLES]);
     expect(folded.filter((r) => r === 'user').length).toBe(0);
-    // `tool` / `function` **不在**接受闭集里：压成 user 会静默改变消息语义。
+    // `tool` / `function` **不在**接受闭集里：把工具结果轮压成 user 会静默改变消息语义。
+    // **COMPAT5 说明**：`tool` 之所以仍不在闭集里，是因为它**不走闭集**——它在
+    // `parseMessage` 里被**单独**接住并转写成带 `[工具结果] ` 前缀的 `user` 轮，
+    // 改写**在文本里可见**；而顶层 `SUPPORTED_ROLES` 描述的是"原样透传给驱动器的
+    // role 闭集"，往里加 `tool` 会让驱动器**误以为**上游认这个 role（官方协议面没有）。
+    // 因此本钉继续有效，且**顺带**钉住了"COMPAT5 没有偷偷扩闭集"这条边界。
     for (const role of ['tool', 'function', 'Tool', 'user ', '']) {
       expect(SUPPORTED_ROLES, role).not.toContain(role);
     }
