@@ -411,7 +411,13 @@ curl -sS -i http://127.0.0.1:8790/v1/models \
 
 ## 7. 客户端接入实战
 
-本节写「反代跑起来之后，怎么把手上任意 OpenAI 兼容客户端接上去」。**字段级规则、`zcc` 扩展块与逐项踩坑在 [`USAGE.md` §6](USAGE.md#6-接线minimax-code-及其它-openai-兼容客户端) 与 §4–§5，本节不复制**，只写接线时真正会栽跟头的两件事：**配置形状**与 **key/端口同步纪律**，最后给一份本机实例现状。
+本节写「反代跑起来之后，怎么把手上任意 OpenAI 兼容客户端接上去」。**字段级规则、`zcc` 扩展块与逐项踩坑在 [`USAGE.md` §6](USAGE.md#6-接线minimax-code-及其它-openai-兼容客户端) 与 §4–§5，本节不复制**，只写接线与排障时真正会栽跟头的东西：
+
+- **§7.1–§7.3 配置形状**：两份本机客户端的逐字形状与必填键。
+- **§7.4 key 与端口同步纪律**：换 key / 指错端口这两类"一半好一半坏"。
+- **§7.5 本机实例现状**：本机实测的端口与形态。
+- **§7.6–§7.8 排障**：客户端侧症状分诊（§7.6）、**服务端日志定位法**（§7.7，决定"客户端侧还是服务端侧"）、客户端 YAML 编码纪律（§7.8）。
+- **§7.9 接口行为**：历史工具痕迹的兼容剥离，一条影响"旧会话能不能继续用"的端点行为。
 
 ### 7.1 三要素
 
@@ -445,7 +451,7 @@ custom_provider:
         name: "GLM-5.3-Flash (ZCC Start Plan)"
         limit:
           context: 1000000
-          output: 128000
+          output: 32768
         reasoning: true
         tool_call: false
         thinking:
@@ -453,6 +459,8 @@ custom_provider:
             - low
             - high
             - max
+          effort: low
+          defaultEffort: low
         thinking_config:
           mode: switchable
           default_value: "true"
@@ -472,11 +480,20 @@ custom_provider:
 | `options.baseURL` / `options.authMode` | 见 §7.1；`authMode` 为 `api-key` | 本机配置逐字 |
 | `api` | `openai-completions`。**不能写 `openai-responses`** | 本机配置逐字；理由见 [`USAGE.md` §6.2](USAGE.md#62-minimax-code真实用例mcode056) |
 | `models` 的键 | 完整目录 id，含 `account:` 与 `::`。**键整体加引号**——它含 `:`，不加引号的 YAML 解析结果不可靠 | 本机配置逐字（三条 id 均带引号） |
-| `thinking.effortOptions` | **只能 `low` / `high` / `max` 三项**，与本端点 `reasoning_effort` 闭集逐字相等；多一项（如 `medium`）客户端就会发出一个 API 层 422 的值 | 本机配置逐字（恰好三项）+ `packages/api/src/chat.ts:274` `REASONING_EFFORT_LEVELS = ['low','high','max']` + 闭集契约测试 |
+| `thinking.effortOptions` | **只能 `low` / `high` / `max` 三项**，与本端点 `reasoning_effort` 闭集逐字相等；多一项（如 `medium`）客户端就会发出一个 API 层 422 的值 | 本机配置逐字（三项）+ `packages/api/src/chat.ts:278` `REASONING_EFFORT_LEVELS = ['low','high','max']` + 闭集契约测试 |
+| `thinking.effort` / **`thinking.defaultEffort`** | **两个都要写，缺一个都会让实际档位偏离**。缺 `defaultEffort` 时客户端回落取中间项 ⇒ `[low, high, max]` 落到 **`high`**，**不报错** | 本机配置逐字（两项均在）；回落机制见 [`USAGE.md` §6.3](USAGE.md#63--defaulteffort-那个坑) |
+| `limit.output` | **`32768`**，不要写客户端自己的上下文数字（如 `128000`）。客户端把它当"输出预算"原样发出，见 §7.6 的 400 一行 | 本机配置逐字 `output: 32768` + `chat.ts:152` `MAX_MAX_TOKENS = 32_768` + `chat.ts:1267-1276` `assertMaxTokens` |
 | `tool_call` | `false`。本端点是纯对话形态，`tools_forwarded` 恒 0 | 本机配置逐字；见 [`USAGE.md` §10.2](USAGE.md#102-外部客户端--纯对话形态) |
 | `thinking_config.mode` / `default_value` | `switchable` / `"true"` | 本机配置逐字 |
 
-> **一处与 [`USAGE.md` §6.2–§6.3](USAGE.md#6-接线minimax-code-及其它-openai-兼容客户端) 的差异，如实记录**：`USAGE.md` 的示例里 `thinking` 下还写了 `effort` 与 `defaultEffort`，而**本机当前这份 `config.yaml` 的 `thinking` 下只有 `effortOptions`，`defaultEffort` 不存在**。因此 `USAGE.md` §6.3 记录的「`defaultEffort` 缺失会静默回落到中间档」这个风险，在当前这份配置上是**活的**——排查「明明配了 `low` 却跑高档位」时，先确认 `defaultEffort` 在不在。本节按本机真实形状转录，不替 `USAGE.md` 改口。
+> ### ⚠️ 两个必写的键：`thinking.defaultEffort` 与 `limit.output`
+>
+> **`thinking.effort: low` 不是钉住档位的字段，`thinking.defaultEffort: low` 才是。**
+> 缺 `defaultEffort` 时 mcode 的回落是 `Math.floor(len/2)` 取中间项，对 `[low, high, max]` 即 **`high`**。**后果是静默的：不报错、不降级，只是实际跑高档位**，而每轮多花的 thinking token 是实打实的。
+>
+> **`limit.output` 必须 ≤ 32768。** 端点的硬上限是 `MAX_MAX_TOKENS = 32_768`；客户端把 `limit.output` 当作"生成预算"原样填进 `max_completion_tokens`（**不是** `max_tokens`——mcode 对自定义 provider 的 `maxTokensField` 缺省就是 `max_completion_tokens`）。写 `128000` 会直接吃到 **400 `invalid_request`**：`max_completion_tokens 必须是 0..32768 之间的整数`。这条不需要推理档位配合，是纯数值越界，见 §7.6。
+>
+> 排查"明明配了 low 却跑高档位"或"请求为什么发了个巨大的输出预算"时，**先看这两行在不在**，别去翻服务端日志。
 
 ### 7.3 真实形状之二：opencodex（`config.json`）
 
@@ -548,8 +565,8 @@ custom_provider:
 | `allowPrivateNetwork` | **必须为 `true`**。反代只绑回环，缺这一项客户端侧会先拦下回环地址 | 本机配置两段均为 `true` |
 | `authMode` | `"key"`（**注意与 mcode 的 `api-key` 不是同一个字面量**） | 本机配置逐字 |
 | `adapter` | `"openai-chat"` | 本机配置逐字 |
-| `modelReasoningEfforts` | 值域同样只能是 `low` / `high` / `max` | 本机配置逐字 + `chat.ts:274` |
-| `modelDefaultReasoningEfforts` | 钉住缺省档位，作用**等价于** mcode 侧的 `defaultEffort`（§7.2 末尾的差异说明同样适用于这里） | 本机配置逐字 |
+| `modelReasoningEfforts` | 值域同样只能是 `low` / `high` / `max` | 本机配置逐字 + `chat.ts:278` |
+| `modelDefaultReasoningEfforts` | **钉住缺省档位，等价于 mcode 侧的 `defaultEffort`**，本机两段均实配 `"low"`。缺了同样是静默回落到中间档 `high` | 本机配置逐字；机制见 §7.2 的警告框 |
 | `liveModels` | `true` 时按服务端实时返回刷新模型列表 | 本机配置逐字 |
 | `note` | 自由文本备注，不参与请求 | 本机两段均有此键（内容为档位/套餐的口径说明） |
 
@@ -601,11 +618,108 @@ E1 在页面上标注「**当前 · 部分满足**」防误读：E1 的完整定
 
 ### 7.6 客户端侧排障
 
-| 现象 | 首查 | 判定 |
+**先按状态码分家，再看消息文本。** 下表按客户端实际遇到的状态码排：
+
+| 状态码 | 首查 | 判定与修法 |
 | --- | --- | --- |
-| 客户端 **401**，但直接 curl 打 8790 正常 | **先对 key**：客户端存的 `apiKey` 是否与服务端当前这把一致 | 服务端换过 key 就必然 401，§7.4 同步所有客户端。key 确认一致仍 401，才去对启动横幅的 `zcc-fp:*` 指纹 |
-| 客户端**连不上**（GUI 开着时正常、GUI 一关就断） | **再对 baseURL 端口**：常驻服务一律指 **8790** | 指到了 GUI 那一侧 → 改回 8790，§7.4 |
-| 401 / 连不上**之外**的一切 4xx / 5xx | 不是本节范围 | §10 错误码速查 + [`USAGE.md` §11](USAGE.md#11-排障表) |
+| **401** `unauthorized` | **先对 key**：客户端存的 `apiKey` 是否与服务端当前这把一致 | 服务端换过 key 就必然 401，§7.4 同步所有客户端。key 确认一致仍 401，才去对启动横幅的 `zcc-fp:*` 指纹。**错误消息永远不会告诉你 key 哪一段错了**（`server.ts:505` 的措辞逐字就是"需要有效的本机 API key：请求头 Authorization 使用 Bearer 方案"，不含任何 key 片段） |
+| **连不上**（GUI 开着时正常、GUI 一关就断） | **再对 baseURL 端口**：常驻服务一律指 **8790** | 指到了 GUI 那一侧 → 改回 8790，§7.4。**注意 401/4xx 与"连不上"是两回事**：连不上说明请求根本没到服务端，日志里也不会有记录 |
+| **400** `invalid_request`，消息形如 `max_completion_tokens 必须是 0..32768 之间的整数` | **对 `limit.output`**：客户端模型条目里的输出预算是否 ≤ 32768 | 端点硬上限 `MAX_MAX_TOKENS = 32_768`（`chat.ts:152`）。客户端把 `limit.output` 原样当输出预算发过来，写 `128000` 这类"按模型标称上下文推算"的值就是越界。**修法：把 `limit.output` 改成 32768 对齐端点上限**。注意字段名是 `max_completion_tokens` 不是 `max_tokens`（mcode 对自定义 provider 的 `maxTokensField` 缺省值） |
+| **413** `payload_too_large` | **看会话长度**：请求体 > 1 MiB，或 `messages` > 256 条 | 上限是硬闸（`auth.ts:29` `REQUEST_BODY_MAX_BYTES = 1024*1024`；`chat.ts:148` `MAX_MESSAGES = 256`）。**长会话跑久了必然撞上，不是故障**。修法：**新起一个会话**，或裁掉早期历史——没有任何参数能调高这个上限 |
+| **404** | **看路径**：`model_not_found` 还是未知路径 | `model_not_found` = 模型 id 不在可服务集（用目录原文，必须含 `::`）；**未知路径** = 客户端调了本端点没实现的端点，典型是 OpenAI Responses 系的 `/v1/responses/input_tokens`（客户端的 token 计数探针）。**无害，可忽略**——见 §7.9 |
+| **422** | **看错误消息点名了哪个键**，三分叉见下 | 消息文本自带解法与合法值域，逐字读 |
+
+#### 422 的三个来源（同一个状态码，三条完全不同的修法）
+
+422 `unsupported_parameter` 在客户端场景里最常撞到的是**三种来源**，错误消息会**逐字点名被拒的键**，照着点名的那一条查，不要一上来就怀疑配置全错：
+
+| 来源 | 错误消息点名 | 根因与修法 |
+| --- | --- | --- |
+| **① 推理档位在闭集外** | `reasoning_effort` | 客户端注入了一个 `low`/`high`/`max` 之外的值。**先查客户端模型条目的 `thinking`**：`effortOptions` 里是否混进了 `medium`（OpenAI 的档位，本端点不认），或**缺 `defaultEffort` 后回落/错配**。修法：`effortOptions` 钉死三项 + **补 `effort: low` 与 `defaultEffort: low`**（§7.2 警告框） |
+| **② 历史里的工具痕迹** | `messages[i].tool_calls` | 旧会话历史里带着 `assistant.tool_calls` / `role:"tool"` 轮。**自 2026-10-10 版本起服务端已兼容剥离，见 §7.9**；仍报这一条说明客户端连的是旧版本服务端 |
+| **③ `tools` 形状畸形** | `tools` 或 `tools[i]` | 顶层 `tools` 必须是数组，且每项须是带 `function` 或 `type` 的对象。**合法形状是被接受的**（计入 `tools_received`，一条也不转发），只有非数组（`null` 也不行）与畸形项才 422，错误消息会指名**具体下标** |
+
+> **最快的一条捷径**：BYOK 客户端的错误里常带**上游原始信息**（形如 `upstream error: 422 …`）。**拿这段文本去服务端日志里对号入座**最快——它已经把"哪个键被拒"这层翻译好了，直接对照 §7.7 的日志行即可定位。
+
+### 7.7 服务端日志定位法（决定性分叉）
+
+**不要在客户端里猜。** 服务端有逐请求的结构化日志，能一刀把问题劈成"客户端侧"与"服务端侧"两半：
+
+服务化形态由 Servy 包装器承接，**stdout / stderr 分表落盘**：
+
+```bash
+tail -f "C:/ProgramData/Servy/logs/<服务名>-out.log" \
+         "C:/ProgramData/Servy/logs/<服务名>-err.log"
+# 本机服务名为 zcode-companion：zcode-companion-out.log / zcode-companion-err.log
+```
+
+日志行是**单行 `key=value`**，两个文件各管一类事件（行格式见 `packages/api/src/server.ts:1323,1327`）：
+
+```text
+# -out.log：每个被处理的请求都有一行，含状态码
+zcc-api event=request path=/v1/chat/completions method=POST status=422 ms=7 in_flight=1
+# -err.log：被拒的请求有一行，含**机器可读的错误码**（比状态码信息量大）
+zcc-api event=rejected path=/v1/chat/completions code=unsupported_parameter status=422
+```
+
+**决定性分叉，就问一个问题：这次失败的请求，出现在日志里了吗？**
+
+| 日志里的现象 | 结论 | 下一步 |
+| --- | --- | --- |
+| **完全没有这次请求的记录** | **客户端侧**。请求压根没到服务端 | 查配置是否**真的生效**（改完有没有**重启客户端**）、baseURL 端口是不是指到了已退出的 GUI 实例（8791）。见 §7.4 |
+| 有记录，看**状态码** | **服务端侧**，按码分家 | 见下表 |
+| 401 但 `err.log` 里没有 `rejected` 行 | 正常：认证闸在日志之前 | 401 只在 `out.log` 留 `status=401` 一行（`out.log` 里 401 行数远多于 `err.log` 的 `unauthorized` 计数即此故）。按 §7.4 对 key |
+
+**看到记录后，按状态码分家：**
+
+| 状态码 | 含义 | 首查 |
+| --- | --- | --- |
+| **401** | key 不对 | §7.4 key 同步纪律 |
+| **404** | 模型 id 或端点路径 | `model_not_found` → 目录原文；未知路径（如 `/v1/responses/input_tokens`）→ 无害忽略，§7.9 |
+| **413** | 载荷太大 | 会话太长，新开会话，§7.6 |
+| **422** | 参数被拒 | **看 `err.log` 的 `code=unsupported_parameter`，再按 §7.6 的三分叉定位** |
+| **400** | 请求畸形（如输出预算越界） | `code=invalid_request`，对照 §7.6 的 400 一行 |
+| **5xx** | 上游或内部 | 看 `out.log` 里同期的 `official-host entitled … reason=…` 行，`reason` 如实说明上游判定（缓存可用性 / 资格 / 凭据）；`502` 见 §10，`503` 见 §8.1 |
+
+> **`entitled` 行怎么读**：`out.log` 里的 `official-host entitled account:<套餐> entitled=true|false reason=…` 是**上游资格的如实转写**。5xx 时先找这条——它回答"到底是上游没资格，还是缓存读不出来"这个分叉，比猜快得多。
+
+### 7.8 客户端 YAML 编码纪律
+
+客户端配置文件里的**中文显示名被写坏，会让整个模型列表显示为乱码**，而且**这个错误在服务端完全看不到**（请求照发、照回 200，坏的是客户端渲染）。
+
+**根因是写入端的编码**，不是读取端：用非 UTF-8 的工具（PowerShell 5.1 的 `>` / `Out-File`、`Set-Content` 默认编码、部分编辑器自动检测失败）写含中文的 YAML，文件里存的是**双重编码后的字节**。症状形态是**一串读不通的 CJK 字符**（例如本机某次踩坑后模型名显示为 `濞戞搩浜欏Ч?` 这类）——注意它是**合法的 UTF-8**，所以文件能正常解析、YAML 结构也没坏，坏掉的只有那几行中文。
+
+**修法与预防：**
+
+| | 做法 |
+| --- | --- |
+| **修** | 用**可靠的 UTF-8 编辑器**（VS Code / Notepad++ 显式设 UTF-8）**直接改回 `name`**。结构没坏，只改那几行的文本即可 |
+| **预防（改前必做）** | 动客户端 YAML 之前**先备份**：`copy "%USERPROFILE%\.minimax\config.yaml" "%USERPROFILE%\.minimax\config.yaml.bak-YYYYMMDD"`。本机已有 `config.yaml.bak-20261009` 这类先例 |
+| **预防（写时必做）** | **只用 UTF-8 编辑器编辑客户端 YAML**；确需脚本改写时，显式指定 UTF-8（PowerShell 5.1 用 `-Encoding UTF8`，或 `pwsh` 7+ 的缺省 UTF-8）。**不要用 shell 重定向写含中文的 YAML** |
+| **自检** | 改完打开客户端看模型列表：**名字是正常中文（或正常英文）才叫修好**。服务端日志对此**零信号**，别指望靠它验证 |
+
+> 这条与 §6 提到的"中文请求体一律走文件、不要 shell 内联"是**同一条纪律的两面**：那一条防传输层乱码，这一条防**落盘**乱码。共同的根因都是"用不可靠的写入路径碰非 ASCII 文本"。
+
+### 7.9 接口行为：历史工具痕迹的兼容剥离（自 2026-10-10 版本起）
+
+**背景**：旧会话历史里会留着工具调用痕迹——assistant 轮带 `tool_calls` 字段，以及 `role:"tool"` 的工具结果轮。对一个**纯对话**端点，这两样都实现不了，早期版本一律 422，把 MiniMax Code 这类 BYOK 客户端对**任何带工具历史的会话**整个挡死。
+
+**自 2026-10-10 版本起，服务端改为接受并剥离**（常量与逻辑见 `packages/api/src/chat.ts`）：
+
+| 场景 | 处理 | 常量 |
+| --- | --- | --- |
+| `messages[i].tool_calls` / `tool_call_id` | **接受并剥离**，不进拒绝表也不进未知字段表 | `MESSAGE_TOOL_TRACE_FIELDS` |
+| assistant 轮剥掉 `tool_calls` 后 **content 为空** | 填占位文本 **`[此前调用了工具，内容未纳入上下文]`** | `TOOL_TRACE_PLACEHOLDER_CONTENT` |
+| `role:"tool"` 的轮 | **转成 `role:"user"`**，content 前缀 **`[工具结果] `**（含尾随空格）；非字符串 content 会 JSON 文本化，保证内容不丢 | `TOOL_RESULT_CONTENT_PREFIX` |
+
+**两条关键性质（决定了它为什么不是"静默改写"）：**
+
+- **消息条数与顺序不变。** 占位而不是删消息——删一条会改变 `messages` 条数与角色序列，那是比"改写 role"更重的一种语义变更。**痕迹留在原位、留在上下文里**。
+- **改写在文本里可见。** 占位文本与 `[工具结果] ` 前缀都进了 prompt，**模型与客户端都看得见"这是一条工具结果 / 这条 assistant 只发了工具调用"**，不是凭空改写一条 user 轮。
+
+**顶层 `tools` 的口径没变，仍然要分清两件事**：`tools` / `tool_choice` / `parallel_tool_calls` 是"**这一轮**要工具行为"的请求参数，与"**历史里**发生过工具调用"根本不是一回事。合法形状的 `tools`（非空数组、逐项浅校验）**被接受并如实计数**——响应 `zcc.tools_received > 0` 与 `zcc.tools_forwarded: 0` 成对出现；**畸形才 422**（`tools` 非数组含 `null`，或 `tools[i]` 缺 `function`/`type`，错误指名下标）。`tool_choice` 的 `required` / `any` / 具名指定**仍拒**——那几档要的是"这一轮必然产生一个工具调用"，本端点结构上做不到。
+
+> **为什么"接受声明"不等于"支持工具"**：接受的是**声明**，不是**能力**。驱动器契约上没有工具槽位，`tools_forwarded` 恒为 0，产出里**永远**不含 `tool_calls`。披露这两个键是为了把"纯对话形态"变成一条**机器可读的事实**，而不是让客户端一直等一个不会来的 `tool_calls`。
 
 ---
 
@@ -660,17 +774,21 @@ env | grep ZCC_
 
 | 码 | 含义 | 首查 |
 | --- | --- | --- |
-| **401** `unauthorized` | 缺 `Authorization: Bearer`，或 key 与 `ZCC_API_KEY` 不一致 | 核对启动横幅里的 `zcc-fp:*` 指纹。错误**不会**告诉你 key 哪一段错了 |
+| **400** `invalid_request` | 请求畸形。**客户端最高频的一条**：`max_completion_tokens 必须是 0..32768 之间的整数`（输出预算越界） | 把客户端模型条目的 `limit.output` 改到 ≤ 32768，见 §7.6 |
+| **401** `unauthorized` | 缺 `Authorization: Bearer`，或 key 与 `ZCC_API_KEY` 不一致 | 核对启动横幅里的 `zcc-fp:*` 指纹。错误**不会**告诉你 key 哪一段错了。客户端场景见 §7.4 |
 | **403** `origin_not_allowed` | 请求带了 `Origin` 头 | 去掉 `Origin` |
 | **403** `host_not_allowed` | `Host` 头不是监听地址 | 用 `127.0.0.1:8790` |
 | **404** `model_not_found` | `model` 不在可服务集内 | 目录查 id，**必须含 `::`** |
-| **413** `payload_too_large` | 请求体 > 1 MiB 或 `messages` > 256 条 | 精简请求体 |
-| **422** `unsupported_parameter` | 字段被拒 | **错误消息自带解法**，逐字写出为什么被拒与合法值域，照着改 |
-| **422** `unsupported_role` | `messages[i].role` 用了 `tool`/`function` | 错误里指名具体下标 |
+| **404** 未知路径 | 调了本端点未实现的端点（典型：OpenAI Responses 系的 `/v1/responses/input_tokens` 计数探针） | **无害，忽略即可**。本端点只提供 `/v1/models`、目录、readstatus 与 `/v1/chat/completions`（`server.ts`） |
+| **413** `payload_too_large` | 请求体 > 1 MiB 或 `messages` > 256 条 | **长会话必然撞上**，新开会话或裁历史；上限不可调（`auth.ts` / `chat.ts`） |
+| **422** `unsupported_parameter` | 字段被拒。**错误消息自带解法**，逐字写出为什么被拒与合法值域，照着改 | 客户端场景按 §7.6 的**三分叉**定位：推理档位 / 历史工具痕迹 / `tools` 畸形 |
+| **422** `unsupported_role` | `messages[i].role` 用了 `function` 或其它非法 role。**注意 `role:"tool"` 自 2026-10-10 版本起已被接受并转写为 `user`**，见 §7.9 | 错误里指名具体下标 |
 | **429** `rate_limited` | 超 4 并发或 60/分钟 | 看 `retry-after`。**不排队**，直接拒 |
 | **502** `upstream_outcome_unknown` | 上游结果未知 | 若是 `Credential decrypt failed`，走 §4.4 |
 | **503** `upstream_unavailable` | 上游不可用：驱动器没挂 / 没额度 / 缓存未显示可用 | 看 `x-zcc-status` 与 `zcc.status`。若是 `cache-file-absent`，走 §4.3 |
 | **exit 4** `GATE_PREREQUISITE_MISSING` | 门的前置缺失 | 见 §2.4 三行表；区分带不带子码 |
+
+> **一条日志把 4xx/5xx 全部对号入座**：服务端会为每次被拒的请求写一行 `code=<机器可读错误码>`，比状态码信息量大得多。定位方法见 §7.7。
 
 ---
 
@@ -684,6 +802,15 @@ env | grep ZCC_
 | 启动报 `STORAGE_ISOLATION_UNSAFE` | 检查 `ZCC_HOST_STORAGE_DIR` | 隔离目录落在 ZCode 存储根内，拒绝下发 |
 | 401 但 key 看着没问题 | 核对启动横幅 `zcc-fp:*` | key 与运行中的进程不是同一把 |
 | **只有客户端 401，curl 打 8790 正常** | **先对 key 是否与服务端一致，再对 baseURL 端口** | §7.4：各客户端各存各的明文 key，服务端换过 key 就会「一半客户端 401」；若是指到 GUI 托管的那一侧，则 GUI 一关全线失联。常驻服务一律指 8790 |
+| **改完客户端配置，故障症状没变** | 确认**客户端进程已重启**、配置真的被读进去了 | 客户端大多在启动时读配置并缓存；热改文件不会自动生效 |
+| **400** `invalid_request`（`max_completion_tokens 必须是 0..32768 之间的整数`） | 对客户端模型条目的 **`limit.output`** | 输出预算越界。端点上限 `MAX_MAX_TOKENS = 32_768`，把 `limit.output` 改到 ≤ 32768。**注意字段名是 `max_completion_tokens` 不是 `max_tokens`** |
+| **413** `payload_too_large` | 看会话轮数与请求体大小 | 长会话跑久必然撞上（体 > 1 MiB 或 `messages` > 256 条）。**上限不可调**，新开会话或裁历史 |
+| **422**，消息点名 `reasoning_effort` | 对客户端的 `thinking` 块 | 闭集只有 `low`/`high`/`max`。补 `effort: low` + **`defaultEffort: low`**，`effortOptions` 钉死三项，见 §7.2 警告框 |
+| **422**，消息点名 `messages[i].tool_calls` | 确认服务端版本 | 自 2026-10-10 版本起历史工具痕迹会被兼容剥离（§7.9）；仍报说明服务端版本偏旧 |
+| **422**，消息点名 `tools` / `tools[i]` | 对 `tools` 形状 | 合法形状（数组 + 每项带 `function`/`type`）**是被接受的**；非数组（含 `null`）或畸形项才 422 |
+| **404**，消息是"未知路径" | 看路径本身 | 客户端调了本端点未实现的端点，典型是 OpenAI Responses 系的 `/v1/responses/input_tokens`。**无害，忽略** |
+| **客户端模型列表显示为乱码**（一串读不通的 CJK） | 打开客户端 YAML 看 `name` 行字节 | 文件被**非 UTF-8 工具**写坏（双重编码）。用 UTF-8 编辑器改回 `name`；预防=编辑前备份、只用 UTF-8 编辑器写。见 §7.8 |
+| **不知道该查客户端还是服务端** | `tail` Servy 日志，看请求在不在 | §7.7：**没出现 = 客户端侧**；出现看状态码分家。`out.log` 有 `status=`，`err.log` 有 `code=`（信息量更大） |
 | 403 一律 | 去掉 `Origin`、确认 `Host` | CORS 恒关 + Host 防 rebinding，两道闸门都在 |
 | 404 | `GET /v1/zcc/catalog` | id 必须含 `::`，用目录原文 |
 | 挂死到 300s | 先查 MCP 授权 / 浏览器执行两类反请求 | 官方这两类请求**逐字没有** `timeoutMs`，不答就一直挂。单请求 300s 墙钟是官方 session 驱动硬顶 |
@@ -704,6 +831,10 @@ env | grep ZCC_
 - `coding_plan_not_entitled` / `coding_plan_auth_failed` 两个 reason 串**在本仓与官方 bundle 内均未 grep 到**，属观察到的上游文本。
 - 官方安装根写死 `C:\ZCode` 的是**本仓的默认常量**（§4.2 表），不是官方实现——官方 bundle 与 `app.asar` 内该字面量 0 命中。
 - 本仓**不含**服务包装器、注册脚本或 systemd/服务单元。§4.5 的注册命令是**形态说明**，不是可直接复制的脚本。
+- §7.6–§7.8 的客户端排障实录是**部署实测观察**（2026-10-09 / 2026-10-10 两轮真实踩坑）。它们描述的是**本机这两套客户端**的行为，不是对所有 OpenAI 兼容客户端的普遍承诺。
+- **"自 2026-10-10 版本起"的表述指的是行为生效的日期，不是提交号**。§7.9 描述的历史工具痕迹兼容剥离、以及 §7.6 的 422 三分叉，其判定逻辑均在工作区源码 `packages/api/src/chat.ts` 中逐条 grep 核实（见文末附表）；本文**不引用提交号**，因为该改动在工作区尚未随本仓库发布。
+- §7.8 的乱码实例（`濞戞搩浜欏Ч?`）是**当时实际观察到的显示文本**。它是合法的 UTF-8 字符序列（可正常解析、YAML 结构完好），**已尝试按 GBK/Big5 等常见误写编码反解无法还原原文**——因此本文只描述机制与修法，**不猜测原始中文是什么**。
+- §7.7 的日志行格式取自 `packages/api/src/server.ts:1323,1327` 的 `logger.warn` / `logger.info` 字面量；`out.log` / `err.log` 的**文件名后缀**是 Servy 包装器的约定（stdout / stderr 分流），非本仓代码规定。
 
 ### 11.2 仓库状态
 
@@ -745,7 +876,17 @@ env | grep ZCC_
 | 桌面子进程 env 闭集、`ELECTRON_RUN_AS_NODE` | `apps/desktop/lib/proxy-manager.cjs`、`apps/desktop/main.cjs` |
 | §7.2 MiniMax Code 的 `custom_provider.zcc-companion` 段**字段形状**（值全部打码，不读取、不输出任何 key 值） | 只读核对：`%USERPROFILE%\.minimax\config.yaml` |
 | §7.3 opencodex 的 `providers.zcc-bigmodel` / `providers.zcc-start-plan` 段**字段形状**（值全部打码） | 只读核对：`%USERPROFILE%\.opencodex\config.json` |
-| §7.2/§7.3 的档位闭集断言（`low`/`high`/`max`，无 `medium`） | `packages/api/src/chat.ts:274` `REASONING_EFFORT_LEVELS` + 契约测试 |
+| §7.2/§7.3 的档位闭集断言（`low`/`high`/`max`，无 `medium`） | `packages/api/src/chat.ts:278` `REASONING_EFFORT_LEVELS` + 契约测试 |
+| §7.2 的 `thinking.effort` / `defaultEffort` 必写、`limit.output: 32768` | 本机配置逐字（两项与 `output: 32768` 均在）+ `chat.ts:152` `MAX_MAX_TOKENS = 32_768` + `chat.ts:1267-1276` `assertMaxTokens`；缺 `defaultEffort` 回落 `high` 的机制见 [`USAGE.md` §6.3](USAGE.md#63--defaulteffort-那个坑) |
+| §7.6 的 400 输出预算越界（`max_completion_tokens 必须是 0..32768 之间的整数`） | `chat.ts:1267-1276` 的错误文案逐字 + `packages/api/src/errors.ts:106` `invalid_request → 400`；`max_completion_tokens` 而非 `max_tokens` 见 `chat.ts:1203` |
+| §7.6 的 413（体 > 1 MiB / `messages` > 256 条） | `packages/api/src/auth.ts:29` `REQUEST_BODY_MAX_BYTES = 1024*1024` + `chat.ts:148` `MAX_MESSAGES = 256` + `errors.ts:122` `payload_too_large → 413` |
+| §7.6 / §9 的 404 未知路径（含 `/v1/responses/input_tokens`） | `packages/api/src/server.ts` 的路由分派：只提供 `/v1/models`、`CATALOG_PATH`、`READ_STATUS_PATH`、`/v1/chat/completions`，其余抛 `not_found`（`errors.ts:98` → 404）；本机 `zcode-companion-err.log` 中确有 `path=/v1/responses/input_tokens code=not_found status=404` 的实测行 |
+| §7.6 的 422 三分叉（档位 / 历史工具痕迹 / `tools` 畸形） | `chat.ts:1318-1339` `parseReasoningEffort`（闭集外 422）+ `chat.ts:1443-1505` `parseMessage`（工具痕迹剥离）+ `chat.ts:1140-1193` `parseToolDeclarations`（`tools` 形状判定与 `toolsReceived` 计数） |
+| §7.7 的日志行格式（`out.log` 的 `status=` / `err.log` 的 `code=`） | `packages/api/src/server.ts:1323`（`event=rejected … code=… status=…`）与 `server.ts:1327`（`event=request … status=… ms=… in_flight=…`）；两个文件名后缀是 Servy 包装器的 stdout/stderr 分流约定 |
+| §7.7 的 `entitled … reason=…` 行 | `packages/official-host/src/host-driver.ts`（上游资格如实转写）+ 本机 `C:/ProgramData/Servy/logs/zcode-companion-out.log` 实测行 |
+| §7.9 历史工具痕迹的剥离行为与两条常量 | `packages/api/src/chat.ts:557` `MESSAGE_TOOL_TRACE_FIELDS`、`:566` `TOOL_TRACE_PLACEHOLDER_CONTENT`、`:574` `TOOL_RESULT_CONTENT_PREFIX`、`:1498-1503`（占位，条数顺序不变）、`:1519-1536`（`tool` 转 `user` 加前缀）；顶层 `tools` 接受与计数见 `:1103-1192` |
+| §7.8 客户端 YAML 编码纪律 | **部署实测观察**：本机 `~/.minimax/config.yaml` 被非 UTF-8 工具写坏后模型名显示为乱码；备份先例 `~/.minimax/config.yaml.bak-20261009` 存在 |
+| §7.6/§7.7 的客户端排障实录（401 / 端口 / 422 / 400 / 413 / 404） | **部署实测观察**（2026-10-09 / 2026-10-10 两轮）+ 本机 Servy 日志逐条对号（`zcode-companion-out.log` / `-err.log` 中确有 `status=400/413/422` 与 `code=invalid_request / payload_too_large / unsupported_parameter / not_found` 的对应记录） |
 | §7.5 证据等级 E0/E1 判定、`entitled` 目录侧口径、"部分满足"标注 | `apps/ui/src/data/evidence.ts`（`computeEvidenceLevel`）、`apps/ui/src/data/accountCatalog.ts`、`apps/ui/src/pages/OverviewPage.tsx` |
 | §7.5 本机实例现状（8790 服务 / 8791 GUI、并存、探活 401） | **部署实测观察**：`Get-CimInstance Win32_Service`、`netstat -ano`、`curl http://127.0.0.1:8790/v1/models`（不带 key，期望 401） |
 | 官方 `ZCODE_DATA_BASE_DIR` / `ZCODE_CREDENTIAL_SECRET` 字符串与语义 | 只读 grep：`LC_ALL=C grep -ao '<名字>' "/c/ZCode/resources/glm/zcode.cjs"`（**只取名字与上下文代码，不读取任何凭据值**） |
