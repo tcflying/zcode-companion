@@ -1083,7 +1083,14 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       zcc: zccBlock('not_reported', parsed)
     };
     const budget = new SseBudget();
+    // 帧文本只为**幂等重放**而存（join 后 commitReplay；重放本来就按
+    // STREAM_BUFFER_MAX_BYTES 拒绝超限）。超限后继续全量累积只是白占内存——
+    // 3-4 路并发 30 分钟长流（正文+思考流）时代这是实打实的常驻开销。
+    // 超限即停存：计数照走（日志 frames=N），重放走既有的 unavailable 分支。
     const frames: string[] = [];
+    let frameCount = 0;
+    let framesBytes = 0;
+    let framesDropped = false;
     res.writeHead(200, {
       'content-type': 'text/event-stream; charset=utf-8',
       'cache-control': 'no-store',
@@ -1095,7 +1102,12 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     });
     const push = (frame: string): void => {
       budget.write(frame);
-      frames.push(frame);
+      frameCount += 1;
+      if (!framesDropped) {
+        framesBytes += Buffer.byteLength(frame, 'utf8');
+        if (framesBytes > STREAM_BUFFER_MAX_BYTES) framesDropped = true;
+        else frames.push(frame);
+      }
       if (!res.destroyed) res.write(frame);
     };
     push(emitChunk(ctx, [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }]));
@@ -1148,7 +1160,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
      * 这正是 journal 存在的意义要防的那类假账。
      */
     if (clientGone || res.destroyed) {
-      logger.info(`event=sse_aborted operation=${operationId} frames=${frames.length}`);
+      logger.info(`event=sse_aborted operation=${operationId} frames=${frameCount}`);
       return 'client_gone';
     }
     push(emitChunk(ctx, [{ index: 0, delta: {}, finish_reason: finishReason }]));
@@ -1168,14 +1180,14 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       );
     }
     push(sseDone());
-    const body = frames.join('');
-    if (scope !== null && stored !== null && Buffer.byteLength(body, 'utf8') <= STREAM_BUFFER_MAX_BYTES) {
-      commitReplay(scope, stored, 'text/event-stream; charset=utf-8', body);
+    // 超出重放预算（framesDropped）：登记保持存在但 replay 为 null，重复请求会拿到
+    // idempotency_replay_unavailable，而不是假装能原样重放。与此前按 body 字节数
+    // 判定**逐字同义**——停存那条线（framesBytes > MAX）就是 body 会超线的充要条件。
+    if (scope !== null && stored !== null && !framesDropped) {
+      commitReplay(scope, stored, 'text/event-stream; charset=utf-8', frames.join(''));
     }
-    // 超出重放预算：登记保持存在但 replay 为 null，重复请求会拿到
-    // idempotency_replay_unavailable，而不是假装能原样重放。
     if (!res.destroyed) res.end();
-    logger.info(`event=sse operation=${operationId} frames=${frames.length} fixture=${String(driver.fixture)}`);
+    logger.info(`event=sse operation=${operationId} frames=${frameCount} fixture=${String(driver.fixture)}`);
     return 'completed';
   };
 

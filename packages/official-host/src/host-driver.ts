@@ -279,7 +279,8 @@ export const OFFICIAL_HOST_ERROR_CODES = [
   'PROVIDER_CONFIG_NOT_FOUND',
   'PERMISSION_MODE_UNSUPPORTED',
   'TOOL_POLICY_UNSUPPORTED',
-  'TURN_TIMEOUT_UNSUPPORTED'
+  'TURN_TIMEOUT_UNSUPPORTED',
+  'CHILD_ABORTED'
 ] as const;
 export type OfficialHostErrorCode = (typeof OFFICIAL_HOST_ERROR_CODES)[number];
 
@@ -1030,6 +1031,17 @@ export interface HostSessionOptions {
   readonly spawnChild?: SpawnHostChild;
   readonly bundlePath?: string;
   readonly timeoutMs?: number;
+  /**
+   * 请求级取消口（2026-10-11）。客户端断开时 API 层 abort 的是
+   * `DriverRequest.signal`——把它一路传到这里，子宿主随断开**立即**收束，
+   * 而不是继续跑到 turn 自然结束。不传则行为与此前逐字一致。
+   *
+   * 真实动机：真客户端一次开 3-4 个会话且自带 5 次重试——断开不杀旧 turn
+   * 时，每次重试都遗留一个完整官方 app-server 跑到自然结束，短时间十几路
+   * 并发互相争账号配额，形成"越重试越慢、越慢越重试"的雪崩（2026-10-10 实录
+   * `client_gone` 后 `stream_failed` 残留 turn 的形态）。
+   */
+  readonly signal?: AbortSignal;
 }
 
 function parseChildLine<T>(line: string): T | null {
@@ -1151,6 +1163,16 @@ export async function runHostSession(
     }, timeoutMs);
     timer.unref();
 
+    // 客户端断开 → 与墙钟同一条 finish 路径收束（自然退出宽限 + kill 兜底）。
+    // 不另造语义：CHILD_ABORTED 是"我们主动终止"，与超时/失败可区分。
+    const onAbort = (): void => {
+      finish(new OfficialHostConfigError('CHILD_ABORTED', '客户端已断开，主动收束子宿主'));
+    };
+    if (options.signal !== undefined) {
+      if (options.signal.aborted) onAbort();
+      else options.signal.addEventListener('abort', onAbort, { once: true });
+    }
+
     child.on('error', (e: Error) => finish(new OfficialHostConfigError('CHILD_SPAWN_FAILED', `子宿主无法启动：${e.message}`)));
     child.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
       // 观察到真实退出：清掉 reap 的 kill 宽限窗（若有），别对已退出的进程再动手。
@@ -1208,6 +1230,12 @@ export async function runHostSession(
       }
     });
 
+    // 预置已 abort / 已退出的世界里 stdin 可能已被 reap 关掉：写前先查，写后再兜
+    // 异步的 write-after-end（同步 try 只拦得住同步抛）。
+    if (options.signal?.aborted === true) {
+      finish(new OfficialHostConfigError('CHILD_ABORTED', '客户端已断开，主动收束子宿主'));
+      return;
+    }
     try {
       child.stdin?.write(frame(request));
     } catch (e) {
@@ -1448,7 +1476,9 @@ export function createOfficialHostDriver(options: CreateOfficialHostDriverOption
         {
           ...(spawnChild === undefined ? {} : { spawnChild }),
           bundlePath,
-          ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs })
+          ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+          // 客户端断开即取消子宿主（防 3-4 并发会话 × 重试的孤儿 turn 雪崩）。
+          ...(request.signal === undefined ? {} : { signal: request.signal })
         }
       );
       // 崩溃隔离的**唯一**出口：runHostSession 的任何失败（子进程 exit / 崩溃 / 协议违规 /

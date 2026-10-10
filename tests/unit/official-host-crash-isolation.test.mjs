@@ -58,6 +58,64 @@ function collector() {
   return { events, onEvent: (/** @type {any} */ e) => events.push(e) };
 }
 
+describe('OFFICIAL-HOST 客户端断开即收束子宿主（2026-10-11 并发防雪崩）', () => {
+  it('abort 后子宿主立即被收束（CHILD_ABORTED），不再跑到自然结束', async () => {
+    const c = collector();
+    const controller = new AbortController();
+    // 假子宿主：吐完 ready 后睡 30 秒（模拟官方长 turn）。不 abort 的旧世界里
+    // 它会占满 timeoutMs；abort 后必须在远小于 30s 内被收掉。
+    const script = [
+      `process.stdout.write(JSON.stringify({zccHost:{type:'ready',bundle:'synthetic',exports:[]}})+'\n');`,
+      `setTimeout(() => { process.stdout.write(JSON.stringify({zccHost:{type:'delta',text:'late'}})+'\n'); }, 30000);`
+    ].join('');
+    const childSeen = new Promise((resolve) => {
+      const orig = fakeChild(script);
+      // 包一层拿 child 句柄，验证它真的退了（而不是只看 promise reject）。
+      globalThis.__zccTestSpawn = (args) => { const ch = orig(args); resolve(ch); return ch; };
+    });
+    const runP = runHostSession({ op: 'describe' }, c.onEvent, {
+      bundlePath: BUNDLE_PATH,
+      timeoutMs: 60_000,
+      signal: controller.signal,
+      spawnChild: (args) => globalThis.__zccTestSpawn(args)
+    });
+    // abort 与 exit 两路 finish 存在先手竞争；派生 promise 的极窄时序窗会让 vitest
+    // 把已被 expect 消费的 rejection 误报为 unhandled。挂一个无操作 handler 消音——
+    // 断言本体（快速收束/进程退出/无 late delta）不受影响。
+    runP.catch(() => {});
+    await new Promise((r) => setTimeout(r, 400));
+    const abortAt = Date.now();
+    controller.abort();
+    // CHILD_ABORTED 与 reap 触发的 CHILD_EXITED(code=1) 存在先手竞争，两者都证明
+    // "断开即收束"；真正的断言是**用时**：远小于假子宿主的 30s 长跑。
+    await expect(runP).rejects.toThrowError(/CHILD_ABORTED|CHILD_EXITED/);
+    expect(Date.now() - abortAt).toBeLessThan(5000);
+    const child = await childSeen;
+    // 进程句柄真实退出（reap 走完：自然退出宽限 + kill 兜底）。
+    await new Promise((resolve) => {
+      if (child.exitCode !== null || child.signalCode !== null) return resolve(undefined);
+      child.on('exit', () => resolve(undefined));
+      setTimeout(resolve, 5000);
+    });
+    expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
+    expect(c.events.some((e) => e.type === 'delta' && e.text === 'late')).toBe(false);
+  });
+
+  it('预置已 abort 的 signal：直接拒绝，不 spawn 长跑（fail-closed 于入口）', async () => {
+    const c = collector();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      runHostSession({ op: 'describe' }, c.onEvent, {
+        bundlePath: BUNDLE_PATH,
+        timeoutMs: 5000,
+        signal: controller.signal,
+        spawnChild: fakeChild('setTimeout(() => process.exit(0), 30000)')
+      })
+    ).rejects.toThrowError(/CHILD_ABORTED/);
+  });
+});
+
 describe('OFFICIAL-HOST crash isolation · 子进程崩了只毁那次请求', () => {
   it('启动期非零退出 → CHILD_EXITED，且不产生任何 delta', async () => {
     const c = collector();
