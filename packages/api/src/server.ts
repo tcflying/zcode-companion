@@ -971,7 +971,9 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       if (res.headersSent) {
         // 流已开始，改不了状态码：如实销毁连接，不静默截断成"看起来成功"。
         res.destroy();
-        logger.warn(`event=stream_failed key=${identity.keyFingerprint} operation=${operationId} code=${err.code}`);
+        // 详情截断带上（2026-10-11）：只靠 code 分不清"官方 turn 失败"的十种子类；
+        // message 已是 sanitize 过的驱动器错误（凭据不进消息），截 200 字防刷屏。
+        logger.warn(`event=stream_failed key=${identity.keyFingerprint} operation=${operationId} code=${err.code} detail=${String(err.message).slice(0, 200)}`);
       } else {
         sendError(res, err);
         logger.warn(`event=rejected key=${identity.keyFingerprint} code=${err.code} status=${err.status}`);
