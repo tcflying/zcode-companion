@@ -33,3 +33,4 @@ review-artifacts/zcc-gui-evidence-*/
 
 # Locked verifier temp probes inside audit dirs
 review-artifacts/zcc-auth-repair-20261008/verifier-temp/
+.codegraph/
