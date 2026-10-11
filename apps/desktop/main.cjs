@@ -504,7 +504,7 @@ function showWindow() {
 
 function createTray() {
   // 2026-10-11 升级为系统托盘模块（状态/权益/在途/开机自启），逻辑在 lib/tray.cjs（可测）。
-  trayHandle = trayLib.createSystemTray({
+  tray = trayLib.createSystemTray({
     trayFactory: () => new Tray(iconImage()),
     menuFactory: Menu,
     getSnapshot: () => snapshotPayload(),
