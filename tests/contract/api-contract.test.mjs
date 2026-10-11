@@ -2882,6 +2882,7 @@ describe('API01 本机 API · fixture 驱动器', () => {
     const inner = createFixtureDriver();
     const driver = {
       ...inner,
+      /** @param {import('../../packages/api/src/chat.js').DriverRequest} request */
       async *stream(request) {
         yield { type: 'reasoning', text: '思考片段一。' };
         yield { type: 'reasoning', text: '思考片段二。' };

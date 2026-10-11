@@ -68,16 +68,20 @@ describe('OFFICIAL-HOST 客户端断开即收束子宿主（2026-10-11 并发防
       `process.stdout.write(JSON.stringify({zccHost:{type:'ready',bundle:'synthetic',exports:[]}})+'\n');`,
       `setTimeout(() => { process.stdout.write(JSON.stringify({zccHost:{type:'delta',text:'late'}})+'\n'); }, 30000);`
     ].join('');
-    const childSeen = new Promise((resolve) => {
+    /** 包一层拿 child 句柄，验证它真的退了（而不是只看 promise reject）。闭包直传，不挂 globalThis（checkjs 无索引签名）。 */
+    const wrapped = (() => {
       const orig = fakeChild(script);
-      // 包一层拿 child 句柄，验证它真的退了（而不是只看 promise reject）。
-      globalThis.__zccTestSpawn = (args) => { const ch = orig(args); resolve(ch); return ch; };
-    });
+      /** @param {readonly string[]} args */
+      return (args) => { const ch = orig(args); resolveChild(ch); return ch; };
+    })();
+    /** @type {(ch: import('node:child_process').ChildProcess) => void} */
+    let resolveChild;
+    const childSeen = new Promise((resolve) => { resolveChild = resolve; });
     const runP = runHostSession({ op: 'describe' }, c.onEvent, {
       bundlePath: BUNDLE_PATH,
       timeoutMs: 60_000,
       signal: controller.signal,
-      spawnChild: (args) => globalThis.__zccTestSpawn(args)
+      spawnChild: wrapped
     });
     // abort 与 exit 两路 finish 存在先手竞争；派生 promise 的极窄时序窗会让 vitest
     // 把已被 expect 消费的 rejection 误报为 unhandled。挂一个无操作 handler 消音——

@@ -30,6 +30,7 @@ const { resolveRuntimePaths } = require('./lib/runtime-paths.cjs');
 const { createLogRing } = require('./lib/log-ring.cjs');
 const { createLogExporter } = require('./lib/log-export.cjs');
 const { createProxyManager } = require('./lib/proxy-manager.cjs');
+const trayLib = require('./lib/tray.cjs');
 const { buildSpawnSpec: buildSpecForRuntime } = require('./lib/spawn-spec.cjs');
 const {
   routeAppRequest,
@@ -169,8 +170,10 @@ const exportLogs = createLogExporter({
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
-/** @type {Tray | null} */
+/** @type {import('./lib/tray.cjs').ReturnType<typeof trayLib.createSystemTray> | null} 托盘句柄（product 模式）。 */
 let tray = null;
+/** 用户真要退出（托盘菜单/退出链）时置位：此时关窗不再缩托盘。 */
+let quitting = false;
 
 /**
  * 主进程侧的一条日志：进环形缓冲（已脱敏），不落盘、不进 IPC 载荷。
@@ -500,21 +503,69 @@ function showWindow() {
 }
 
 function createTray() {
-  tray = new Tray(iconImage());
-  tray.setToolTip('ZCode Companion · 独立软件（非 ZCode 官方）');
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: '显示窗口', click: () => showWindow() },
-      { type: 'separator' },
-      {
-        label: '退出',
-        click: () => {
-          app.quit();
+  // 2026-10-11 升级为系统托盘模块（状态/权益/在途/开机自启），逻辑在 lib/tray.cjs（可测）。
+  trayHandle = trayLib.createSystemTray({
+    trayFactory: () => new Tray(iconImage()),
+    menuFactory: Menu,
+    getSnapshot: () => snapshotPayload(),
+    getLoginItemSettings: () => app.getLoginItemSettings(),
+    setLoginItemSettings: (opts) => app.setLoginItemSettings(opts),
+    pollers: () => ({ probe: probeService, entitlement: probeEntitlement }),
+    showWindow,
+    quit: () => app.quit(),
+    log: (line) => logMain(`[tray] ${line}`)
+  });
+}
+
+/**
+ * 探活 Servy 常驻反代（8790，**不属于本 GUI**）：GET /v1/models 不带 key。
+ * 200=正常；401/403=服务在但被认证门拒（也算活）；其余/网络错误=无响应。
+ * @returns {Promise<'up' | 'unauthorized' | 'down'>}
+ */
+function probeService() {
+  return new Promise((resolve) => {
+    const request = net.request({ url: 'http://127.0.0.1:8790/v1/models', method: 'GET' });
+    request.on('response', (response) => {
+      response.on('data', () => undefined); // drain
+      response.on('end', () => resolve(trayLib.classifyProbe(/** @type {number} */ (response.statusCode))));
+    });
+    request.on('error', () => resolve('down'));
+    request.end();
+  });
+}
+
+/**
+ * 权益摘要（目录侧口径，无余量数字）：带本 GUI 已配置的 key 读 catalog。
+ * key 只进请求头，绝不进 tooltip/菜单/日志。
+ * @returns {Promise<import('./lib/tray.cjs').EntitlementSummary>}
+ */
+function probeEntitlement() {
+  const key = settings.apiKey.trim();
+  const unknown = { subscriptionModels: 0, promotionModels: 0, sourceLabel: '未知' };
+  if (key === '') return Promise.resolve(unknown);
+  return new Promise((resolve) => {
+    const request = net.request({ url: 'http://127.0.0.1:8790/v1/zcc/catalog', method: 'GET' });
+    request.setHeader('Authorization', `Bearer ${key}`);
+    let body = '';
+    request.on('response', (response) => {
+      response.on('data', (chunk) => {
+        body += String(chunk);
+      });
+      response.on('end', () => {
+        if (response.statusCode !== 200) {
+          resolve(unknown);
+          return;
         }
-      }
-    ])
-  );
-  tray.on('click', () => showWindow());
+        try {
+          resolve(trayLib.summarizeEntitlement(JSON.parse(body)));
+        } catch {
+          resolve(unknown);
+        }
+      });
+    });
+    request.on('error', () => resolve(unknown));
+    request.end();
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -661,6 +712,13 @@ function bootstrap() {
 
   mainWindow = createWindow({ hidden: RUN_MODE !== 'product' });
   if (RUN_MODE === 'product') {
+    // 2026-10-11 关窗=最小化到托盘（常驻）；真退出走托盘菜单/退出链（quitting 置位后放行）。
+    mainWindow.on('close', (event) => {
+      if (!quitting) {
+        event.preventDefault();
+        mainWindow?.hide();
+      }
+    });
     mainWindow.on('closed', () => {
       mainWindow = null;
     });
@@ -698,13 +756,16 @@ app.whenReady()
   });
 
 app.on('window-all-closed', () => {
-  app.quit();
+  // product 模式托盘常驻：全部窗口关闭≠退出（关窗缩托盘）；真退出走托盘菜单
+  // 或 before-quit 收束链。非 product 模式（smoke/verify）维持即退。
+  if (RUN_MODE !== 'product') app.quit();
 });
 
 let cleanedUp = false;
 let cleanupInFlight = false;
 app.on('before-quit', (event) => {
   if (cleanedUp || RUN_MODE !== 'product') return;
+  quitting = true; // 放行后续关窗（缩托盘拦截让位）。
   event.preventDefault();
   // **收束在途时的第二次 before-quit 只能拦住，绝不能放行**（ZC-33/F06）。
   // `cleanedUp` 要到 dispose 完成后才置位，所以重复 quit（用户连点退出、
