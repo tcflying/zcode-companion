@@ -25,8 +25,17 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 /** 唯一允许的绑定地址。类型层与运行期都锁死这一条。 */
 export const HOST_LOOPBACK = '127.0.0.1' as const;
 
-/** HTTP 请求体上限 1 MiB。超限 413，不缓冲。 */
-export const REQUEST_BODY_MAX_BYTES = 1024 * 1024;
+/**
+ * HTTP 请求体上限 16 MiB。超限 413，不缓冲。
+ *
+ * 2026-10-11 从 1 MiB 放宽：真客户端 mmx 的**上下文压缩请求 = 全量历史序列化**，
+ * 主上把自动压缩阈值设在 250K tokens——那一档历史的 JSON 序列化约 1–4 MB，旧上限
+ * 把每次压缩请求都 413 掉（日志实录 6 条），mmx 于是"提示已压缩、实际全量照发"
+ * （GPT/opencodex 路径压缩成功正因 OpenAI 侧吃大 payload）。16 MiB 在 127.0.0.1
+ * 回环 + Bearer 门 + `messages` 条数上限的多层防护下余量充足；重放预算
+ * （REPLAY_STORE 32 MiB）与响应缓冲（STREAM_BUFFER 4 MiB）各自独立不受影响。
+ */
+export const REQUEST_BODY_MAX_BYTES = 16 * 1024 * 1024;
 /** `metadata` 对象序列化后上限 64 KiB。 */
 export const METADATA_MAX_BYTES = 64 * 1024;
 

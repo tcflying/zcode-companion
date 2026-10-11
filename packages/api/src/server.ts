@@ -1539,18 +1539,28 @@ async function readBody(req: http.IncomingMessage, res: http.ServerResponse): Pr
   const declared = req.headers['content-length'];
   if (declared !== undefined && Number(declared) > REQUEST_BODY_MAX_BYTES) {
     res.setHeader('connection', 'close');
-    // 排空（丢弃而不缓冲），**不是** destroy：destroy 会让客户端在读到 413 之前
-    // 先收到 RST，响应体就丢了。排空让客户端把 1MiB+ 写完、正常读到响应。
-    // 排空量有上限，超过就强拆：拒绝一个超限请求不等于替它读完任意大的流。
+    // 排空（丢弃而不缓冲）到客户端**写完**，然后才发 413——顺序不能反：
+    // 响应先到而客户端还在写时，连接关闭会让客户端吃 RST、连 413 都读不到
+    // （上限调到 16 MiB 后写入耗时变长，这条竞争从理论变成了实测）。
+    // 排空量有上限（8×上限），超过就强拆：拒绝一个超限请求不等于替它读完任意大的流。
     const drainCap = REQUEST_BODY_MAX_BYTES * 8;
     let drained = 0;
-    const onDrain = (chunk: Buffer): void => {
-      drained += chunk.length;
-      if (drained > drainCap) req.destroy();
-    };
-    req.on('data', onDrain);
-    req.once('end', () => req.off('data', onDrain));
-    req.resume();
+    await new Promise<void>((resolve) => {
+      const onDrain = (chunk: Buffer): void => {
+        drained += chunk.length;
+        if (drained > drainCap) {
+          req.off('data', onDrain);
+          req.destroy();
+          resolve();
+        }
+      };
+      req.once('end', () => {
+        req.off('data', onDrain);
+        resolve();
+      });
+      req.on('data', onDrain);
+      req.resume();
+    });
     throw new ApiError('payload_too_large', `请求体超过 ${REQUEST_BODY_MAX_BYTES} 字节上限`, {
       limit_bytes: REQUEST_BODY_MAX_BYTES
     });
