@@ -129,7 +129,11 @@ const VITEST_RUN_ALL = 'test';
 const COMMANDS = {
   'typecheck:apps': {
     bin: 'node_modules/typescript/bin/tsc',
-    args: ['--noEmit', '-p', 'apps/ui/tsconfig.json'],
+    // --pretty false：门的输出是机器与人共读的诊断面，格式必须稳定。
+    // TS7 在 FORCE_COLOR=1 的环境里会切到 `file:line:col - error TS…` 的
+    // 着色 pretty 格式（外部 env 一漂，file(line,col) 契约就碎）。这里把
+    // 格式钉死为纯文本 `file(line,col): error TS…`（F33 契约测试断言的形状）。
+    args: ['--noEmit', '--pretty', 'false', '-p', 'apps/ui/tsconfig.json'],
     // F05/Q1: apps/ is a separate nested project. Its project config is a hard
     // precondition of this gate and is checked explicitly below, so "the apps
     // project was never created" can never be reported as a passing typecheck.
@@ -142,7 +146,9 @@ const COMMANDS = {
   // 也不并入 apps/ui 工程。与 typecheck:apps 同形：项目配置缺失 = exit 4，不许静默跳过。
   'typecheck:desktop': {
     bin: 'node_modules/typescript/bin/tsc',
-    args: ['--noEmit', '-p', 'tsconfig.desktop.json'],
+    // 同 typecheck:apps：--pretty false 钉死纯文本 file(line,col) 格式，
+    // 不随 FORCE_COLOR/TTY 环境漂移（F33 红用例断言的就是这个形状）。
+    args: ['--noEmit', '--pretty', 'false', '-p', 'tsconfig.desktop.json'],
     required: ['apps/desktop/package.json']
   },
   // I10：apps/ui 自己的 vitest。UI01 把 apps/ 隔离出根 vitest 工程是有意裁定
