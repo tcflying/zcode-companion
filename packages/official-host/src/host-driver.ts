@@ -284,14 +284,172 @@ export const OFFICIAL_HOST_ERROR_CODES = [
 ] as const;
 export type OfficialHostErrorCode = (typeof OFFICIAL_HOST_ERROR_CODES)[number];
 
+/**
+ * `runHostSession` 的**观察式计数器快照**（k1/k4）。
+ *
+ * 三条纪律：
+ *  - **纯观察**：不看任何错误码表、不参与任何控制流判断——分类只用「看到了什么帧」。
+ *  - **只计数/只计时**：不存产出内容，不存 prompt 内容（prompt 只留字节数）。
+ *  - **阶段三分**：`before_ready`（未收到 ready 帧）/ `ready_no_output`（收到 ready 但
+ *    零产出）/ `output_started`。外层 `CHILD_SPAWN_FAILED`/stdin 写失败自然落
+ *    `before_ready`；内层 `BUNDLE_SPAWN_FAILED` 按 ready 是否已到自动归位
+ *    （`host-child.mjs` 的 ready 在 spawn 之后、会话驱动之前才发）。
+ */
+export interface HostSessionObservation {
+  readonly stage: 'before_ready' | 'ready_no_output' | 'output_started';
+  readonly deltaFrames: number;
+  readonly reasoningFrames: number;
+  readonly usageFrames: number;
+  /** spawn → ready 帧毫秒；`null` = 失败前没等到 ready。 */
+  readonly readyMs: number | null;
+  /** spawn → 首个 delta/reasoning 毫秒；`null` = 没有任何产出帧。 */
+  readonly firstOutputMs: number | null;
+  /** spawn → 快照时刻毫秒。 */
+  readonly elapsedMs: number;
+  /** 请求帧 prompt 的 UTF-8 字节数（`describe` 路径为 0）。 */
+  readonly promptBytes: number;
+  readonly stderrBytes: number;
+  /**
+   * 子宿主 stderr 里 `ZCC_HOST_DEBUG ` 前缀行（≤{@link CHILD_DEBUG_TAIL_MAX_BYTES}）。
+   * 那是我们在 `host-child.mjs` 自己写的零凭据 JSON 摘要；**其余 stderr 内容维持只计数**，
+   * 从不进入本字段。空串 = 没有这类行（`ZCC_HOST_DEBUG=0` 时的常态）。
+   */
+  readonly debugTail: string;
+}
+
+/** 子宿主 `ZCC_HOST_DEBUG ` 前缀行有界转发进失败诊断的上限（字符）。 */
+export const CHILD_DEBUG_TAIL_MAX_BYTES = 4096;
+
+/** stderr 滚动窗口（字符）：只为拼出完整的 `ZCC_HOST_DEBUG ` 行，超窗即丢最旧。 */
+const STDERR_DEBUG_WINDOW_CHARS = 8192;
+
+/** 从 stderr 滚动窗口里抽出 `ZCC_HOST_DEBUG ` 前缀行（有界）。 */
+function extractDebugTail(window: string): string {
+  if (!window.includes('ZCC_HOST_DEBUG ')) return '';
+  const lines = window
+    .split('\n')
+    .map((line) => line.replace(/\r$/, ''))
+    .filter((line) => line.startsWith('ZCC_HOST_DEBUG '));
+  const joined = lines.join('\n');
+  return joined.length <= CHILD_DEBUG_TAIL_MAX_BYTES ? joined : joined.slice(0, CHILD_DEBUG_TAIL_MAX_BYTES);
+}
+
 /** 配置 / 契约层错误。**不**含任何凭据值。 */
 export class OfficialHostConfigError extends Error {
   readonly code: OfficialHostErrorCode;
-  constructor(code: OfficialHostErrorCode, message: string) {
+  /**
+   * 子宿主 `failed` 帧的原始 code（如 `SESSION_FAILED` / `BUNDLE_SPAWN_FAILED`）。
+   * `undefined` = 失败不来自子宿主的 failed 帧（spawn/超时/协议违规等父进程侧失败）。
+   * 注意子宿主把会话失败统一报 `SESSION_FAILED`（`host-child.mjs` 的 `fail()`），
+   * **子码只在 detail 前缀里**（`SESSION_TIMEOUT:` 等）——见 `childDetail`。
+   */
+  readonly childCode?: string;
+  /** `sanitizeChildDetail` 之后的子宿主 detail。分流只认这里的**精确前缀**。 */
+  readonly childDetail?: string;
+  /** 观察式计数器快照（k1）。 */
+  readonly observation?: HostSessionObservation;
+  constructor(
+    code: OfficialHostErrorCode,
+    message: string,
+    extras?: {
+      readonly childCode?: string;
+      readonly childDetail?: string;
+      readonly observation?: HostSessionObservation;
+    }
+  ) {
     super(`${code}: ${message}`);
     this.name = 'OfficialHostConfigError';
     this.code = code;
+    if (extras !== undefined) {
+      if (extras.childCode !== undefined) this.childCode = extras.childCode;
+      if (extras.childDetail !== undefined) this.childDetail = extras.childDetail;
+      if (extras.observation !== undefined) this.observation = extras.observation;
+    }
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* k1：子宿主失败 → ApiError 的观察式包装（detail 扁平标量键 + 人话追加 + 504 分流）*/
+/* -------------------------------------------------------------------------- */
+
+/**
+ * **前缀精确匹配**才分流的子码 → 既有 API 错误码（`upstream_timeout`，504）。
+ *
+ * 为什么必须精确前缀而不是 `includes`：子宿主把会话失败统一报
+ * `SESSION_FAILED`（`host-child.mjs` 的 `fail('SESSION_FAILED', e.message)`），
+ * 子码只在 detail 前缀里；宽匹配会把 `SESSION_SEND_REJECTED` 误判成超时
+ * （stub-bundle 测试钉死该路径 message 不得含 `SESSION_TIMEOUT` 且码保持
+ * `upstream_outcome_unknown`）。
+ */
+export const CHILD_DETAIL_TIMEOUT_PREFIXES: readonly string[] = Object.freeze([
+  'SESSION_TIMEOUT:',
+  'SESSION_CREATE_NO_SESSION_ID:'
+]);
+
+/**
+ * 按子码/detail 前缀追加的**人话与补救动作**。
+ *
+ * 纪律：**只追加、绝不替换**子宿主原始 detail——机读的短码与官方错误文本
+ * （`SESSION_SEND_REJECTED` / `code=-32603` / 官方错误消息）必须原样到达运维。
+ * 注意 `SESSION_SEND_REJECTED` 分支的话术**不得**包含 `SESSION_TIMEOUT` /
+ * `CHILD_TIMEOUT` 字样（同一条测试钉）。
+ */
+export function hostFailureHint(childCode: string | undefined, childDetail: string | undefined): string | null {
+  if (childDetail !== undefined) {
+    if (childDetail.startsWith('SESSION_TIMEOUT:')) {
+      return '人话：官方侧这一轮超时未完成。可稍后重试；长任务可调大 ZCC_HOST_TURN_TIMEOUT_MS';
+    }
+    if (childDetail.startsWith('SESSION_CREATE_NO_SESSION_ID:')) {
+      return '人话：官方侧建会话没有回执（挂到墙钟上限）。多为官方侧异常；重试无效时开 ZCC_HOST_DEBUG=1 看阶段诊断';
+    }
+    if (childDetail.startsWith('SESSION_SEND_REJECTED:')) {
+      return '人话：官方在回合中途明确拒绝（配额/参数/权限类）。请结合上方官方错误码处理，不宜盲目重试';
+    }
+  }
+  if (childCode === 'BUNDLE_SPAWN_FAILED' || childCode === 'BUNDLE_NOT_FOUND') {
+    return '人话：官方 app-server 起不来。请检查 ZCode CLI 安装（bundle 是否存在、node 能否运行它）';
+  }
+  if (childCode === 'CHANNEL_REFUSED') {
+    return '人话：付费通道未开（entitlement 判定不可用）。检查套餐状态后重试';
+  }
+  return '人话：上游官方侧失败。可重试；持续失败请看 err.log 的 detail_json 与 ZCC_HOST_DEBUG=1 诊断';
+}
+
+/**
+ * 把 `runHostSession` 的失败包装成 API 错误（驱动器两个活包装点共用）。
+ *
+ * 三件事：
+ *  1. **504 分流**：子宿主 detail 前缀精确命中 {@link CHILD_DETAIL_TIMEOUT_PREFIXES}
+ *     → `upstream_timeout`（errors.ts 的 504 / `outcome_unknown`）；其余维持
+ *     `upstream_outcome_unknown`（502）。
+ *  2. **人话追加**：`官方宿主会话失败：<原始 message>｜<hostFailureHint>`。
+ *  3. **detail 扁平标量键**：`child_code` / `stage` / `frames` / `first_output_ms` /
+ *     `elapsed_ms` / `prompt_bytes`（+ 可选 `child_debug`）。全是标量，契约层
+ *     `sanitizeDetail` 只拒嵌套与凭据样式值，新增扁平标量键安全。
+ */
+export function hostFailureApiError(failure: Error): ApiError {
+  const oc = failure instanceof OfficialHostConfigError ? failure : undefined;
+  const childDetail = oc?.childDetail;
+  const code: 'upstream_timeout' | 'upstream_outcome_unknown' =
+    childDetail !== undefined && CHILD_DETAIL_TIMEOUT_PREFIXES.some((prefix) => childDetail.startsWith(prefix))
+      ? 'upstream_timeout'
+      : 'upstream_outcome_unknown';
+  const hint = hostFailureHint(oc?.childCode, childDetail);
+  const message = `官方宿主会话失败：${failure.message}${hint === null ? '' : `｜${hint}`}`;
+  const detail: Record<string, string | number | boolean> = { driver: OFFICIAL_HOST_DRIVER_NAME };
+  if (oc !== undefined) {
+    if (oc.childCode !== undefined) detail['child_code'] = oc.childCode;
+    const obs = oc.observation;
+    if (obs !== undefined) {
+      detail['stage'] = obs.stage;
+      detail['frames'] = obs.deltaFrames + obs.reasoningFrames + obs.usageFrames;
+      if (obs.firstOutputMs !== null) detail['first_output_ms'] = obs.firstOutputMs;
+      detail['elapsed_ms'] = obs.elapsedMs;
+      detail['prompt_bytes'] = obs.promptBytes;
+      if (obs.debugTail !== '') detail['child_debug'] = obs.debugTail;
+    }
+  }
+  return new ApiError(code, message, detail);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1081,7 +1239,7 @@ export async function runHostSession(
   request: HostChannelRequest,
   onEvent: (event: HostChannelEvent) => void,
   options: HostSessionOptions = {}
-): Promise<{ readonly bundle: string; readonly exports: readonly string[] }> {
+): Promise<{ readonly bundle: string; readonly exports: readonly string[]; readonly observation?: HostSessionObservation }> {
   const bundlePath = options.bundlePath ?? DEFAULT_BUNDLE_PATH;
   if (!existsSync(bundlePath)) {
     throw new OfficialHostConfigError('BUNDLE_NOT_FOUND', `官方 bundle 不存在：${bundlePath}（只读引用；本驱动不会安装或下载它）`);
@@ -1091,14 +1249,68 @@ export async function runHostSession(
   const timeoutMs = options.timeoutMs ?? resolveHostTurnTimeoutMs();
 
   const child = spawnChild([resolveHostChildScript(), '--bundle', bundlePath]);
-  // stderr 只 drain、只计数。**从不**把内容读进变量：官方 bundle 的 stderr 未经净化。
+  // stderr 只 drain、只计数。**从不**把官方写的内容读进变量（官方 bundle 的 stderr 未经净化）。
+  // 唯一例外（k1 低配）：`ZCC_HOST_DEBUG ` 前缀行——那是我们自己在 host-child.mjs 写的、
+  // 结构受控、零凭据的一行 JSON，允许**有界**进失败诊断（≤CHILD_DEBUG_TAIL_MAX_BYTES）；
+  // 滚动窗口只为拼出完整的这类行，其余内容仍然只计数、从不外发。
   let stderrBytes = 0;
+  let stderrWindow = '';
   child.stderr?.on('data', (chunk: Buffer | string) => {
     stderrBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk, 'utf8') : chunk.length;
+    stderrWindow = (stderrWindow + (typeof chunk === 'string' ? chunk : chunk.toString('utf8'))).slice(-STDERR_DEBUG_WINDOW_CHARS);
   });
   child.stderr?.on('error', () => undefined);
 
-  return new Promise<{ readonly bundle: string; readonly exports: readonly string[] }>((resolve, reject) => {
+  // ── k1 观察式计数器（挂在 onEvent 旁；纯观察，不看码表、不参与控制流）────────
+  const observedStartedAt = Date.now();
+  let readyAt: number | null = null;
+  let firstOutputAt: number | null = null;
+  let deltaFrames = 0;
+  let reasoningFrames = 0;
+  let usageFrames = 0;
+  const promptBytes = request.op === 'run' ? Buffer.byteLength(request.prompt, 'utf8') : 0;
+  /** 包一层 onEvent：先计数，再原样转交调用方回调（调用方看到的事件序列一字不变）。 */
+  const observingOnEvent = (event: HostChannelEvent): void => {
+    switch (event.type) {
+      case 'ready':
+        if (readyAt === null) readyAt = Date.now();
+        break;
+      case 'delta':
+        deltaFrames += 1;
+        if (firstOutputAt === null) firstOutputAt = Date.now();
+        break;
+      case 'reasoning':
+        reasoningFrames += 1;
+        if (firstOutputAt === null) firstOutputAt = Date.now();
+        break;
+      case 'usage':
+        usageFrames += 1;
+        break;
+      default:
+        break;
+    }
+    onEvent(event);
+  };
+  const snapshotObservation = (): HostSessionObservation => ({
+    stage: readyAt === null ? 'before_ready' : firstOutputAt === null ? 'ready_no_output' : 'output_started',
+    deltaFrames,
+    reasoningFrames,
+    usageFrames,
+    readyMs: readyAt === null ? null : Math.max(0, readyAt - observedStartedAt),
+    firstOutputMs: firstOutputAt === null ? null : Math.max(0, firstOutputAt - observedStartedAt),
+    elapsedMs: Math.max(0, Date.now() - observedStartedAt),
+    promptBytes,
+    stderrBytes,
+    debugTail: extractDebugTail(stderrWindow)
+  });
+  /** runHostSession 内部所有失败的统一出口：把计数器快照挂上错误再抛。 */
+  const observedFailure = (
+    code: OfficialHostErrorCode,
+    message: string,
+    extras?: { readonly childCode?: string; readonly childDetail?: string }
+  ): OfficialHostConfigError => new OfficialHostConfigError(code, message, { ...extras, observation: snapshotObservation() });
+
+  return new Promise<{ readonly bundle: string; readonly exports: readonly string[]; readonly observation?: HostSessionObservation }>((resolve, reject) => {
     let settled = false;
     let buffer = '';
     let ready: { readonly bundle: string; readonly exports: readonly string[] } | null = null;
@@ -1155,25 +1367,26 @@ export async function runHostSession(
       clearTimeout(timer);
       reap();
       if (err !== null) reject(err);
-      else resolve(value ?? { bundle: bundlePath, exports: [] });
+      // 成功也带上计数器快照（k4 第一步：成功路径的分段计时经驱动器诊断线外发）。
+      else resolve({ ...(value ?? { bundle: bundlePath, exports: [] }), observation: snapshotObservation() });
     };
 
     const timer = setTimeout(() => {
-      finish(new OfficialHostConfigError('CHILD_TIMEOUT', `子宿主在 ${timeoutMs}ms 内没有结束（stderr ${stderrBytes} 字节未读取内容）`));
+      finish(observedFailure('CHILD_TIMEOUT', `子宿主在 ${timeoutMs}ms 内没有结束（stderr ${stderrBytes} 字节未读取内容）`));
     }, timeoutMs);
     timer.unref();
 
     // 客户端断开 → 与墙钟同一条 finish 路径收束（自然退出宽限 + kill 兜底）。
     // 不另造语义：CHILD_ABORTED 是"我们主动终止"，与超时/失败可区分。
     const onAbort = (): void => {
-      finish(new OfficialHostConfigError('CHILD_ABORTED', '客户端已断开，主动收束子宿主'));
+      finish(observedFailure('CHILD_ABORTED', '客户端已断开，主动收束子宿主'));
     };
     if (options.signal !== undefined) {
       if (options.signal.aborted) onAbort();
       else options.signal.addEventListener('abort', onAbort, { once: true });
     }
 
-    child.on('error', (e: Error) => finish(new OfficialHostConfigError('CHILD_SPAWN_FAILED', `子宿主无法启动：${e.message}`)));
+    child.on('error', (e: Error) => finish(observedFailure('CHILD_SPAWN_FAILED', `子宿主无法启动：${e.message}`)));
     child.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
       // 观察到真实退出：清掉 reap 的 kill 宽限窗（若有），别对已退出的进程再动手。
       childExited = true;
@@ -1187,18 +1400,18 @@ export async function runHostSession(
       // 这条判据不能写成"ready 之后就不管"：官方 bundle 在会话中途 `process.exit()` 是
       // 完全可能的（CLI bootstrap 里的 fatal 分支），那种情况下若不失败化，请求会一路
       // 挂到墙钟上限才报 CHILD_TIMEOUT——把一次崩溃伪装成一次慢响应。
-      finish(new OfficialHostConfigError('CHILD_EXITED', `子宿主退出（code=${String(code)} signal=${String(signal)}，stderr ${stderrBytes} 字节未读取内容）`));
+      finish(observedFailure('CHILD_EXITED', `子宿主退出（code=${String(code)} signal=${String(signal)}，stderr ${stderrBytes} 字节未读取内容）`));
     });
 
     child.stdout?.setEncoding('utf8');
-    child.stdout?.on('error', () => finish(new OfficialHostConfigError('CHILD_PROTOCOL_VIOLATION', '子宿主 stdout 流不可读')));
+    child.stdout?.on('error', () => finish(observedFailure('CHILD_PROTOCOL_VIOLATION', '子宿主 stdout 流不可读')));
     child.stdout?.on('data', (chunk: string) => {
       buffer += chunk;
       for (;;) {
         const at = buffer.indexOf('\n');
         if (at < 0) {
           if (buffer.length > HOST_CHILD_MAX_LINE_BYTES) {
-            finish(new OfficialHostConfigError('CHILD_PROTOCOL_VIOLATION', '子宿主单行超过本通道自设上限'));
+            finish(observedFailure('CHILD_PROTOCOL_VIOLATION', '子宿主单行超过本通道自设上限'));
           }
           break;
         }
@@ -1206,40 +1419,45 @@ export async function runHostSession(
         buffer = buffer.slice(at + 1);
         const event = parseChildLine<HostChannelEvent>(line);
         if (event === null || typeof event !== 'object' || typeof (event as { type?: unknown }).type !== 'string') {
-          finish(new OfficialHostConfigError('CHILD_PROTOCOL_VIOLATION', '子宿主产出不是合法通道帧'));
+          finish(observedFailure('CHILD_PROTOCOL_VIOLATION', '子宿主产出不是合法通道帧'));
           return;
         }
         const typed = event as HostChannelEvent & { type: string };
         if (typed.type === 'ready') {
           ready = { bundle: typed.bundle, exports: typed.exports };
-          onEvent(typed);
+          observingOnEvent(typed);
           continue;
         }
         if (typed.type === 'failed') {
           // B5：子宿主 detail **先净化再进错误消息**。子宿主只做"截断"，不脱敏；
           // 脱敏在这一层做，因为它离原始文本最近、也最容易保证不被旁路。
-          finish(new OfficialHostConfigError('CHILD_EXITED', `子宿主报告失败 [${String(typed.code).slice(0, 64)}]：${sanitizeChildDetail(typed.detail)}`));
+          // k1：净化后的 detail 与 failed 帧原始 code 一并挂上错误——上游包装点
+          // （hostFailureApiError）据此做前缀精确匹配的 504 分流与人话追加，
+          // 不再从拼好的 message 里反推子码。
+          const sanitized = sanitizeChildDetail(typed.detail);
+          const childCode = String(typed.code).slice(0, 64);
+          finish(observedFailure('CHILD_EXITED', `子宿主报告失败 [${childCode}]：${sanitized}`, { childCode, childDetail: sanitized }));
           return;
         }
         if (typed.type === 'finish') {
-          onEvent(typed);
+          observingOnEvent(typed);
           finish(null, ready ?? { bundle: bundlePath, exports: [] });
           return;
         }
-        onEvent(typed);
+        observingOnEvent(typed);
       }
     });
 
     // 预置已 abort / 已退出的世界里 stdin 可能已被 reap 关掉：写前先查，写后再兜
     // 异步的 write-after-end（同步 try 只拦得住同步抛）。
     if (options.signal?.aborted === true) {
-      finish(new OfficialHostConfigError('CHILD_ABORTED', '客户端已断开，主动收束子宿主'));
+      finish(observedFailure('CHILD_ABORTED', '客户端已断开，主动收束子宿主'));
       return;
     }
     try {
       child.stdin?.write(frame(request));
     } catch (e) {
-      finish(new OfficialHostConfigError('CHILD_SPAWN_FAILED', `写子宿主 stdin 失败：${e instanceof Error ? e.message : 'unknown'}`));
+      finish(observedFailure('CHILD_SPAWN_FAILED', `写子宿主 stdin 失败：${e instanceof Error ? e.message : 'unknown'}`));
     }
   });
 }
@@ -1418,6 +1636,8 @@ export function createOfficialHostDriver(options: CreateOfficialHostDriverOption
       const queue: DriverEvent[] = [];
       let failure: Error | null = null;
       let pumpDone = false;
+      /** k1/k4：本会话的观察式计数器快照（成功取 resolve 值，失败取错误上挂的）。 */
+      let sessionObservation: HostSessionObservation | null = null;
 
       const run = runHostSession(
         {
@@ -1485,18 +1705,22 @@ export function createOfficialHostDriver(options: CreateOfficialHostDriverOption
       // 超时）都在这里被转成"该次请求失败"，绝不会以未捕获异常的形式逃出本生成器，
       // 更不会带走 API 服务进程。
       run.then(
-        () => {
+        (result) => {
+          sessionObservation = result.observation ?? null;
           pumpDone = true;
         },
         (e: unknown) => {
           failure = e instanceof Error ? e : new Error(String(e));
+          if (failure instanceof OfficialHostConfigError && failure.observation !== undefined) {
+            sessionObservation = failure.observation;
+          }
           pumpDone = true;
         }
       );
 
       while (!pumpDone || queue.length > 0) {
         if (failure !== null) {
-          throw new ApiError('upstream_outcome_unknown', `官方宿主会话失败：${(failure as Error).message}`, { driver: OFFICIAL_HOST_DRIVER_NAME });
+          throw hostFailureApiError(failure as Error);
         }
         const next = queue.shift();
         if (next !== undefined) {
@@ -1508,8 +1732,26 @@ export function createOfficialHostDriver(options: CreateOfficialHostDriverOption
           setTimeout(r, 4).unref?.();
         });
       }
+      // k4 第一步（纯观测，零行为改动）：把冷启动耗时拆成两段外发——
+      //  - `ready_ms`（spawn→ready 帧）≈ 外层 node 启动 + TS hook + imports + 子宿主自举；
+      //  - `first_output_ms`（spawn→首个 delta/reasoning）与之相减 ≈ 官方 app-server
+      //    spawn + session/create + 首 token。
+      // 第二步（外层暖备池）只有当实测外层占比 ≥1.5s 才做——那一步动 env 闭集与
+      // spawn 生命周期，不满足测量门槛就不实施。生产接法：start-api.mjs 的
+      // diagnostics 钩子（日志行前缀 `zcc-api official-host …`）。
+      if (diagnose !== undefined && sessionObservation !== null) {
+        // 闭包里赋值的变量在生成器流分析下会被收窄成 never——按本文件对 `failure`
+        // 的既有先例显式还原类型，行为零差异。
+        const o = sessionObservation as HostSessionObservation;
+        diagnose(
+          `official-host session outcome=${failure !== null ? 'failed' : 'ok'} stage=${o.stage}` +
+            ` ready_ms=${o.readyMs === null ? -1 : o.readyMs} first_output_ms=${o.firstOutputMs === null ? -1 : o.firstOutputMs}` +
+            ` delta_frames=${o.deltaFrames} reasoning_frames=${o.reasoningFrames} usage_frames=${o.usageFrames}` +
+            ` prompt_bytes=${o.promptBytes} stderr_bytes=${o.stderrBytes} elapsed_ms=${o.elapsedMs}`
+        );
+      }
       if (failure !== null) {
-        throw new ApiError('upstream_outcome_unknown', `官方宿主会话失败：${(failure as Error).message}`, { driver: OFFICIAL_HOST_DRIVER_NAME });
+        throw hostFailureApiError(failure as Error);
       }
       // 没有 usage 事件就是"上游没报"。**不在这里补一条**——server.ts 会报 `usage: null`。
     }

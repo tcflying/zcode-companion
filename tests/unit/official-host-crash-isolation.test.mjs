@@ -415,6 +415,159 @@ const catalog = /** @type {import('../../packages/api/src/chat.js').DriverCatalo
     expect(body).toContain('"providerId":"account:zai-start-plan"');
     expect(body).toContain('"thoughtLevel":"high"');
   });
+
+  /* ------------------------------------------------------------------ */
+  /* k1（2026-10-11）：stream_failed 十子类可判别                          */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * 以下全部走 fakeChild（`node -e` 一次性假子宿主）——零真实 bundle、零凭据、零发送。
+   * 钉的行为面：观察式计数器（stage/frames/prompt_bytes）、childCode 经
+   * OfficialHostConfigError 进 ApiError.detail 的扁平标量键、detail 前缀**精确**
+   * 匹配才触发的 504 分流、人话**追加**（绝不替换子宿主原始 detail）。
+   */
+
+  it('k1：failed 帧 SESSION_TIMEOUT 前缀 → 504 upstream_timeout + detail 扁平标量键 + 人话追加', async () => {
+    const script =
+      `process.stdout.write(JSON.stringify({zccHost:{type:'failed',code:'SESSION_FAILED',detail:'SESSION_TIMEOUT: 会话在墙钟上限内没有收到终态事件'}})+'\\n');`;
+    const driver = makeDriver(fakeChild(script));
+    /** @type {any} */
+    let caught;
+    try {
+      for await (const _ of driver.stream(request)) void _;
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeDefined();
+    // 504 分流：子宿主 detail 前缀精确命中才改码。
+    expect(caught.code).toBe('upstream_timeout');
+    expect(caught.status).toBe(504);
+    // 子宿主原始 detail 原样透出（人话只追加，绝不替换）。
+    expect(caught.message).toContain('SESSION_TIMEOUT: 会话在墙钟上限内没有收到终态事件');
+    expect(caught.message).toContain('人话：官方侧这一轮超时未完成');
+    // detail 扁平标量键（契约层 sanitizeDetail 只拒嵌套/凭据样式值）。
+    expect(caught.detail.child_code).toBe('SESSION_FAILED');
+    expect(caught.detail.stage).toBe('before_ready'); // 未收到 ready 帧 → 纯观察式归位
+    expect(caught.detail.frames).toBe(0);
+    expect(typeof caught.detail.elapsed_ms).toBe('number');
+    expect(caught.detail.prompt_bytes).toBeGreaterThan(0);
+  });
+
+  it('k1：SESSION_SEND_REJECTED 前缀**不**触发 504 分流（宽匹配的回归锁）', async () => {
+    const script =
+      `process.stdout.write(JSON.stringify({zccHost:{type:'failed',code:'SESSION_FAILED',detail:'SESSION_SEND_REJECTED: code=-32603 回合中途被上游中止'}})+'\\n');`;
+    const driver = makeDriver(fakeChild(script));
+    /** @type {any} */
+    let caught;
+    try {
+      for await (const _ of driver.stream(request)) void _;
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught.code).toBe('upstream_outcome_unknown');
+    expect(caught.status).toBe(502);
+    expect(caught.message).toContain('SESSION_SEND_REJECTED');
+    expect(caught.message).toContain('code=-32603');
+    // 误把 SEND_REJECTED 判成超时会顶掉 stub-bundle 钉死的透传语义。
+    expect(caught.message).not.toContain('SESSION_TIMEOUT');
+    expect(caught.message).not.toContain('CHILD_TIMEOUT');
+  });
+
+  it('k1：ready 后零产出失败 → ready_no_output；有产出失败 → output_started + frames 计数', async () => {
+    const noOutputScript = [
+      `process.stdout.write(JSON.stringify({zccHost:{type:'ready',bundle:'s',exports:[]}})+'\\n');`,
+      `process.stdout.write(JSON.stringify({zccHost:{type:'failed',code:'BUNDLE_SPAWN_FAILED',detail:'官方 app-server 在会话期间异常终止（exit:1/null）'}})+'\\n');`
+    ].join('');
+    {
+      const driver = makeDriver(fakeChild(noOutputScript));
+      /** @type {any} */
+      let caught;
+      try {
+        for await (const _ of driver.stream(request)) void _;
+      } catch (e) {
+        caught = e;
+      }
+      // 内层 BUNDLE_SPAWN_FAILED 按 ready 已到自动归位 ready_no_output（纯观察式分类）。
+      expect(caught.detail.stage).toBe('ready_no_output');
+      expect(caught.detail.child_code).toBe('BUNDLE_SPAWN_FAILED');
+      expect(caught.code).toBe('upstream_outcome_unknown');
+      expect(caught.message).toContain('人话：官方 app-server 起不来');
+    }
+    {
+      const withOutputScript = [
+        `process.stdout.write(JSON.stringify({zccHost:{type:'ready',bundle:'s',exports:[]}})+'\\n');`,
+        `process.stdout.write(JSON.stringify({zccHost:{type:'reasoning',text:'思考'}})+'\\n');`,
+        `process.stdout.write(JSON.stringify({zccHost:{type:'delta',text:'a'}})+'\\n');`,
+        `process.stdout.write(JSON.stringify({zccHost:{type:'usage',promptTokens:1,completionTokens:1,usageMethod:'official_total_token_count'}})+'\\n');`,
+        `process.stdout.write(JSON.stringify({zccHost:{type:'failed',code:'SESSION_FAILED',detail:'SESSION_FAILED: boom'}})+'\\n');`
+      ].join('');
+      const driver = makeDriver(fakeChild(withOutputScript));
+      /** @type {any} */
+      let caught;
+      try {
+        for await (const _ of driver.stream(request)) void _;
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught.detail.stage).toBe('output_started');
+      expect(caught.detail.frames).toBe(3); // reasoning + delta + usage
+      expect(caught.detail.first_output_ms).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('k1 低配：stderr 的 ZCC_HOST_DEBUG 行有界进失败诊断，其余 stderr 仍只计数', async () => {
+    const script = [
+      `process.stderr.write('ZCC_HOST_DEBUG {"phaseDurationsMs":{"sessionCreate":482}}\\n');`,
+      `process.stderr.write(${JSON.stringify(STDERR_SENTINEL)});`,
+      `process.stdout.write(JSON.stringify({zccHost:{type:'failed',code:'SESSION_FAILED',detail:'SESSION_TIMEOUT: x'}})+'\\n');`
+    ].join('');
+    const driver = makeDriver(fakeChild(script));
+    /** @type {any} */
+    let caught;
+    try {
+      for await (const _ of driver.stream(request)) void _;
+    } catch (e) {
+      caught = e;
+    }
+    // 仅 ZCC_HOST_DEBUG 前缀行（我们自己写的零凭据 JSON）进诊断。
+    expect(String(caught.detail.child_debug)).toContain('ZCC_HOST_DEBUG {"phaseDurationsMs"');
+    expect(String(caught.detail.child_debug)).toContain('"sessionCreate":482');
+    // 无前缀的其余 stderr 内容仍然只计数：哨兵不出现在任何出口。
+    expect(String(caught.detail.child_debug)).not.toContain(STDERR_SENTINEL);
+    expect(caught.message).not.toContain(STDERR_SENTINEL);
+  });
+
+  it('k4 第一步：成功路径经 diagnostics 线外发分段计时（spawn→ready / ready→首产出）', async () => {
+    const script = [
+      `process.stdout.write(JSON.stringify({zccHost:{type:'ready',bundle:'s',exports:[]}})+'\\n');`,
+      `process.stdout.write(JSON.stringify({zccHost:{type:'delta',text:'x'}})+'\\n');`,
+      `process.stdout.write(JSON.stringify({zccHost:{type:'usage',promptTokens:1,completionTokens:1,usageMethod:'official_total_token_count'}})+'\\n');`,
+      `process.stdout.write(JSON.stringify({zccHost:{type:'finish',reason:'stop'}})+'\\n');`
+    ].join('');
+    /** @type {string[]} */
+    const lines = [];
+    const driver = createOfficialHostDriver({
+      descriptor,
+      catalog,
+      servableModels: servable,
+      reasoning: 'high',
+      spawnChild: fakeChild(script),
+      bundlePath: BUNDLE_PATH,
+      timeoutMs: 3000,
+      deriveEntitled: entitledDeriver(true),
+      diagnostics: (line) => lines.push(line)
+    });
+    const out = [];
+    for await (const e of driver.stream(request)) out.push(e);
+    expect(out.some((e) => e.type === 'finish')).toBe(true);
+    const line = lines.find((l) => l.includes('official-host session outcome=ok'));
+    expect(line).toBeDefined();
+    expect(line).toContain('stage=output_started');
+    expect(line).toMatch(/ready_ms=\d+/);
+    expect(line).toMatch(/first_output_ms=\d+/);
+    expect(line).toContain('delta_frames=1');
+    expect(line).toMatch(/prompt_bytes=\d+/);
+  });
 });
 
 describe('OFFICIAL-HOST thoughtLevel · fail-closed', () => {

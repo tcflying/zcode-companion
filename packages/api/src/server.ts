@@ -53,15 +53,18 @@ import {
   resolveIdempotencyOptIn,
   resolveSessionIdentity,
   verifyApiKey,
-  type IdempotencyOptIn
+  type IdempotencyOptIn,
+  type SessionIdentity
 } from './auth.js';
 import {
   SseBudget,
   STREAM_BUFFER_MAX_BYTES,
   catalogContractDefects,
+  conversationFingerprint,
   createUnavailableDriver,
   deriveModelIsReal,
   emitChunk,
+  errorFrame,
   maxTokensNotForwarded,
   maxTokensClampDisclosure,
   normalizedRequestHash,
@@ -152,6 +155,19 @@ export const API_SERVER_CONFIG_KEYS = [
  * 混用会让任一侧的淘汰语义悄悄改变对方的容量语义。
  */
 export const DEFAULT_JOURNAL_MAX_ENTRIES = 512;
+
+/**
+ * 每会话 lane 的并发 turn 上限（k3）：同一会话同时在途的 turn 最多 2 路，
+ * 第 3 路起确定性 429 `rate_limited`（`retry-after: 1`）。
+ *
+ * **为什么是常量而不是配置键**：全局并发上限（`maxConcurrent:4`）之外再加这层
+ * lane 闸，是为了把「某会话的重试风暴独占全部全局槽、其余会话全体 429」变成
+ * 「谁刷谁死自己」。它是**结构性的公平约束**，不是部署旋钮——开放成配置等于
+ * 允许把它调回 1（真客户端同会话合法并发被误拒）或调到 ∞（闸失效），
+ * 两种都背离这条闸存在的理由，因此不进 `API_SERVER_CONFIG_KEYS` 闭集。
+ * 上限取 2 而非 1：给同会话合法并发留一路余地。
+ */
+export const MAX_TURNS_PER_SESSION_LANE = 2;
 
 export interface ApiServerConfig {
   /** 缺省关闭。必须显式 `enabled: true` 才会监听。 */
@@ -303,6 +319,21 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
   const journalMaxEntries = config.journalMaxEntries ?? DEFAULT_JOURNAL_MAX_ENTRIES;
 
   const operations = new Map<string, StoredOperation>();
+  /**
+   * 每会话 lane 的在途计数（k3）：laneKey → 该会话当前占用的 turn 数。
+   * 归零即删键（引用计数，opencodex `lifecycle.ts` 的 lane 同款），
+   * 长跑进程里会话数无上限，不删键就是慢性泄漏。
+   */
+  const sessionLanes = new Map<string, number>();
+  /**
+   * 请求级注记（k5，痛点②/③）：`prompt_bytes`（parsed.messages 序列化字节数，
+   * **只数不存**，同下方 `reqBytes` 先例）与对话指纹（k3 lane 同一个
+   * `conversationFingerprint` 单一助手，防止两处各算一套哈希漂移）。
+   * `runChat` 写入；两条 `event=operation` 日志与 `requestListener` 的
+   * `event=request` 行尾读取——压缩复核探针（scripts/compression-verify.mjs）
+   * 靠这两个字段按会话分组出「每轮请求体积趋势」。WeakMap 键随请求对象回收。
+   */
+  const requestNotes = new WeakMap<http.IncomingMessage, { readonly sessionFp: string; readonly promptBytes: number }>();
   const sockets = new Set<Socket>();
   let replayBytes = 0;
   let inFlight = 0;
@@ -369,6 +400,42 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       'retry-after': String(Math.max(1, Math.ceil(verdict.retryAfterMs / 1000))),
       ...rateLimitHeaders(verdict)
     });
+
+  /* ------------------------------------------------------------------ */
+  /* 每会话 lane 准入（k3）                                               */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * lane 超限的 429：复用 {@link rateLimitError} 的形状（`rate_limited` 码 +
+   * `retry-after: 1`，errors.ts:123 那一行 spec），`detail.reason` 标
+   * `session_lane` 以便与全局并发超限区分分诊。重试是**可退避的**：mmx 对
+   * 429+Retry-After 的形状已知会退避（opencodex `index.ts:900-931` 同判）。
+   */
+  const sessionLaneLimitError = (): ApiError =>
+    new ApiError(
+      'rate_limited',
+      `同一会话的并发 turn 超过上限（每会话同时 ${MAX_TURNS_PER_SESSION_LANE} 路），已直接拒绝（不排队）：请等该会话在途请求收尾后重试`,
+      { reason: 'session_lane', limit: MAX_TURNS_PER_SESSION_LANE }
+    ).withHeaders({ 'retry-after': '1' });
+
+  /** 占用一个 lane 坑位。超出 {@link MAX_TURNS_PER_SESSION_LANE} 返回 `false`（同步判定、不排队）。 */
+  const acquireSessionLane = (laneKey: string): boolean => {
+    const current = sessionLanes.get(laneKey) ?? 0;
+    if (current >= MAX_TURNS_PER_SESSION_LANE) return false;
+    sessionLanes.set(laneKey, current + 1);
+    return true;
+  };
+
+  /**
+   * 归还一个 lane 坑位，归零即删键。幂等：对不存在的键归还不报错
+   * （`stop()` 清表后，在途请求的 finally 仍会走到这里）。
+   */
+  const releaseSessionLane = (laneKey: string): void => {
+    const current = sessionLanes.get(laneKey);
+    if (current === undefined) return;
+    if (current <= 1) sessionLanes.delete(laneKey);
+    else sessionLanes.set(laneKey, current - 1);
+  };
 
   /**
    * `journal.reserve` 的拒绝原因 → 具体 `ApiError`。
@@ -707,6 +774,60 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
   ): Promise<void> => {
     const operationId = `${OPERATION_ID_PREFIX}${randomUUID()}`;
     const bodyHash = normalizedRequestHash(parsed);
+    /**
+     * **每会话 lane 准入**（k3，痛点⑤）。放在 runChat 开头而不是 `handleChat`
+     * 认证后（:678 一带），因为回落键要 `parseChatRequest` 之后才有——
+     * `messages` 前缀指纹非空由解析器保证，这里 parsed 已就绪。
+     *
+     * lane 键两级：`x-zcc-*` 会话头的 `sessionKey` 优先（与下方会话闸门同一把键，
+     * 不另算一套）；无头客户端（mmx 的常态）回落 `conversationFingerprint(parsed)`
+     * ——`messages[0..1]` 前缀指纹，mmx 不发 zcc 头时这是唯一可用的会话维度，
+     * 砍掉即空转。两者至少其一恒可用（messages 非空是解析器硬保证），所以这条
+     * 闸对每个 chat 请求都能判定，不存在「编一个会话号」的诚实边界问题。
+     *
+     * 全局 `maxConcurrent`（缺省 4）仍是总闸：本层只把「任一会话的重试风暴
+     * 独占全部全局槽」变成「谁刷谁死自己」的公平拒绝。超限抛既有码
+     * `rate_limited`（429 + retry-after:1，见 {@link sessionLaneLimitError}），
+     * 被拒请求**不写幂等表、不写 journal、驱动器零调用**。
+     */
+    const session = resolveSessionIdentity(req.headers, identity.keyFingerprint);
+    const laneKey = session !== null ? session.sessionKey : conversationFingerprint(parsed);
+    // k5：请求级注记落位（lane 准入之前/之后都无行为差异——纯观察字段）。
+    // prompt_bytes 是「全量历史序列化后的体积」，正是 mmx 压缩请求的真实形状口径。
+    requestNotes.set(req, {
+      sessionFp: conversationFingerprint(parsed),
+      promptBytes: Buffer.byteLength(JSON.stringify(parsed.messages), 'utf8')
+    });
+    if (!acquireSessionLane(laneKey)) {
+      // laneKey 是规范化哈希（sessionKey 本就是、指纹也是），不含原始身份/正文。
+      logger.warn(
+        `event=session_lane_limited key=${identity.keyFingerprint} lane=${laneKey} limit=${MAX_TURNS_PER_SESSION_LANE}`
+      );
+      throw sessionLaneLimitError();
+    }
+    // 镜像 handleChat 对 rateLimiter.release 的纪律（:686-699）：获取在 try 之前，
+    // 释放覆盖其后**全部**路径——throw / client_gone / 正常返回 / abort 都对称释放；
+    // 漏一处即该会话永久占坑饿死（泄漏由契约测试钉住）。
+    try {
+      await runChatTurn(req, res, parsed, identity, operationId, bodyHash, session);
+    } finally {
+      releaseSessionLane(laneKey);
+    }
+  };
+
+  /** {@link runChat} 去掉 lane 准入后的完整 turn 生命周期（lane 由外层持有与释放）。 */
+  const runChatTurn = async (
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    parsed: ParsedChatRequest,
+    identity: RequestIdentity,
+    operationId: string,
+    bodyHash: string,
+    session: SessionIdentity | null
+  ): Promise<void> => {
+    // k5：本 turn 的请求级注记（runChat 已写入；字段缺席只是日志少两列，不影响行为）。
+    const chatNote = requestNotes.get(req);
+    const sessionFpFields = chatNote === undefined ? '' : ` prompt_bytes=${chatNote.promptBytes} session_fp=${chatNote.sessionFp}`;
     // **COMPAT1/C1：作用域存在与否由显式 opt-in 决定。**
     // `scope === null` 时：既不查表、也不登记、不比对 bodyHash、更不会 409——
     // 每次都是一次全新的 operation。这条路径**没有**任何共享状态，所以
@@ -816,7 +937,8 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
      * 这条闸门**不做任何判定**——我们不知道它属于哪个会话，编一个会话号会把
      * 会话锁定变成全局锁定。该边界在交付报告里如实列为未覆盖。
      */
-    const session = resolveSessionIdentity(req.headers, identity.keyFingerprint);
+    // `session` 已在 runChat 开头随 lane 准入一并解析并经参数传入（同一个
+    // 请求头集只产出同一个会话身份，这里不重复解析、不重复算键）。
     if (session !== null) {
       const pending = operationJournal.lookupSessionUnknown(session.sessionKey);
       if (pending !== undefined) {
@@ -924,8 +1046,10 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       if (delivery === 'client_gone') {
         if (stored !== null) stored.state = 'done';
         operationJournal.settle(operationId, 'unknown', 'client_disconnected_midstream');
+        // k5：断流轮次也带 prompt_bytes/session_fp——只加 200 那条会丢掉断流轮次的
+        // 分组（评审指出），压缩趋势正好最关心「断流后重试的那一轮」有多大。
         logger.warn(
-          `event=operation key=${identity.keyFingerprint} operation=${operationId} status=client_gone stream=${String(parsed.stream)} idempotency=${idempotencyLabel(scope)}`
+          `event=operation key=${identity.keyFingerprint} operation=${operationId} status=client_gone stream=${String(parsed.stream)} idempotency=${idempotencyLabel(scope)}${sessionFpFields}`
         );
         return;
       }
@@ -934,8 +1058,9 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
       // 终态写 journal：已成功是**确定结果**，不占「不可知」的豁免额度。
       operationJournal.settle(operationId, 'done');
       // 每个 operation 恰好一条带指纹的日志：key 只以 zcc-fp:* 形式出现。
+      // k5：行尾追加 prompt_bytes/session_fp（新字段一律行尾，不破坏既有列序）。
       logger.info(
-        `event=operation key=${identity.keyFingerprint} operation=${operationId} status=200 stream=${String(parsed.stream)} fixture=${String(driver.fixture)} idempotency=${idempotencyLabel(scope)}`
+        `event=operation key=${identity.keyFingerprint} operation=${operationId} status=200 stream=${String(parsed.stream)} fixture=${String(driver.fixture)} idempotency=${idempotencyLabel(scope)}${sessionFpFields}`
       );
     } catch (e) {
       const err = toApiError(e);
@@ -969,11 +1094,56 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
         logger.warn(`event=journal_settle_failed operation=${operationId} code=${err.code} state=${settlement}`);
       }
       if (res.headersSent) {
-        // 流已开始，改不了状态码：如实销毁连接，不静默截断成"看起来成功"。
-        res.destroy();
+        // 流已开始，改不了状态码（k2）。旧实现裸 `res.destroy()`——对 mmx 是
+        // ERR_INCOMPLETE_CHUNKED_ENCODING 的半截流，用户看不到任何失败原因
+        //（2026-10-11 hypit 实录的正是这个形态）。改为：**恰一帧**可解析的
+        // error 终态 + 干净收尾：
+        //  - 不发 [DONE]、不发 finish_reason=stop——那是"成功完成"的形状，失败
+        //    必须与提前完成可分辨（opencodex outbound.ts:659-666：非正常 reason
+        //    一律 fail 而非 finish；:702-705 EOF → error 帧后不发 [DONE]）；
+        //  - 帧载荷由 errors.ts 的 sseErrorPayload 单口产出（凭据出口处强制、
+        //    message ≤512 字符、构造失败落静态兜底『上游流异常终止』），单帧
+        //    自带有界，**不走 SseBudget**——预算实例是 writeSseStream 的局部量，
+        //    本 catch 够不着它，这一帧也无需预算：它就是最后一帧；
+        //  - 心跳已在 writeSseStream 的 finally 清掉，不会与这帧交错；幂等
+        //    replay 仍只在成功路径 commitReplay，error 帧不会混进重放缓存。
+        const frame = errorFrame(
+          {
+            id: operationId,
+            object: 'chat.completion.chunk',
+            created: Math.floor(now() / 1000),
+            model: parsed.model,
+            zcc: zccBlock('not_reported', parsed)
+          },
+          err
+        );
+        let tail: 'error_frame' | 'destroyed';
+        if (res.destroyed || res.writableEnded || !res.writable) {
+          // 客户端已断开 / 响应不可写：退回既有兜底——如实销毁连接，
+          // 不静默截断成"看起来成功"。
+          res.destroy();
+          tail = 'destroyed';
+        } else {
+          try {
+            // write 的字节按写序先于 end 落线（Node 保证 end 前冲刷在途写）。
+            res.write(frame);
+            res.end();
+            tail = 'error_frame';
+          } catch {
+            // 写帧抛二次异常（半死连接）：同样退回销毁，不因收尾动作再抛。
+            res.destroy();
+            tail = 'destroyed';
+          }
+        }
         // 详情截断带上（2026-10-11）：只靠 code 分不清"官方 turn 失败"的十种子类；
         // message 已是 sanitize 过的驱动器错误（凭据不进消息），截 200 字防刷屏。
-        logger.warn(`event=stream_failed key=${identity.keyFingerprint} operation=${operationId} code=${err.code} detail=${String(err.message).slice(0, 200)}`);
+        // tail 标记本次失败以何种方式收尾（发帧 / 销毁），运维分诊用。
+        // k1：行尾再附 detail JSON——child_code/stage/frames/first_output_ms/elapsed_ms/
+        // prompt_bytes 等扁平标量键（errors.ts 的 sanitizeDetail 出口已剥凭据样式值）
+        // 在这里落进失败日志，stream_failed 的十个子类从此可判别；新字段一律行尾。
+        logger.warn(
+          `event=stream_failed key=${identity.keyFingerprint} operation=${operationId} code=${err.code} tail=${tail} detail=${String(err.message).slice(0, 200)} detail_json=${JSON.stringify(err.detail)}`
+        );
       } else {
         sendError(res, err);
         logger.warn(`event=rejected key=${identity.keyFingerprint} code=${err.code} status=${err.status}`);
@@ -1372,8 +1542,11 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
           logger.warn(`event=rejected path=${urlPath} code=${err.code} status=${err.status}`);
         }
       } finally {
+        // k5：chat 请求行尾附会话指纹（runChat 写入的注记；非 chat 路径无此字段），
+        // 让 compression-verify 探针能把 event=request 的 bytes= 按会话分组。
+        const chatNote = requestNotes.get(req);
         logger.info(
-          `event=request path=${urlPath} method=${req.method ?? ''} status=${res.statusCode} ms=${now() - startedAt} bytes=${reqBytes} in_flight=${inFlight}`
+          `event=request path=${urlPath} method=${req.method ?? ''} status=${res.statusCode} ms=${now() - startedAt} bytes=${reqBytes} in_flight=${inFlight}${chatNote === undefined ? '' : ` session_fp=${chatNote.sessionFp}`}`
         );
       }
     })();
@@ -1441,6 +1614,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     if (target === null) {
       destroySockets();
       operations.clear();
+      sessionLanes.clear();
       replayBytes = 0;
       return { closed: true, timedOut: false };
     }
@@ -1462,6 +1636,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
     await closedPromise;
     destroySockets();
     operations.clear();
+    sessionLanes.clear();
     replayBytes = 0;
     logger.info(`event=stopped timed_out=${String(timedOut)}`);
     return { closed: true, timedOut };

@@ -273,6 +273,52 @@ export class ApiError extends Error {
 }
 
 /**
+ * SSE 失败终态帧里 `error.message` 的截断上限（512，opencodex `relay.ts`
+ * `MAX_TAIL_ERROR_MESSAGE_CHARS` 同值）。失败帧是**单帧自带有界**的，不走流预算。
+ */
+const SSE_ERROR_MESSAGE_MAX_CHARS = 512;
+
+/**
+ * 载荷构造失败时的**静态兜底**：不含任何来自错误的动态内容，保证客户端在
+ * 任何异常下都能拿到一个可解析的协议终态帧（opencodex `relay.ts`
+ * `buildFailedTailPayloadOrFallback` 同款纪律）。
+ */
+const SSE_ERROR_FALLBACK_PAYLOAD: Readonly<Record<string, unknown>> = Object.freeze({
+  error: Object.freeze({
+    message: '上游流异常终止',
+    type: API_ERROR_SPECS.upstream_outcome_unknown.type,
+    param: null,
+    code: 'upstream_outcome_unknown'
+  })
+});
+
+/**
+ * SSE 失败终态帧的载荷工厂（k2）。流中途失败时发给客户端的那一帧
+ * `data: {"error":{…}}` 的载荷**只能**由本函数产出：
+ *  - message 复用上面**私有**的 {@link sanitizeMessage}（凭据样式整条落省略文案），
+ *    保持本文件头注释第 3 条「凭据出口处强制」的单一出口——不另行导出
+ *    sanitizeMessage，调用方无从绕过；
+ *  - `type` / `code` 取自 {@link API_ERROR_SPECS}，与 JSON 错误体同一张表；
+ *  - message 截 {@link SSE_ERROR_MESSAGE_MAX_CHARS} 字符；
+ *  - 构造期任何异常（含敌意 getter）都落静态兜底 {@link SSE_ERROR_FALLBACK_PAYLOAD}。
+ */
+export function sseErrorPayload(err: ApiError): Readonly<Record<string, unknown>> {
+  try {
+    const spec = API_ERROR_SPECS[err.code] ?? API_ERROR_SPECS.internal_error;
+    return {
+      error: {
+        message: sanitizeMessage(err.message).slice(0, SSE_ERROR_MESSAGE_MAX_CHARS),
+        type: spec.type,
+        param: err.param,
+        code: err.code
+      }
+    };
+  } catch {
+    return SSE_ERROR_FALLBACK_PAYLOAD;
+  }
+}
+
+/**
  * 把任意抛出物转成 `ApiError`。**驱动器抛出的错误永远不被当成 `internal_error`**
  * 静默吞掉：能识别就按识别到的码走，识别不到就落到
  * `upstream_outcome_unknown`（投递结果不可知），因为那才是"来源不明"的诚实结论。

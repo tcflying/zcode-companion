@@ -16,6 +16,10 @@
  *  - 未知字段 400、已知但不支持的参数/角色 422、非法 JSON 400、超长 413
  *  - 上游缺席时 chat 503 且响应体不含任何模型内容、不含 usage
  *  - fixture 模式流式与非流式真实可用，内容确由 fixture 产生，SSE 以 [DONE] 结束
+ *  - 官方侧流中途失败（k2）：恰一帧可解析 data:{"error":…}、无 [DONE]、无
+ *    finish_reason=stop、连接干净收尾；凭据样式消息整条省略、message 截 512
+ *  - 每会话 lane 并发准入（k3）：同一会话（头键或对话前缀指纹）并发第 3 路
+ *    确定性 429，失败/断开路径对称释放不占坑
  *  - 优雅关闭：停止接受新连接、在途有界收束、timer/listener 全部回收
  */
 import { describe, it, expect } from 'vitest';
@@ -31,7 +35,8 @@ import {
   FIXTURE_TEST_TOKEN,
   API_SERVER_CONFIG_KEYS,
   IDEMPOTENCY_RESPONSE_VALUES,
-  CATALOG_PATH
+  CATALOG_PATH,
+  MAX_TURNS_PER_SESSION_LANE
 } from '../../packages/api/src/server.js';
 import {
   generateApiKey,
@@ -67,6 +72,7 @@ import {
   TOOLS_FORWARDED_NONE,
   foldMessagesToPrompt,
   collectFoldedPromptRoles,
+  conversationFingerprint,
   normalizedRequestHash,
   parseChatRequest
 } from '../../packages/api/src/chat.js';
@@ -549,6 +555,176 @@ describe('API01 本机 API · 限流', () => {
     } finally {
       await h.server.stop();
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* 4a. 每会话 lane 并发准入（k3）                                              */
+/* -------------------------------------------------------------------------- */
+
+describe('API01 本机 API · 每会话 lane 并发准入（k3）', () => {
+  it('同一会话（x-zcc-* 头 + 换新幂等键的重试风暴）：第 3 路并发被 429 拒，别会话不受牵连', async () => {
+    const h = await startServer({
+      driver: createFixtureDriver({ chunkDelayMs: 80 }),
+      rateLimit: { maxConcurrent: 8, requests: 200, windowMs: 60_000 }
+    });
+    try {
+      const send = (/** @type {string} */ session, /** @type {string} */ key) =>
+        authed({
+          port: h.port,
+          headers: { 'x-zcc-session-id': session, 'idempotency-key': key },
+          body: { model: FIXTURE_MODEL_ID, messages: [{ role: 'user', content: 'lane-storm' }] }
+        });
+      // 前两路在途。换新幂等键 = 各自独立作用域，作用域级守卫打不中——
+      // 这正是 929.md:347「换新 key 重试穿透」的形态，只能靠会话 lane 拦。
+      const r1 = send('lane-a', 'storm-1');
+      const r2 = send('lane-a', 'storm-2');
+      await new Promise((r) => setTimeout(r, 30)); // 让前两路真正进入 runChat（过 parse 与 lane 获取）
+      const r3 = await send('lane-a', 'storm-3');
+      expect(r3.status).toBe(429);
+      expect(errorCode(parseJson(r3.text))).toBe('rate_limited');
+      expect(Number(header(r3.headers, 'retry-after'))).toBe(1);
+      // detail.reason 区分 lane 维度与全局并发超限（分诊不混淆）。
+      expect(parseJson(r3.text).zcc_error.detail.reason).toBe('session_lane');
+      // 别会话照常放行：lane 之间不互相踩踏——「谁刷谁死自己」换来的公平。
+      const r4 = await send('lane-b', 'storm-4');
+      expect(r4.status).toBe(200);
+      const [a, b] = await Promise.all([r1, r2]);
+      expect(a.status).toBe(200);
+      expect(b.status).toBe(200);
+      // 被拒的一路没有副作用：不写幂等表（只有 r1/r2/r4 三条登记）。
+      expect(h.server.diagnostics.idempotencyEntries).toBe(3);
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('无头客户端（mmx 形态）回落对话前缀指纹：同前缀第 3 路并发 429，换首条消息的别对话放行', async () => {
+    const h = await startServer({
+      driver: createFixtureDriver({ chunkDelayMs: 80 }),
+      rateLimit: { maxConcurrent: 8, requests: 200, windowMs: 60_000 }
+    });
+    try {
+      const conv = (/** @type {string} */ first, /** @type {string} */ tail) => ({
+        model: FIXTURE_MODEL_ID,
+        messages: [
+          { role: 'user', content: first },
+          { role: 'assistant', content: 'ack' },
+          { role: 'user', content: tail }
+        ],
+        stream: true
+      });
+      // 三条 body 互不相同（尾部逐条不同）但共享同一对话前缀 messages[0..1] → 同一 lane。
+      // 这一条同时证明 lane 键取的是前缀指纹而不是全量 bodyHash。
+      const r1 = authed({ port: h.port, body: conv('conv-open-1', 't1') });
+      const r2 = authed({ port: h.port, body: conv('conv-open-1', 't2') });
+      await new Promise((r) => setTimeout(r, 30));
+      const r3 = await authed({ port: h.port, body: conv('conv-open-1', 't3') });
+      expect(r3.status).toBe(429);
+      expect(errorCode(parseJson(r3.text))).toBe('rate_limited');
+      expect(parseJson(r3.text).zcc_error.detail.reason).toBe('session_lane');
+      // 首条消息不同 = 另一个对话 = 另一条 lane，照常放行。
+      const r4 = await authed({ port: h.port, body: conv('conv-open-OTHER', 't4') });
+      expect(r4.status).toBe(200);
+      const [a, b] = await Promise.all([r1, r2]);
+      expect(a.status).toBe(200);
+      expect(b.status).toBe(200);
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('lane 释放覆盖失败与客户端断开路径：失败/断开后同对话可立即再并发 2 路（无占坑饿死）', async () => {
+    let calls = 0;
+    const inner = createFixtureDriver({ chunkDelayMs: 40 });
+    const failingThenFine = {
+      ...inner,
+      /** @param {import('../../packages/api/src/chat.js').DriverRequest} req */
+      async *stream(req) {
+        calls += 1;
+        if (calls === 1) {
+          yield { type: 'delta', text: 'LEAK_PROBE_BEFORE_FAIL' };
+          throw new Error('lane leak probe failure');
+        }
+        yield* inner.stream(req);
+      }
+    };
+    const h = await startServer({
+      driver: failingThenFine,
+      rateLimit: { maxConcurrent: 8, requests: 200, windowMs: 60_000 }
+    });
+    // 所有请求共享同一对话前缀（前两条固定）→ 同一 lane。
+    const conv = (/** @type {string} */ tail) => ({
+      model: FIXTURE_MODEL_ID,
+      messages: [
+        { role: 'user', content: 'leak-conv-open' },
+        { role: 'assistant', content: 'ack' },
+        { role: 'user', content: tail }
+      ],
+      stream: true
+    });
+    try {
+      // (a) 驱动器中途抛错（k2 使其干净收尾）→ lane 必须随 catch 释放。
+      const failed = await authed({ port: h.port, body: conv('fail-me') });
+      expect(failed.status).toBe(200);
+      expect(failed.text).toContain('"error"');
+      const afterFail = await Promise.all([authed({ port: h.port, body: conv('a') }), authed({ port: h.port, body: conv('b') })]);
+      // 失败路径若漏释放，lane 计数停在 1，这两路里的第二路会 429。
+      expect(afterFail.map((r) => r.status)).toEqual([200, 200]);
+
+      // (b) 客户端中途断开（client_gone 路径）→ lane 必须随收尾释放。
+      await new Promise((resolve) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: h.port,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: { authorization: `Bearer ${h.key}`, 'content-type': 'application/json' }
+          },
+          (res) => {
+            res.on('data', () => res.destroy());
+            res.on('close', () => resolve(undefined));
+          }
+        );
+        req.on('error', () => resolve(undefined));
+        req.end(JSON.stringify(conv('abort-me')));
+      });
+      await new Promise((r) => setTimeout(r, 100)); // 等服务端把断开收尾跑完（client_gone → 释放）
+      expect(h.server.diagnostics.inFlight).toBe(0);
+      const afterAbort = await Promise.all([authed({ port: h.port, body: conv('c') }), authed({ port: h.port, body: conv('d') })]);
+      // 断开路径若漏释放，这里同样会 429（该会话从此永久占坑饿死）。
+      expect(afterAbort.map((r) => r.status)).toEqual([200, 200]);
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('conversationFingerprint：键取 messages[0..1] 前缀（k3/k5 共享助手，不许两处漂移）；lane 上限常量钉死', () => {
+    const parsedOf = (/** @type {unknown[]} */ messages) => parseChatRequest({ model: 'm', messages });
+    const a = parsedOf([
+      { role: 'user', content: 'open' },
+      { role: 'assistant', content: 'ack' },
+      { role: 'user', content: 'tail-1' }
+    ]);
+    const b = parsedOf([
+      { role: 'user', content: 'open' },
+      { role: 'assistant', content: 'ack' },
+      { role: 'user', content: 'tail-2-different' }
+    ]);
+    const c = parsedOf([
+      { role: 'user', content: 'DIFFERENT-open' },
+      { role: 'assistant', content: 'ack' },
+      { role: 'user', content: 'tail-1' }
+    ]);
+    // 尾部（第 3 条及以后）不参与：同前缀逐轮追加仍是同一个键。
+    expect(conversationFingerprint(a)).toBe(conversationFingerprint(b));
+    // 首条变了才换键。
+    expect(conversationFingerprint(a)).not.toBe(conversationFingerprint(c));
+    // 单轮对话（mmx 首轮形态）也能取键：messages 非空由解析器保证。
+    expect(typeof conversationFingerprint(parsedOf([{ role: 'user', content: 'solo' }]))).toBe('string');
+    // 上限常量精确钉死：改它必须先撞红这里（真客户端同会话合法并发只留一路余地）。
+    expect(MAX_TURNS_PER_SESSION_LANE).toBe(2);
   });
 });
 
@@ -1327,6 +1503,86 @@ describe('API01 本机 API · 请求体 schema', () => {
       });
       expect(res.status).toBe(413);
       expect(errorCode(parseJson(res.text))).toBe('payload_too_large');
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('k5：多消息形态 ≈12.6MB 合法体（126×100K 字符）端到端 200 + 流式帧完整 + 双行日志字段', async () => {
+    // 旧 413 负向门只证明「拒得掉」，不证明「放得行」。单条 12MiB message 构造不出来
+    // （MAX_CONTENT_CHARS=100_000 直接 payload_too_large），所以用 **多消息历史**
+    // （126 条 × 100K 字符，≤ MAX_MESSAGES=256）——这恰好也是 mmx 压缩请求的真实
+    // 形状：全量历史序列化（opencodex #3573 同款教训：跨过上限线的请求恰恰是
+    // 压缩请求本身）。
+    const h = await startServer({ driver: createFixtureDriver() });
+    try {
+      const fill = 'x'.repeat(100_000); // 每条恰好顶到 MAX_CONTENT_CHARS（含在界内）
+      const messages = Array.from({ length: 126 }, (_, i) => ({
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: fill
+      }));
+      const raw = Buffer.from(
+        JSON.stringify({ model: FIXTURE_MODEL_ID, messages, stream: true, stream_options: { include_usage: true } }),
+        'utf8'
+      );
+      // 真的跨过旧 1MiB 界一个数量级，且仍在 16MiB 界内。
+      expect(raw.length).toBeGreaterThan(11 * 1024 * 1024);
+      expect(raw.length).toBeLessThanOrEqual(REQUEST_BODY_MAX_BYTES);
+      const res = await authed({
+        port: h.port,
+        raw,
+        headers: { 'content-type': 'application/json', 'x-zcc-session-id': 'k5-bigbody-1' }
+      });
+      expect(res.status).toBe(200);
+      // 流式帧完整：首帧 role、至少一个增量、[DONE] 收尾。
+      expect(res.text.startsWith('data: ')).toBe(true);
+      expect(res.text).toContain('data: [DONE]');
+      const dataLines = res.text.split('\n').filter((l) => l.startsWith('data: '));
+      expect(dataLines.length).toBeGreaterThanOrEqual(3);
+      expect(JSON.parse(String(dataLines[0]).slice(6)).choices[0].delta.role).toBe('assistant');
+      // 两条日志都带新字段（行尾追加，不破坏既有列序）：
+      //  - event=operation（200）：prompt_bytes 与 session_fp（与 k3 lane 同一助手）；
+      //  - event=request：行尾 session_fp（bytes= 已有，探针按它分组）。
+      const expectedFp = conversationFingerprint(parseChatRequest(JSON.parse(raw.toString('utf8'))));
+      const expectedPromptBytes = Buffer.byteLength(JSON.stringify(messages), 'utf8');
+      const opLine = h.logs.find((l) => l.includes('event=operation') && l.includes('status=200'));
+      expect(opLine).toBeDefined();
+      expect(opLine).toContain(` prompt_bytes=${String(expectedPromptBytes)}`);
+      expect(opLine).toContain(` session_fp=${expectedFp}`);
+      const reqLine = h.logs.find((l) => l.includes('event=request') && l.includes('path=/v1/chat/completions'));
+      expect(reqLine).toBeDefined();
+      expect(reqLine).toContain(` session_fp=${expectedFp}`);
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('k1：stream_failed 日志行尾带 detail_json（扁平标量键可机读，子类可判别）', async () => {
+    // 驱动器半途抛错 + 流式：headersSent 后走 stream_failed 分支。断言行尾的
+    // detail_json= 是合法 JSON（toApiError 的 detail：{driver_error_name}），
+    // official-host 真实路径上它会携带 child_code/stage/frames/… 等键
+    // （那部分由 tests/unit/official-host-crash-isolation.test.mjs 的 k1 用例钉住）。
+    const failing = {
+      ...createFixtureDriver(),
+      async *stream() {
+        yield { type: 'delta', text: '部分产出' };
+        throw new Error('驱动器半途失败（测试合成，非真实上游）');
+      }
+    };
+    const h = await startServer({ driver: failing });
+    try {
+      const res = await authed({
+        port: h.port,
+        body: { model: FIXTURE_MODEL_ID, messages: [{ role: 'user', content: 'x' }], stream: true },
+        headers: { 'x-zcc-session-id': 'k1-detailjson-1' }
+      });
+      expect(res.status).toBe(200); // SSE 已开流，状态码改不了；失败以错误帧收尾（k2）
+      const line = h.logs.find((l) => l.includes('event=stream_failed'));
+      expect(line).toBeDefined();
+      const at = String(line).indexOf('detail_json=');
+      expect(at).toBeGreaterThan(-1);
+      const detailJson = JSON.parse(String(line).slice(at + 'detail_json='.length));
+      expect(detailJson.driver_error_name).toBe('Error');
     } finally {
       await h.server.stop();
     }
@@ -2782,6 +3038,112 @@ describe('API01 本机 API · fixture 驱动器', () => {
       await new Promise((r) => setTimeout(r, 80));
       expect(h.server.diagnostics.inFlight).toBe(0);
       expect(h.server.diagnostics.trackedSockets).toBe(0);
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  /* ---------------------------------------------------------------------- */
+  /* k2：官方侧流中途失败 → 恰一帧可解析 error 终态，替代裸 destroy            */
+  /* ---------------------------------------------------------------------- */
+
+  it('k2：驱动器中途抛错 → 客户端恰收一帧 data:{"error":…}、无 [DONE]、无 finish_reason=stop、连接干净收尾', async () => {
+    const FAILURE_MARKER = 'MIDSTREAM_FAILURE_MARKER_5c91';
+    const inner = createFixtureDriver();
+    const driver = {
+      ...inner,
+      /** @param {import('../../packages/api/src/chat.js').DriverRequest} req */
+      async *stream(req) {
+        yield { type: 'delta', text: 'PARTIAL_BEFORE_FAILURE_8f02' };
+        throw new Error(FAILURE_MARKER);
+      }
+    };
+    const h = await startServer({ driver });
+    try {
+      // request() 的 promise 只在 res 'end' 才 resolve——能拿到完整响应本身就是
+      // 「连接干净收尾」的证明（旧实现的裸 destroy 走 aborted，promise 会 reject 或挂住）。
+      const res = await authed({ port: h.port, headers: { 'x-zcc-session-id': 'sse-err-1' }, body: body({ stream: true }) });
+      // 头已随首帧以 200 发出，失败只能以 error 帧表达，不能改状态码。
+      expect(res.status).toBe(200);
+      expect(header(res.headers, 'content-type')).toContain('text/event-stream');
+      // 已推的正文帧仍在（部分产出对客户端可读，不是从零断流）。
+      expect(res.text).toContain('PARTIAL_BEFORE_FAILURE_8f02');
+      // 失败不是提前完成：没有 [DONE]，也没有成功形状的 finish_reason:"stop"。
+      expect(res.text).not.toContain('data: [DONE]');
+      expect(res.text).not.toContain('"finish_reason":"stop"');
+      const lines = res.text
+        .split('\n')
+        .filter((l) => l.startsWith('data: ') && l !== 'data: [DONE]');
+      // 恰一帧 error，且是最后一帧（失败终态之后不再有任何帧）。
+      const errorLines = lines.filter((l) => {
+        const parsed = JSON.parse(l.slice('data: '.length));
+        return parsed !== null && typeof parsed === 'object' && parsed.error !== undefined;
+      });
+      expect(errorLines.length).toBe(1);
+      expect(lines[lines.length - 1]).toBe(errorLines[0]);
+      const payload = JSON.parse(String(errorLines[0]).slice('data: '.length));
+      // toApiError 把驱动器异常收进 upstream_outcome_unknown；type 取自错误表同一行。
+      expect(payload.error.code).toBe('upstream_outcome_unknown');
+      expect(payload.error.type).toBe('api_error');
+      expect(payload.error.param).toBe(null);
+      expect(payload.error.message).toContain(FAILURE_MARKER);
+      // 收尾后无悬挂请求。
+      await new Promise((r) => setTimeout(r, 30));
+      expect(h.server.diagnostics.inFlight).toBe(0);
+      // 失败终态如实落日志，tail 标记这次是以 error 帧收尾（运维分诊入口）。
+      expect(h.logs.some((l) => l.includes('event=stream_failed') && l.includes('tail=error_frame'))).toBe(true);
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('k2：失败帧凭据红线——驱动器错误消息含凭据样式时整条落省略文案，凭据不进帧', async () => {
+    const SECRET = 'sk-abcdefghijklmnop1234567890'; // sk- 前缀 ≥8 位：CREDENTIAL_VALUE_PATTERNS 命中
+    const inner = createFixtureDriver();
+    const driver = {
+      ...inner,
+      /** @param {import('../../packages/api/src/chat.js').DriverRequest} req */
+      async *stream(req) {
+        throw new Error(`官方通道报错，附 key ${SECRET} 片段`);
+      }
+    };
+    const h = await startServer({ driver });
+    try {
+      const res = await authed({ port: h.port, headers: { 'x-zcc-session-id': 'sse-err-2' }, body: body({ stream: true }) });
+      expect(res.status).toBe(200);
+      // 整个响应体（含失败帧）不含凭据原文。
+      expect(res.text).not.toContain(SECRET);
+      const errorLine = res.text.split('\n').find((l) => l.startsWith('data: ') && l.includes('"error"'));
+      expect(errorLine).toBeDefined();
+      const payload = JSON.parse(String(errorLine).slice('data: '.length));
+      expect(payload.error.message).toBe('本机 API 拒绝了该请求（详情已因疑似凭据内容而省略）');
+    } finally {
+      await h.server.stop();
+    }
+  });
+
+  it('k2：失败帧 message 截 512 字符——超长驱动器错误不整段进帧', async () => {
+    const inner = createFixtureDriver();
+    const driver = {
+      ...inner,
+      /** @param {import('../../packages/api/src/chat.js').DriverRequest} req */
+      async *stream(req) {
+        // 用中文长文本制造 >512 字符的错误消息：纯 ASCII 长串会被
+        // looksLikeCredentialValue 的长 token 判据命中而整条省略（那是
+        // 凭据红线用例覆盖的行为，不是本用例要的东西）。
+        throw new Error(`持续性失败，细节如下：${'错误细节描述文字'.repeat(100)}`);
+      }
+    };
+    const h = await startServer({ driver });
+    try {
+      const res = await authed({ port: h.port, headers: { 'x-zcc-session-id': 'sse-err-3' }, body: body({ stream: true }) });
+      expect(res.status).toBe(200);
+      const errorLine = res.text.split('\n').find((l) => l.startsWith('data: ') && l.includes('"error"'));
+      expect(errorLine).toBeDefined();
+      const payload = JSON.parse(String(errorLine).slice('data: '.length));
+      // toApiError 前缀 + 600 字符 > 512：截断确实发生，且截后恰 512。
+      expect(payload.error.message.length).toBe(512);
+      expect(payload.error.message).toContain('上游驱动器异常');
     } finally {
       await h.server.stop();
     }

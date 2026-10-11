@@ -61,7 +61,7 @@
  *     （`ready` + 非 fixture + 确实列出了模型）→ true。目录同理：无上游是
  *     `{revision:'none', models:[]}`，绝不列占位条目。
  */
-import { ApiError } from './errors.js';
+import { ApiError, sseErrorPayload } from './errors.js';
 import { METADATA_MAX_BYTES, canonicalRequestHash } from './auth.js';
 
 /** SSE 单帧上限 2 MiB / 单次流累计上限 4 MiB（NDJSON 口径沿用到 SSE 传输）。 */
@@ -1728,6 +1728,26 @@ export function normalizedRequestHash(parsed: ParsedChatRequest): string {
   });
 }
 
+/**
+ * **对话指纹**（k3 会话 lane / k5 共用的单一助手）：`messages[0..1]` 前缀的
+ * 内容哈希，复用 {@link canonicalRequestHash} 的规范化（键序无关、值敏感）。
+ *
+ * ## 为什么是前两条而不是全量或首条
+ *  - **全量**：mmx 每轮追加历史，全量哈希每轮都换键，lane 判定形同虚设；
+ *  - **仅首条**：mmx 长会话 `messages[0]` 恒为同一份系统提示（同一工作区跨会话
+ *    共享），只哈希首条会把所有会话坍缩进一条 lane；
+ *  - **前两条**（系统提示 + 该会话首条 user 轮）在「同一会话逐轮追加」下稳定，
+ *    在「不同会话」间天然区分——正是 lane 需要的会话粒度。
+ *
+ * 已知取舍（如实记录）：客户端编辑历史**首条**消息会换 lane，只影响判定粒度，
+ * 不影响正确性（新前缀被当成新会话，仍受全局总闸约束）。**单一助手**：任何
+ * 需要"从请求体识别会话"的后续改动（k5）必须复用本函数，不许各算一套哈希，
+ * 防两处漂移。
+ */
+export function conversationFingerprint(parsed: ParsedChatRequest): string {
+  return canonicalRequestHash(parsed.messages.slice(0, 2).map((m) => ({ role: m.role, content: m.content })));
+}
+
 /* -------------------------------------------------------------------------- */
 /* SSE                                                                        */
 /* -------------------------------------------------------------------------- */
@@ -1762,6 +1782,22 @@ export interface SseFrameContext {
 
 export function sseFrame(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
+/**
+ * 流中途失败的**终态帧**（k2）：`data: {"error":{…}}\n\n`。
+ *
+ * 与 {@link sseFrame} 的分工：这里只做**帧文本**，载荷由 errors.ts 的
+ * {@link sseErrorPayload} 单口产出（凭据在出口处强制剥离、message ≤512 字符）。
+ * `ctx` 与 {@link emitChunk} 保持同形但**刻意不进帧**——OpenAI 流式错误形状只带
+ * `error` 对象，混进 chunk 字段（id/model/choices）会让客户端把它当 delta 解析。
+ *
+ * 调用方**不走 {@link SseBudget}**：预算实例是 `writeSseStream` 的局部量，失败
+ * 收尾路径（`runChat` 的 catch）够不着它，也不需要它——这一帧自带有界，且就是最后一帧。
+ */
+export function errorFrame(ctx: SseFrameContext, err: ApiError): string {
+  void ctx; // 同形占位：见上，错误帧不携带 chunk 上下文。
+  return sseFrame(sseErrorPayload(err));
 }
 
 export function sseDone(): string {
