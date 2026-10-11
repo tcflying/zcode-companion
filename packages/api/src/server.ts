@@ -1311,6 +1311,12 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
   const requestListener: http.RequestListener = (req, res) => {
     inFlight += 1;
     const startedAt = now();
+    // 请求体字节计数（2026-10-11）：只数不存。压缩是否真实生效的判据就是下一轮
+    // 请求体积是否骤降——没有这个数，每次都得靠临时抓包反代才能看清。
+    let reqBytes = 0;
+    req.on('data', (chunk: Buffer) => {
+      reqBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk, 'utf8') : chunk.length;
+    });
     let settled = false;
     const settle = (): void => {
       if (settled) return;
@@ -1365,7 +1371,7 @@ export function createApiServer(config: ApiServerConfig): ApiServer {
         }
       } finally {
         logger.info(
-          `event=request path=${urlPath} method=${req.method ?? ''} status=${res.statusCode} ms=${now() - startedAt} in_flight=${inFlight}`
+          `event=request path=${urlPath} method=${req.method ?? ''} status=${res.statusCode} ms=${now() - startedAt} bytes=${reqBytes} in_flight=${inFlight}`
         );
       }
     })();
